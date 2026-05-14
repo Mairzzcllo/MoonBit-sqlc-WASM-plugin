@@ -1,0 +1,21 @@
+id: P2-001
+title: MySQL 数据库支持
+priority: P2
+type: feature
+status: 待办
+description: 扩展 Type Mapping Layer 支持 MySQL 类型，验证 MySQL 查询生成
+dependencies:
+  hard:
+    - P0-006
+    - P0-007
+    - P0-008
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related: []

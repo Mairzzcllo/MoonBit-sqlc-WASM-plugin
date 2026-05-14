@@ -1,0 +1,29 @@
+# Environment
+.env
+.env.*
+!.env.template
+
+# Build
+target/
+build/
+dist/
+*.wasm
+!plugin/**/*.wasm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+vendor/
+
+# Logs
+*.log

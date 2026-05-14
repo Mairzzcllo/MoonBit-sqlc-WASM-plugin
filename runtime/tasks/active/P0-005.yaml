@@ -1,0 +1,21 @@
+id: P0-005
+title: MoonBit AST Definition
+priority: P0
+type: feature
+status: 待办
+description: 定义 MoonBit 抽象语法树类型（module、struct、enum、fn、type_alias、import 等节点）。AST 层不应包含任何 sqlc/IR 语义，仅表达 MoonBit 语言结构。与 P0-004 IR 保持严格单向依赖（IR → AST）。
+dependencies:
+  hard:
+    - P0-001
+  soft:
+    - P0-004
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related:
+  - ADR-005

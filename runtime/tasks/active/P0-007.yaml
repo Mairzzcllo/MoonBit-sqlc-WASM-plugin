@@ -1,0 +1,23 @@
+id: P0-007
+title: Type Mapping Layer
+priority: P0
+type: feature
+status: 待办
+description: PostgreSQL 类型（int4/int8/text/timestamptz/bool/numeric/jsonb 等）与 MoonBit 类型（Int/Int64/String/Bool/Float/JsonValue 等）的双向映射表。所有映射决策记录到 ADR-004 和 ADR-002。
+dependencies:
+  hard:
+    - P0-003
+  soft:
+    - P0-016
+    - P0-014
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related:
+  - ADR-002
+  - ADR-004

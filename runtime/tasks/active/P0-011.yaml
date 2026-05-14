@@ -1,0 +1,23 @@
+id: P0-011
+title: Golden Tests
+priority: P0
+type: test
+status: 待办
+description: 确定性输出验证测试套件。输入固定 sqlc CodeGenRequest 数据，验证输出 MoonBit 代码与 golden file 一致。Golden output 必须满足以下 Snapshot Policy：stable import ordering（按字母序）、stable field ordering（按 schema 声明序）、stable formatting（由 Emitter 保证）、stable newline policy（统一 LF）。
+dependencies:
+  hard:
+    - P0-006
+    - P0-008
+    - P0-009
+  soft:
+    - P0-017
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related:
+  - ADR-005

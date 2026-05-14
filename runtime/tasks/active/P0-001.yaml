@@ -1,0 +1,18 @@
+id: P0-001
+title: 项目脚手架搭建
+priority: P0
+type: infra
+status: 待办
+description: 搭建 monorepo 结构、MoonBit 构建配置、基础目录结构（plugin/、runtime/、examples/、tests/）
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related: []
