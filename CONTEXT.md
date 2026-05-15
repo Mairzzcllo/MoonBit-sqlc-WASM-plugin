@@ -4,9 +4,8 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: 规划完成，待开发
-- **当前任务**: P0-001 (项目脚手架搭建)
-- **最新事件**: /code P0-001 完成（monorepo scaffold + moon check ✅）
-- **当前任务**: P0-002 (sqlc WASM 插件协议实现)
+- **当前任务**: P0-020 (protocol.mbt: 4-byte LE framing + WASI 读写)
+- **最新事件**: /task P0-019 完成（codec.mbt + moon check ✅ + moon test 19/19 ✅）
 - **远程仓库**: https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
 
 ## 技术栈
@@ -60,6 +59,6 @@ sqlc → CodeGenRequest (protobuf)
 
 ## 任务进度
 
-- P0: 1/17 completed
+- P0: 3/22 completed
 - P1: 0/2 completed
 - P2: 0/1 completed

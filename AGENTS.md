@@ -26,6 +26,9 @@
    - 生成代码使用 `snake_case` 函数名，`PascalCase` 类型名
    - 所有生成函数文档注释使用标准 MoonBit doc comment 格式
    - Query 函数命名: `query_<表名>_<操作>` (如 `query_users_by_id`)
+   - protobuf 保留关键字 `type` 映射为 `ty`（避免 MoonBit 关键字冲突）
+   - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
+   - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
 
 ## 决策索引
 

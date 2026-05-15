@@ -6,16 +6,16 @@
 
 ## P0 — MVP 必经
 
-### [P0-002] sqlc WASM 插件协议实现
+### [P0-002] sqlc WASM 插件协议实现（umbrella）
 - 优先级: P0
 - 类型: feature
-- 状态: 待办
-- 描述: 实现 sqlc 的 WASM 插件接口规范，包括 CodeGenRequest/Response 的 protobuf 编解码、WASI 入口函数
+- 状态: 规划中
+- 描述: 实现 sqlc 的 WASM 插件接口规范。已拆分为 5 个子任务（P0-018 ~ P0-022），按顺序执行
 - 依赖: P0-001（hard）
 - 锁定: -
 - 重试: 0/3
 - 创建: 2026-05-14
-- 关联: -
+- 子任务: P0-018, P0-019, P0-020, P0-021, P0-022
 
 ### [P0-003] Protobuf Adapter Layer
 - 优先级: P0
@@ -172,6 +172,39 @@
 - 关联: -
 
 ### [P0-017] ADR: AST Stability Policy
+
+### [P0-020] P0-002c — protocol.mbt: 4-byte LE framing + WASI 读写
+- 优先级: P0
+- 类型: feature
+- 状态: 待办
+- 描述: stdio 协议层：read_message() 从 stdin 读, write_message() 向 stdout 写。4-byte LE 长度前缀 + 数据体
+- 依赖: P0-018（hard）
+- 锁定: -
+- 重试: 0/3
+- 创建: 2026-05-15
+- 关联: P0-002
+
+### [P0-021] P0-002d — main.mbt: 入口集成 + 错误处理
+- 优先级: P0
+- 类型: feature
+- 状态: 待办
+- 描述: 整合完整协议循环：read → decode → process → encode → write。含 abort + stderr 日志
+- 依赖: P0-019（hard），P0-020（hard）
+- 锁定: -
+- 重试: 0/3
+- 创建: 2026-05-15
+- 关联: P0-002
+
+### [P0-022] P0-002e — 单元测试
+- 优先级: P0
+- 类型: test
+- 状态: 待办
+- 描述: 单元测试：codec roundtrip、protocol framing 边界、无效输入 error handling
+- 依赖: P0-019（hard），P0-020（hard），P0-021（hard）
+- 锁定: -
+- 重试: 0/3
+- 创建: 2026-05-15
+- 关联: P0-002
 - 优先级: P0
 - 类型: research
 - 状态: 待办

@@ -12,3 +12,23 @@
 - 架构: 验证通过 — moon check 0 errors, moon build --target wasm 0 errors
 - 创建: 2026-05-14
 - 完成: 2026-05-15
+
+### [P0-018] P0-002a — types.mbt: sqlc 协议类型定义
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 定义 sqlc WASM 插件协议的所有 MoonBit 类型（GenerateRequest、GenerateResponse、Catalog、Schema、Table、Column、Query 等）
+- 依赖: P0-001（hard）
+- 架构: 验证通过 — moon check 0 errors, moon test 7/7 passed
+- 创建: 2026-05-15
+- 完成: 2026-05-15
+
+### [P0-019] P0-002b — codec.mbt: 手动 protobuf 编解码
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: plugin/codec.mbt — 手动 protobuf 编解码器（varint LEB128、length-delimited、嵌入消息）。decode_request → GenerateRequest、encode_response → GenerateResponse。使用 @encoding/utf8 处理 UTF-8 字符串
+- 依赖: P0-018（hard）
+- 架构: 验证通过 — moon check 0 errors, moon test 19/19 passed
+- 创建: 2026-05-15
+- 完成: 2026-05-15

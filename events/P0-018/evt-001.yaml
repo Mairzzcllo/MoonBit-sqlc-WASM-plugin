@@ -1,0 +1,21 @@
+id: evt-001
+task: P0-018
+type: status_changed
+category: state
+from: in_progress
+to: done
+timestamp: "2026-05-15T12:00:00Z"
+detail:
+  completed_steps:
+    - lock_acquire
+    - /code
+    - /test
+    - /review
+    - exit_gate: moon_check
+    - exit_gate: moon_test
+  artifacts:
+    - plugin/types.mbt
+    - plugin/main.mbt (updated)
+  gates:
+    moon_check: pass
+    moon_test: pass (7/7)

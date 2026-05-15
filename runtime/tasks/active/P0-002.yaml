@@ -2,8 +2,8 @@ id: P0-002
 title: sqlc WASM 插件协议实现
 priority: P0
 type: feature
-status: 待办
-description: 实现 sqlc 的 WASM 插件接口规范，包括 CodeGenRequest/Response 的 protobuf 编解码、WASI 入口函数
+status: 规划中
+description: 实现 sqlc 的 WASM 插件接口规范（umbrella task）。拆分为：P0-018 类型定义 → P0-019 protobuf 编解码 → P0-020 WASI framing → P0-021 入口集成 → P0-022 单元测试
 dependencies:
   hard:
     - P0-001
@@ -16,4 +16,9 @@ retry:
   count: 0
   max: 3
 created_at: 2026-05-14
-related: []
+related:
+  - P0-018
+  - P0-019
+  - P0-020
+  - P0-021
+  - P0-022
