@@ -5,6 +5,7 @@
 - `moon build` — 构建插件 WASM 二进制
 - `moon test` — 运行测试
 - `moon check` — 类型检查
+- `moon build --target wasm` — 显式指定 WASM 目标
 
 ## 设计理念
 
@@ -34,3 +35,9 @@
 - ADR-004 — Naming Convention（待定）
 - ADR-005 — Type Mapping Policy（待定）
 - ADR-006 — AST Stability Policy（待定）
+
+## 远程仓库
+
+- URL: https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
+- 默认分支: main
+- 推送方式: GitHub PAT (classic, repo scope)

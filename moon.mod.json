@@ -1,0 +1,8 @@
+{
+  "name": "Mairzzcllo/moonbit_sqlc_plugin",
+  "version": "0.1.0",
+  "description": "sqlc WASM plugin — generate type-safe MoonBit database layer from SQL queries",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin",
+  "keywords": ["sqlc", "codegen", "database", "wasm-plugin"]
+}

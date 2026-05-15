@@ -7,6 +7,9 @@
 target/
 build/
 dist/
+_build/
+.mooncaches/
+.mooncakes/
 *.wasm
 !plugin/**/*.wasm
 
@@ -27,3 +30,6 @@ vendor/
 
 # Logs
 *.log
+
+# Environment
+.env

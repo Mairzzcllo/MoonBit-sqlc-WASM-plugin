@@ -2,7 +2,7 @@ id: P0-001
 title: 项目脚手架搭建
 priority: P0
 type: infra
-status: 待办
+status: 完成
 description: 搭建 monorepo 结构、MoonBit 构建配置、基础目录结构（plugin/、runtime/、examples/、tests/）
 dependencies:
   hard: []

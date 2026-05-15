@@ -1,21 +1,10 @@
 # Active Tasks — UI Projection
 
-> 生成时间: 2026-05-14
+> 生成时间: 2026-05-15
 > 项目: MoonBit sqlc WASM Plugin
 > 运行时状态来源: `runtime/tasks/active/{id}.yaml`
 
 ## P0 — MVP 必经
-
-### [P0-001] 项目脚手架搭建
-- 优先级: P0
-- 类型: infra
-- 状态: 待办
-- 描述: 搭建 monorepo 结构、MoonBit 构建配置、基础目录结构（plugin/、runtime/、examples/、tests/）
-- 依赖: -
-- 锁定: -
-- 重试: 0/3
-- 创建: 2026-05-14
-- 关联: -
 
 ### [P0-002] sqlc WASM 插件协议实现
 - 优先级: P0

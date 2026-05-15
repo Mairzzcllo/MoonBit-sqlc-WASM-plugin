@@ -1,0 +1,4 @@
+{
+  "placeholder": true,
+  "note": "This file will contain serialized sqlc CodeGenRequest data for golden tests."
+}

@@ -1,0 +1,7 @@
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
+}
+
+options(
+  "is-main": true,
+)
