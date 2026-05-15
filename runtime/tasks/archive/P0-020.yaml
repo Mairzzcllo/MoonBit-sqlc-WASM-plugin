@@ -2,19 +2,20 @@ id: P0-020
 title: 'P0-002c — protocol.mbt: 4-byte LE framing + WASI 读写'
 priority: P0
 type: feature
-status: 待办
+status: 完成
 description: 在 plugin/protocol.mbt 中实现 stdio 协议层：read_message()→Bytes?（从 stdin 读 4 字节 LE 长度 + 数据体）、write_message(Bytes)（向 stdout 写 4 字节 LE 长度 + 数据体）。用 moonbitlang/core/io 或 WASI FFI。含 EOF 和 I/O 错误处理。
 dependencies:
   hard:
     - P0-018
   soft: []
 lock:
-  owner: null
-  timestamp: null
+  owner: agent
+  timestamp: 2026-05-15T12:00:00
   expires_at: null
 retry:
   count: 0
   max: 3
+completed_at: 2026-05-15
 created_at: 2026-05-15
 related:
   - P0-002

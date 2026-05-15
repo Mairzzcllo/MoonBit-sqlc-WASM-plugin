@@ -951,3 +951,368 @@ test "bytes: roundtrip" {
   inspect(decoded.length(), content="5")
   inspect(decoded[0], content="b'\\x00'")
 }
+
+test "roundtrip: CompositeType" {
+  let ct: CompositeType = { name: "address", comment: "A physical address" }
+  let enc = Encoder::new()
+  encode_composite_type(enc, ct)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_composite_type(dec)
+  inspect(decoded.name, content="address")
+  inspect(decoded.comment, content="A physical address")
+}
+
+test "roundtrip: Enum" {
+  let e: Enum = {
+    name: "user_role",
+    vals: ["admin", "user", "guest"],
+    comment: "User roles",
+  }
+  let enc = Encoder::new()
+  encode_enum(enc, e)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_enum(dec)
+  inspect(decoded.name, content="user_role")
+  inspect(decoded.vals.length(), content="3")
+  inspect(decoded.vals[0], content="admin")
+  inspect(decoded.vals[1], content="user")
+  inspect(decoded.vals[2], content="guest")
+  inspect(decoded.comment, content="User roles")
+}
+
+test "roundtrip: Parameter" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  let p: Parameter = {
+    number: 1,
+    column: {
+      name: "id", not_null: true, is_array: false, comment: "", length: 0,
+      is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+      table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+      original_name: "", unsigned: false, array_dims: 0,
+    },
+  }
+  let enc = Encoder::new()
+  encode_parameter(enc, p)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_parameter(dec)
+  inspect(decoded.number, content="1")
+  inspect(decoded.column.name, content="id")
+}
+
+test "roundtrip: Query" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  let q: Query = {
+    text: "SELECT * FROM users WHERE id = $1",
+    name: "GetUser",
+    cmd: ":one",
+    columns: [
+      { name: "id", not_null: true, is_array: false, comment: "", length: 0,
+        is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+        table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+        original_name: "", unsigned: false, array_dims: 0 },
+    ],
+    params: [
+      { number: 1, column: {
+        name: "id", not_null: true, is_array: false, comment: "", length: 0,
+        is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+        table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+        original_name: "", unsigned: false, array_dims: 0 } },
+    ],
+    comments: ["fetch a user by ID"],
+    filename: "query.sql",
+    insert_into_table: empty_id,
+  }
+  let enc = Encoder::new()
+  encode_query(enc, q)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_query(dec)
+  inspect(decoded.name, content="GetUser")
+  inspect(decoded.cmd, content=":one")
+  inspect(decoded.columns.length(), content="1")
+  inspect(decoded.params.length(), content="1")
+}
+
+test "roundtrip: Codegen with process and wasm" {
+  let cg: Codegen = {
+    out: "gen/", plugin: "moonbit", options: b"--package db",
+    env: ["PATH=/usr/bin"], process: Some({ cmd: "protoc" }),
+    wasm: Some({ url: "https://example.com/plugin.wasm", sha256: "abc" }),
+  }
+  let enc = Encoder::new()
+  encode_codegen(enc, cg)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_codegen(dec)
+  inspect(decoded.out, content="gen/")
+  inspect(decoded.plugin, content="moonbit")
+  inspect(match decoded.process { Some(v) => v.cmd; None => "" }, content="protoc")
+  inspect(match decoded.wasm { Some(v) => v.url; None => "" }, content="https://example.com/plugin.wasm")
+}
+
+test "roundtrip: Schema with tables, enums, composite_types" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  let schema: Schema = {
+    comment: "public schema",
+    name: "public",
+    tables: [
+      {
+        rel: { catalog: "db", schema: "public", name: "users" },
+        columns: [
+          { name: "id", not_null: true, is_array: false, comment: "", length: 0,
+            is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+            table_alias: "", ty: { catalog: "", schema: "", name: "int4" },
+            is_sqlc_slice: false, embed_table: empty_id, original_name: "",
+            unsigned: false, array_dims: 0 },
+        ],
+        comment: "users table",
+      },
+    ],
+    enums: [{ name: "mood", vals: ["happy", "sad"], comment: "" }],
+    composite_types: [{ name: "address", comment: "" }],
+  }
+  let enc = Encoder::new()
+  encode_schema(enc, schema)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_schema(dec)
+  inspect(decoded.name, content="public")
+  inspect(decoded.tables.length(), content="1")
+  inspect(decoded.tables[0].rel.name, content="users")
+  inspect(decoded.enums.length(), content="1")
+  inspect(decoded.enums[0].name, content="mood")
+  inspect(decoded.composite_types.length(), content="1")
+  inspect(decoded.composite_types[0].name, content="address")
+}
+
+test "roundtrip: Settings" {
+  let settings: Settings = {
+    version: "1", engine: "postgresql",
+    schema: ["CREATE TABLE users (id int4)"],
+    queries: ["-- name: GetUser :one\nSELECT * FROM users"],
+    codegen: {
+      out: "gen/", plugin: "moonbit", options: b"", env: [],
+      process: None, wasm: None,
+    },
+  }
+  let enc = Encoder::new()
+  encode_settings(enc, settings)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_settings(dec)
+  inspect(decoded.version, content="1")
+  inspect(decoded.engine, content="postgresql")
+  inspect(decoded.schema.length(), content="1")
+  inspect(decoded.queries.length(), content="1")
+}
+
+test "roundtrip: Catalog" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  let cat: Catalog = {
+    comment: "main catalog",
+    default_schema: "public",
+    name: "testdb",
+    schemas: [
+      {
+        comment: "", name: "public",
+        tables: [
+          {
+            rel: { catalog: "testdb", schema: "public", name: "users" },
+            columns: [
+              { name: "id", not_null: true, is_array: false, comment: "", length: 0,
+                is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+                table_alias: "", ty: { catalog: "", schema: "", name: "int4" },
+                is_sqlc_slice: false, embed_table: empty_id, original_name: "",
+                unsigned: false, array_dims: 0 },
+            ],
+            comment: "",
+          },
+        ],
+        enums: [],
+        composite_types: [],
+      },
+    ],
+  }
+  let enc = Encoder::new()
+  encode_catalog(enc, cat)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = decode_catalog(dec)
+  inspect(decoded.name, content="testdb")
+  inspect(decoded.default_schema, content="public")
+  inspect(decoded.schemas.length(), content="1")
+  inspect(decoded.schemas[0].tables.length(), content="1")
+}
+
+test "decode_request: full request with all fields" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  // Build a CodeGenRequest manually through the encoder
+  let enc = Encoder::new()
+  // settings (field 1)
+  enc.write_tag(1, WT_LEN)
+  enc.write_embedded(fn(enc) {
+    encode_settings(enc, {
+      version: "1", engine: "postgresql",
+      schema: ["CREATE TABLE users"],
+      queries: ["-- name: GetUser :one\nSELECT * FROM users"],
+      codegen: { out: "gen/", plugin: "moonbit", options: b"", env: [], process: None, wasm: None },
+    })
+  })
+  // catalog (field 2)
+  enc.write_tag(2, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_catalog(enc, {
+    comment: "", default_schema: "public", name: "testdb",
+    schemas: [{
+      comment: "", name: "public",
+      tables: [{
+        rel: { catalog: "testdb", schema: "public", name: "users" },
+        columns: [{ name: "id", not_null: true, is_array: false, comment: "", length: 0,
+          is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+          table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+          original_name: "", unsigned: false, array_dims: 0 }],
+        comment: "",
+      }],
+      enums: [], composite_types: [],
+    }],
+  }) })
+  // query (field 3)
+  enc.write_tag(3, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_query(enc, {
+    text: "SELECT * FROM users WHERE id = $1", name: "GetUser", cmd: ":one",
+    columns: [{ name: "id", not_null: true, is_array: false, comment: "", length: 0,
+      is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+      table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+      original_name: "", unsigned: false, array_dims: 0 }],
+    params: [{ number: 1, column: {
+      name: "id", not_null: true, is_array: false, comment: "", length: 0,
+      is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+      table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+      original_name: "", unsigned: false, array_dims: 0 } }],
+    comments: [], filename: "query.sql", insert_into_table: empty_id,
+  }) })
+  // sqlc_version (field 4)
+  enc.write_tag(4, WT_LEN)
+  enc.write_string("1.53.0")
+  let data = enc.finish()
+  let decoded = decode_request(data)
+  inspect(decoded.sqlc_version, content="1.53.0")
+  inspect(decoded.queries.length(), content="1")
+  inspect(decoded.queries[0].name, content="GetUser")
+  inspect(decoded.settings.engine, content="postgresql")
+  inspect(decoded.catalog.name, content="testdb")
+}
+
+test "varint: single byte values 0..127" {
+  for i = 0; i < 128; i = i + 1 {
+    let enc = Encoder::new()
+    enc.write_varint(i)
+    let data = enc.finish()
+    let dec = Decoder::new(data)
+    let decoded = dec.read_varint()
+    inspect(decoded, content="\{i}")
+  }
+}
+
+test "varint: multi-byte positive values" {
+  let values: Array[Int] = [128, 255, 300, 1000000, 2147483647]
+  for i = 0; i < values.length(); i = i + 1 {
+    let enc = Encoder::new()
+    enc.write_varint(values[i])
+    let data = enc.finish()
+    let dec = Decoder::new(data)
+    let decoded = dec.read_varint()
+    inspect(decoded, content="\{values[i]}")
+  }
+}
+
+test "string: empty" {
+  let enc = Encoder::new()
+  enc.write_string("")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = dec.read_string()
+  inspect(decoded, content="")
+}
+
+test "bytes: empty" {
+  let bs: Bytes = b""
+  let enc = Encoder::new()
+  enc.write_varint(bs.length())
+  enc.write_bytes(bs)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = dec.read_bytes()
+  inspect(decoded.length(), content="0")
+}
+
+test "bytes: single byte" {
+  let bs: Bytes = b"\xAB"
+  let enc = Encoder::new()
+  enc.write_varint(bs.length())
+  enc.write_bytes(bs)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let decoded = dec.read_bytes()
+  inspect(decoded.length(), content="1")
+}
+
+test "skip_field: varint" {
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_VARINT)
+  enc.write_varint(42)
+  enc.write_tag(2, WT_LEN)
+  enc.write_string("hello")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (field_num1, wt1) = dec.read_tag()
+  inspect(field_num1, content="1")
+  inspect(wt1, content="0")
+  dec.skip_field(wt1)
+  let (field_num2, wt2) = dec.read_tag()
+  inspect(field_num2, content="2")
+  inspect(wt2, content="2")
+}
+
+test "skip_field: length-delimited" {
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_LEN)
+  enc.write_string("skip_this")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (field_num, wt) = dec.read_tag()
+  dec.skip_field(wt)
+  inspect(dec.remaining(), content="0")
+}
+
+test "roundtrip: null vs not-null Column" {
+  let empty_id: Identifier = { catalog: "", schema: "", name: "" }
+  let col_nullable: Column = {
+    name: "email", not_null: false, is_array: false, comment: "", length: 0,
+    is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+    table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+    original_name: "", unsigned: false, array_dims: 0,
+  }
+  let col_notnull: Column = {
+    name: "id", not_null: true, is_array: false, comment: "", length: 0,
+    is_named_param: false, is_func_call: false, scope: "", table: empty_id,
+    table_alias: "", ty: empty_id, is_sqlc_slice: false, embed_table: empty_id,
+    original_name: "", unsigned: false, array_dims: 0,
+  }
+  // Wrap each column in an embedded (length-delimited) message for boundary
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_column(enc, col_nullable) })
+  enc.write_tag(2, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_column(enc, col_notnull) })
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (_fn1, _wt1) = dec.read_tag()
+  let decoded1 = decode_embedded(dec, decode_column)
+  let (_fn2, _wt2) = dec.read_tag()
+  let decoded2 = decode_embedded(dec, decode_column)
+  inspect(decoded1.not_null, content="false")
+  inspect(decoded2.not_null, content="true")
+}

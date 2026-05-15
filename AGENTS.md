@@ -29,6 +29,7 @@
    - protobuf 保留关键字 `type` 映射为 `ty`（避免 MoonBit 关键字冲突）
    - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
    - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
+   - WASI FFI: `String` 在 wasm-gc 可用，`--target wasm` 尚不支持 `Bytes`/`String`（需 `#borrow`/`#owned` 但当前版本有 parse error）
 
 ## 决策索引
 
