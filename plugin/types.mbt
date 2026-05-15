@@ -179,3 +179,26 @@ test "GenerateResponse construction" {
   let resp : GenerateResponse = { files : Array::make(0, { name : "", contents : b"" }) }
   inspect(resp.files.length(), content="0")
 }
+
+/// Build a realistic GenerateRequest for golden tests.
+pub fn make_users_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "users" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_name : Column = { name : "name", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "name", unsigned : false, array_dims : 0 }
+  let col_email : Column = { name : "email", not_null : false, is_array : false, comment : "user email address", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "email", unsigned : false, array_dims : 0 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_name, col_email], comment : "users table" }
+  let e : Enum = { name : "user_role", vals : ["admin", "editor", "viewer"], comment : "" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : [e], composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, name, email FROM users", name : "list_users", cmd : ":many", columns : [col_id, col_name, col_email], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all users"], filename : "users.sql", insert_into_table : empty_id }
+  let param_col : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let q_get : Query = { text : "SELECT id, name, email FROM users WHERE id = $1", name : "get_user", cmd : ":one", columns : [col_id, col_name, col_email], params : [{ number : 1, column : param_col }], comments : ["Get user by ID"], filename : "users.sql", insert_into_table : empty_id }
+  let param_del : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let q_del : Query = { text : "DELETE FROM users WHERE id = $1", name : "delete_user", cmd : ":exec", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_del }], comments : Array::make(0, ""), filename : "users.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list, q_get, q_del], sqlc_version : "1.0.0", plugin_options : b"", global_options : b"" }
+}

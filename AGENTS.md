@@ -27,9 +27,15 @@
    - 所有生成函数文档注释使用标准 MoonBit doc comment 格式
    - Query 函数命名: `query_<表名>_<操作>` (如 `query_users_by_id`)
    - protobuf 保留关键字 `type` 映射为 `ty`（避免 MoonBit 关键字冲突）
-   - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
-   - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
-   - WASI FFI: `String` 在 wasm-gc 可用，`--target wasm` 尚不支持 `Bytes`/`String`（需 `#borrow`/`#owned` 但当前版本有 parse error）
+    - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
+    - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
+    - WASI FFI: `String` 在 wasm-gc 可用，`--target wasm` 尚不支持 `Bytes`/`String`（需 `#borrow`/`#owned` 但当前版本有 parse error）
+    - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
+    - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
+    - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
+    - Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn }, Row { get_fn }
+    - 生成函数 body 中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃，后跟 `None`（OneRow）/`[]`（ManyRows）
+    - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
 
 ## 决策索引
 
