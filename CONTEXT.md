@@ -3,9 +3,9 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: WAT shim ABI bridge 方案设计中 —— 方案 B（WAT shim）已确认，P0-023~P0-026 任务已拆解
-- **当前任务**: P0-023 (WAT shim 核心 ABI bridge)
-- **最新事件**: 2026-05-17 — 确认 WAT shim 方案替代 wasm-gc/String FFI 路线。MoonBit 已导出 memory，WAT shim 做 iovec 构造 + Bytes ptr 转换。4 个新 P0 任务已创建
-- P0: 22/22 completed + 4 新增
+- **阶段**: P0-023~P0-024 完成。P0-025 构建流水线待实施
+- **当前任务**: P0-025 (构建流水线: shim 合并脚本)
+- **最新事件**: 2026-05-17 — P0-024 验证关键发现：MoonBit `--target wasm` FFI 不支持 Bytes 参数 → 架构从「MoonBit 调用 shim」反转为「shim 调用 MoonBit」。MoonBit 暴露 `process_message(data: Bytes) -> Bytes` 纯计算入口
+- P0: 24/24 completed (23-24 新增)
 - P1: 0/2 completed
 - P2: 0/1 completed

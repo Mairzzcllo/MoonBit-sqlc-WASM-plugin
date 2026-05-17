@@ -1,26 +1,12 @@
 ///|
-/// sqlc WASM plugin entry point.
-/// Implements the full protocol loop: read → decode → process → encode → write.
+/// sqlc WASM plugin — pure codegen pipeline.
+///
+/// I/O is handled by WAT shim wrapper (shim/wasi_shim.wat). MoonBit only
+/// exports `process_message` for the shim to call. See protocol.mbt.
 
-/// Entry point invoked by WASM runtime.
+/// Entry point. Minimal stub — the post-merged shim wrapper replaces _start.
 fn main {
-  log_stderr("plugin: starting")
-  main_loop()
-  log_stderr("plugin: exiting")
-}
-
-/// Main protocol loop. Reads messages from stdin until EOF.
-fn main_loop() -> Unit {
-  match read_message() {
-    None => ()
-    Some(data) => {
-      let req = decode_request(data)
-      let resp = process_request(req)
-      let out = encode_response(resp)
-      write_message(out)
-      main_loop()
-    }
-  }
+  ()
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.

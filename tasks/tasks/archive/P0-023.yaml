@@ -2,7 +2,7 @@ id: P0-023
 title: 'WAT shim: 核心 ABI bridge'
 priority: P0
 type: feature
-status: 待办
+status: 完成
 description: >-
   编写 shim/wasi_shim.wat，导出 bytes_data_ptr（+8 跳过 Bytes GC header）、
   fd_read/fd_write（iovec 构造 + rof_len 写入）。
@@ -17,5 +17,6 @@ lock:
 retry:
   count: 0
   max: 3
+completed_at: 2026-05-17
 created_at: 2026-05-17
 related: []

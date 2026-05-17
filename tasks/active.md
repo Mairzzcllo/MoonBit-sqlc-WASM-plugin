@@ -6,28 +6,6 @@
 
 ## P0 — MVP 必经
 
-### [P0-023] WAT shim: 核心 ABI bridge
-- 优先级: P0
-- 类型: feature
-- 状态: 待办
-- 描述: 编写 shim/wasi_shim.wat，导出 bytes_data_ptr/fd_read/fd_write，iovec 构造 + rof_len 写入，保留区间 [1024, 1035]
-- 依赖: 无
-- 锁定: -
-- 重试: 0/3
-- 创建: 2026-05-17
-- 关联: -
-
-### [P0-024] MoonBit I/O 层重写: shim FFI + 正确 iovec
-- 优先级: P0
-- 类型: feature
-- 状态: 待办
-- 描述: 修改 protocol.mbt：FFI 导入改为 shim；read_exact/write_raw 使用 bytes_data_ptr + decode_u32_le(rof_len) 正确实现
-- 依赖: P0-023（hard）
-- 锁定: -
-- 重试: 0/3
-- 创建: 2026-05-17
-- 关联: -
-
 ### [P0-025] 构建流水线: shim 合并脚本
 - 优先级: P0
 - 类型: infra

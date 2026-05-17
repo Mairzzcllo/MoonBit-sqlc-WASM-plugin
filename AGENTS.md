@@ -31,8 +31,8 @@
    - protobuf 保留关键字 `type` 映射为 `ty`（避免 MoonBit 关键字冲突）
     - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
-    - WASI FFI: 使用 WAT shim ABI bridge 方案。MoonBit 通过 `"shim"` FFI 调用 shim 层（`bytes_data_ptr`/`fd_read`/`fd_write`），shim 层在保留内存区间 [1024, 1035] 构造 iovec（8 字节：buf_ptr + buf_len），再调用 `wasi_snapshot_preview1`。MoonBit `--target wasm` 使用 `Int` 参数传递 raw ptr/len
-    - WAT shim reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes)。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
+    - WASI FFI: 使用 WAT shim ABI bridge 方案。MoonBit `--target wasm` 不支持 reference types 跨 FFI 边界（error 4042: Invalid stub type）。改用反向架构：shim 包装层在 post-merge 阶段注入 MoonBit 模块，通过直接 WAT 调用调用 MoonBit 函数，MoonBit 侧零 FFI 声明。MoonBit 暴露 `pub fn process_message(data: Bytes) -> Bytes` 纯计算入口。
+    - WAT shim reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
     - `moon test` 在 moonrun 下运行所有 185 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
     - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`

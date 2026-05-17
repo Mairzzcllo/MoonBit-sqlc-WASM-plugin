@@ -1,8 +1,26 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-15
+> 归档时间: 2026-05-17
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
+
+### [P0-023] WAT shim: 核心 ABI bridge
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 编写 shim/wasi_shim.wat，包含 bytes_data_ptr/fd_read/fd_write 辅助函数，预留 iovec [1024, 1035] 和 scratch [1036, 65535] 区域
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-024] MoonBit I/O 层重写: 零 FFI + process_message entry point
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 关键发现：MoonBit `--target wasm` FFI 不支持 Bytes (error 4042) → 架构从「MoonBit 调用 shim」反转为「shim 调用 MoonBit」。MoonBit 移除所有 FFI 声明，暴露 `pub fn process_message(data: Bytes) -> Bytes` 纯计算入口。Shim 在 post-merge 阶段注入 MoonBit 模块，通过直接 WAT 调用访问 MoonBit 内部函数
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
 
 ### [P0-001] 项目脚手架搭建
 - 优先级: P0

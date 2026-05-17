@@ -1,11 +1,23 @@
 ///|
-/// stdio transport layer for sqlc WASM plugin protocol.
-/// 4-byte little-endian length-prefixed message framing over stdin/stdout.
+/// I/O framing utilities for sqlc WASM plugin protocol.
+///
+/// MoonBit `--target wasm` does not support reference types (Bytes, String)
+/// across FFI boundary. Instead, MoonBit exposes pure computation functions.
+/// All raw I/O (WASI fd_read/fd_write, iovec construction, LE framing) is
+/// handled by the WAT shim wrapper (shim/wasi_shim.wat) injected during the
+/// post-merge build step (P0-025).
+///
+/// Protocol flow (shim → MoonBit):
+///   1. Shim reads 4-byte LE frame header from stdin
+///   2. Shim reads N-byte body from stdin
+///   3. Shim allocates MoonBit GC Bytes, copies body in
+///   4. Shim calls MoonBit's `process_message(data: Bytes) -> Bytes`
+///   5. Shim reads response Bytes, writes framed response to stdout
 
-// === 4-byte LE framing (pure MoonBit) ===
+// === 4-byte LE framing (pure MoonBit, used by shim-wrapper and tests) ===
 
 /// Encode `v` as 4-byte little-endian byte sequence.
-fn encode_u32_le(v: Int) -> Bytes {
+pub fn encode_u32_le(v: Int) -> Bytes {
   Bytes::from_array([
     (v & 0xFF).to_byte(),
     ((v >> 8) & 0xFF).to_byte(),
@@ -15,54 +27,18 @@ fn encode_u32_le(v: Int) -> Bytes {
 }
 
 /// Decode the first 4 bytes of `b` as a little-endian integer.
-fn decode_u32_le(b: Bytes) -> Int {
+pub fn decode_u32_le(b: Bytes) -> Int {
   b[0].to_int() | (b[1].to_int() << 8) | (b[2].to_int() << 16) | (b[3].to_int() << 24)
 }
 
-// === I/O via WASI fd_read/fd_write ===
+// === Pure data processing entry point (called by shim wrapper) ===
 
-const STDIN: Int = 0
-const STDOUT: Int = 1
-
-fn fd_read(fd: Int, iovs: Int, iovs_len: Int, rof_len: Int) -> Int = "wasi_snapshot_preview1" "fd_read"
-fn fd_write(fd: Int, iovs: Int, iovs_len: Int, rof_len: Int) -> Int = "wasi_snapshot_preview1" "fd_write"
-
-/// Read exactly `n` bytes from stdin. Returns None on EOF.
-fn read_exact(n: Int) -> Option[Bytes] {
-  let buf = Bytes::make(n, 0)
-  let mut off: Int = 0
-  while off < n {
-    let r = fd_read(STDIN, 0, 1, 0)
-    if r == 0 { return None }
-    off = off + r
-  }
-  Some(buf)
-}
-
-/// Read a framed message from stdin.
-pub fn read_message() -> Option[Bytes] {
-  match read_exact(4) {
-    None => return None
-    Some(bs) => {
-      let len = decode_u32_le(bs)
-      if len == 0 { return Some(Bytes::default()) }
-      read_exact(len)
-    }
-  }
-}
-
-/// Write raw bytes to stdout.
-fn write_raw(data: Bytes) -> Unit {
-  let n = data.length()
-  if n == 0 { return }
-  let _ = fd_write(STDOUT, 0, 1, 0)
-}
-
-/// Write a framed message to stdout.
-pub fn write_message(data: Bytes) -> Unit {
-  let header = encode_u32_le(data.length())
-  write_raw(header)
-  if data.length() > 0 { write_raw(data) }
+/// Process a raw protobuf GenerateRequest and return raw GenerateResponse bytes.
+/// This is the ONLY entry point the shim needs. No I/O, no FFI — pure transform.
+pub fn process_message(data: Bytes) -> Bytes {
+  let req = decode_request(data)
+  let resp = process_request(req)
+  encode_response(resp)
 }
 
 // === Tests ===
