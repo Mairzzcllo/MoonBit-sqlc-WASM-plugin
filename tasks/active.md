@@ -9,7 +9,7 @@
 ### [P0-026] 集成验证: sqlc generate 端到端
 - 优先级: P0
 - 类型: test
-- 状态: 待办
+- 状态: 完成
 - 描述: 用 sqlc generate 跑 examples/users/，验证帧协议 + protobuf payload 完整通过
 - 依赖: P0-025（hard）
 - 锁定: -

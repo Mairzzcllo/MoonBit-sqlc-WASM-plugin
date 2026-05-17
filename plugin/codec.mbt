@@ -798,6 +798,29 @@ fn decode_generate_response(dec: Decoder) -> GenerateResponse {
   { files: files }
 }
 
+fn encode_generate_request(enc: Encoder, val: GenerateRequest) -> Unit {
+  enc.write_tag(1, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_settings(enc, val.settings) })
+  enc.write_tag(2, WT_LEN)
+  enc.write_embedded(fn(enc) { encode_catalog(enc, val.catalog) })
+  for i = 0; i < val.queries.length(); i = i + 1 {
+    enc.write_tag(3, WT_LEN)
+    enc.write_embedded(fn(enc) { encode_query(enc, val.queries[i]) })
+  }
+  enc.write_tag(4, WT_LEN)
+  enc.write_string(val.sqlc_version)
+  if val.plugin_options.length() > 0 {
+    enc.write_tag(5, WT_LEN)
+    enc.write_varint(val.plugin_options.length())
+    enc.write_bytes(val.plugin_options)
+  }
+  if val.global_options.length() > 0 {
+    enc.write_tag(6, WT_LEN)
+    enc.write_varint(val.global_options.length())
+    enc.write_bytes(val.global_options)
+  }
+}
+
 // === Public API ===
 
 pub fn decode_request(data: Bytes) -> GenerateRequest {
@@ -805,10 +828,21 @@ pub fn decode_request(data: Bytes) -> GenerateRequest {
   decode_generate_request(dec)
 }
 
+pub fn encode_request(req: GenerateRequest) -> Bytes {
+  let enc = Encoder::new()
+  encode_generate_request(enc, req)
+  enc.finish()
+}
+
 pub fn encode_response(resp: GenerateResponse) -> Bytes {
   let enc = Encoder::new()
   encode_generate_response(enc, resp)
   enc.finish()
+}
+
+pub fn decode_response(data: Bytes) -> GenerateResponse {
+  let dec = Decoder::new(data)
+  decode_generate_response(dec)
 }
 
 // === Tests ===

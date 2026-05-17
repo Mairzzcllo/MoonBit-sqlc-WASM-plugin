@@ -6,6 +6,10 @@
 
 /// Entry point. Minimal stub — the post-merged shim wrapper replaces _start.
 fn main {
+  // Reference process_message to prevent dead-code elimination.
+  // The WAT shim calls process_message by its internal mangled name;
+  // MoonBit --target wasm DCE removes unreferenced functions.
+  let _ = process_message(b"")
   ()
 }
 

@@ -1,0 +1,15 @@
+version: "2"
+plugins:
+  - name: "moonbit"
+    wasm:
+      url: "file://../../_build/plugin.wasm"
+      sha256: "a4932c30d8c5c969549f0059479d54d5959dff2f7d920b0a51b2e2a352ce2834"
+sql:
+  - schema: "schema.sql"
+    queries: "query.sql"
+    engine: "postgresql"
+    codegen:
+      - out: "."
+        plugin: "moonbit"
+        options:
+          package: users
