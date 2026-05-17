@@ -5,6 +5,21 @@
 /// Reservation: iovec at [1024,1035], scratch at [1036,65535].
 /// MoonBit .data starts at 10000+, TLSF allocator at ~13136+.
 /// Reserved region has no overlap.
+//
+// Copyright 2026 Mairzzcllo
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
 const IOV_BASE   : Int = 1024
 const IOV_BUF    : Int = IOV_BASE

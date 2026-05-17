@@ -2,6 +2,21 @@
 /// sqlc WASM plugin — pure codegen pipeline.
 /// I/O protocol over WASI fd_read/fd_write via inline WAT FFI (wasi_io.mbt).
 /// process_message is the pure computation entry point (protocol.mbt).
+//
+// Copyright 2026 Mairzzcllo
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
 /// WASM _start entry point. Delegates to the I/O protocol loop.
 fn main {

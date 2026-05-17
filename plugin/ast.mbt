@@ -3,6 +3,21 @@
 /// Pure MoonBit language structure types. No sqlc/IR/database semantics.
 /// Used by code generators (P0-008, P0-009) to produce MoonBit source,
 /// and by the emitter (P0-006) to render formatted output.
+//
+// Copyright 2026 Mairzzcllo
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
 /// A type expression — used in struct fields, function signatures, etc.
 pub enum TypeExpr {
