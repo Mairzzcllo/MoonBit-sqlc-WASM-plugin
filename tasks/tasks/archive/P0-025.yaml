@@ -2,7 +2,7 @@ id: P0-025
 title: '构建流水线: shim 合并脚本'
 priority: P0
 type: infra
-status: 待办
+status: 完成
 description: >-
   编写 scripts/merge-shim.ps1（或 Makefile/sh 等价），
   在 moon build --target wasm 后执行 wasm-tools merge（或 Python/WAT 注入脚本），

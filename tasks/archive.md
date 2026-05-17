@@ -22,6 +22,15 @@
 - 创建: 2026-05-17
 - 完成: 2026-05-17
 
+### [P0-025] 构建流水线: shim 合并脚本
+- 优先级: P0
+- 类型: infra
+- 状态: 完成
+- 描述: 编写 scripts/merge-shim.ps1 实现 5 阶段构建 (moon build → moonc link-core → name resolution → WAT merge → wat2wasm)。修复 PowerShell $ 转义、WAT 导入顺序、if/then 语法、S-expression 折叠。安装 wabt (npm) 提供 wat2wasm。Pipeline 产出 _build/plugin.wasm (438 bytes, stub mode — 受 MoonBit 工具链 dead-code elimination 限制)
+- 架构: moon check 0 errors, moon test 185/185 passed. Pipeline 验证通过: wat2wasm -> plugin.wasm 438 bytes
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
 ### [P0-001] 项目脚手架搭建
 - 优先级: P0
 - 类型: infra

@@ -6,7 +6,9 @@
 - `moon test` — 运行测试
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
-- `scripts/merge-shim.ps1` — WAT shim 合并脚本（P0-025 实现后可用）
+- `scripts/merge-shim.ps1` — WAT shim 合并脚本 (需 npm i -g wabt)
+- `wasm2wat` — 检查 WASM 二进制 WAT 结构
+- `wat2wasm` — WAT 编译为 WASM 二进制
 
 ## 设计理念
 

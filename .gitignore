@@ -13,6 +13,10 @@ _build/
 *.wasm
 !plugin/**/*.wasm
 
+# Test artifacts
+plugin_test.wat
+test_if.wasm
+
 # IDE
 .vscode/
 .idea/

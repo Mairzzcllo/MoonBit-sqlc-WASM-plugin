@@ -7,21 +7,7 @@
 
 > Generate type-safe MoonBit database code from SQL queries — a WASM plugin for [sqlc](https://sqlc.dev).
 
----
-
-## 目录
-
-- [项目介绍](#-项目介绍)
-- [快速开始](#-快速开始)
-- [开发指南](#-开发指南)
-- [路线图](#-路线图)
-- [许可证](#-许可证)
-
----
-
-## ✨ 项目介绍
-
-### About The Project
+## 项目介绍
 
 [sqlc](https://sqlc.dev) 是一个从 SQL 查询自动生成类型安全数据库代码的编译器。它通过 WASM 插件接口支持自定义代码生成目标。
 
@@ -31,65 +17,104 @@
 
 1. **消除运行时开销** — 生成代码直接调用 DB connection 的函数式 API，无 ORM 反射开销
 2. **类型安全** — 利用 MoonBit 的强类型系统在编译期捕获 SQL 与代码类型不匹配问题
-3. **最小 runtime** — 生成的代码仅依赖三个 trait（`DB`、`Row`、`Decoder`），不含真实数据库驱动
-4. **AST-based 代码生成** — 所有输出经 AST → Pretty Printer 管道，禁止字符串拼接，保证输出格式一致
+3. **最小 runtime** — 生成代码依赖三个 concrete struct：`DB`、`Row`、`Decoder`，不含真实数据库驱动
+4. **AST-based 代码生成** — 所有输出经 AST → Pretty Printer 管道，禁止字符串拼接
 
 ### Built With
 
 | 组件 | 技术 | 版本 |
 |------|------|------|
 | 语言 | [MoonBit](https://www.moonbitlang.com/) | 0.1.20260512 |
-| 目标 | WASM (WASI / wasm-gc) | — |
-| 宿主 | [sqlc](https://sqlc.dev) | v1 (WASM plugin API) |
+| 目标 | WASM (WASI preview1) | — |
+| 宿主 | [sqlc](https://sqlc.dev) | v1.31.1 (wasmtime) |
 | 数据库 | PostgreSQL | MVP |
 
-### 核心功能
+## 架构
 
-- **解析 sqlc CodeGenRequest** — 将 protobuf 协议类型映射为 MoonBit 结构体
-- **手动 protobuf 编解码** — varint (LEB128)、length-delimited、嵌入消息，零依赖
-- **Connection-oriented API** — 生成函数接受 `DB` 连接参数，无 Repository/DI/ORM 模式
-- **增量代码生成** — 按表生成 struct 类型和 CRUD 查询函数
-- **Golden Test 验证** — 确定性输出验证，确保生成代码一致性
+### 内部管道
 
----
+```
+sqlc → CodeGenRequest (protobuf)
+  → P0-002: WASM Plugin Protocol (protocol.mbt)
+  → P0-003: Protobuf Adapter Layer (adapter.mbt)
+  → P0-004: Internal IR (ir.mbt)
+    → P0-007: Type Mapping (type_map.mbt)
+    → P0-008: Type Code Generator (type_codegen.mbt)
+    → P0-009: Query Code Generator (query_codegen.mbt)
+    → P0-005: MoonBit AST (ast.mbt)
+      → P0-006: Pretty Printer (emitter.mbt)
+        → CodeGenResponse → 生成 MoonBit 源码
+```
 
-## 🚀 快速开始
+### WAT Shim ABI Bridge
+
+MoonBit `--target wasm` 无法在 FFI 边界传递引用类型（Bytes/String）（error 4042: Invalid stub type）。解决方案是 **WAT shim ABI bridge**：手写 WAT 包装层接管所有 I/O（WASI fd\_read/fd\_write、iovec 构造、LE framing），MoonBit 仅暴露纯计算入口 `process_message(data: Bytes) -> Bytes`。
+
+```
+┌─────────────────────────────────────┐
+│  wasmtime (sqlc generate)           │
+│  ┌─ plugin.wasm ─────────────────┐  │
+│  │  ┌─ WAT shim (wasi_shim.wat)─┐│  │
+│  │  │  _start 协议循环           |│  │
+│  │  │  fd_read → decode frame   |│  │
+│  │  │  → process_message →      |│  │
+│  │  │  encode frame → fd_write  |│  │
+│  │  └───────────────────────────┘│  │
+│  │  ┌─ MoonBit codegen ─────────┐│  │
+│  │  │  protocol.mbt             ││  │
+│  │  │  adapter.mbt → ir.mbt     ││  │
+│  │  │  → codegen → emitter.mbt  ││  │
+│  │  └───────────────────────────┘│  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
+Shim 和 MoonBit 的 WAT 通过 `scripts/merge-shim.ps1` 在文本层面合并。构建流程：
+
+1. `moon build --target wasm` → `.core` 目标文件
+2. `moonc link-core` → 完整 WAT
+3. 解析 mangled 函数名
+4. 合并 `shim/wasi_shim.wat` 到 MoonBit WAT
+5. `wat2wasm` → `plugin.wasm`
+
+> 当前 MoonBit 工具链 (v0.9.2) 的死代码消除会移除未被 `_start` 可达的函数，导致链接输出为 215 字节的 stub。完整 WASM 输出需要 MoonBit 工具链支持 standalone WASM export。
+
+## 快速开始
 
 ### 环境要求
 
 - [MoonBit](https://www.moonbitlang.com/) ≥ 0.1.20260512
-- [sqlc](https://sqlc.dev) ≥ v1.27.0（支持 WASM 插件接口）
-- PostgreSQL（目标数据库）
+- [sqlc](https://sqlc.dev) ≥ v1.27.0
+- [wabt](https://github.com/WebAssembly/wabt) (`npm i -g wabt`，提供 `wat2wasm`)
 
 ### 安装
 
 ```bash
-# 克隆仓库
 git clone https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
 cd MoonBit-sqlc-WASM-plugin
-
-# 检查编译
 moon check
-
-# 运行测试
 moon test
+```
 
-# 构建 WASM 插件二进制
+### 构建 WASM 插件
+
+```bash
+# 构建插件
 moon build --target wasm
+
+# 合并 WAT shim 并编译为 WASM
+./scripts/merge-shim.ps1
 ```
 
 ### 配置 sqlc
 
-在项目根目录创建 `sqlc.yaml`：
-
+`sqlc.yaml`:
 ```yaml
 version: "2"
 plugins:
   - name: moonbit
     wasm:
-      url: file://./path/to/moonbit_sqlc_plugin.wasm
-      sha256: "..."
-
+      url: file://./_build/plugin.wasm
 sql:
   - engine: postgresql
     schema: schema.sql
@@ -101,141 +126,108 @@ sql:
         package: db
 ```
 
-### 基本用法
-
-**1. 编写 SQL 查询 (`query.sql`)**
-
-```sql
--- name: GetUser :one
-SELECT id, name, email, created_at
-FROM users
-WHERE id = $1;
-
--- name: ListUsers :many
-SELECT id, name, email, created_at
-FROM users
-ORDER BY created_at DESC;
-
--- name: CreateUser :one
-INSERT INTO users (name, email)
-VALUES ($1, $2)
-RETURNING id, name, email, created_at;
-```
-
-**2. 运行 sqlc 生成代码**
-
-```bash
-sqlc generate
-```
-
-**3. 使用生成的 MoonBit 代码**
+### 生成代码用法
 
 ```moonbit
 fn init {
-  // 创建数据库连接（需用户提供 DB trait 实现）
   let db: DB = connect_to_postgres("host=localhost dbname=myapp")
 
-  // 查询单个用户 — 返回 Option[User]
   let user = query_users_get_by_id(db, 42)
   match user {
     Some(u) => println("Hello, \{u.name}!")
     None => println("User not found")
   }
 
-  // 查询所有用户 — 返回 Array[User]
   let all = query_users_list(db)
   println("Found \{all.length()} users")
 
-  // 创建用户 — 返回新创建的 User
   let new = query_users_create(db, "Alice", "alice@example.com")
   println("Created user \{new.id}")
 }
 ```
 
-生成的函数命名遵循 `query_<表名>_<操作>` 格式（如 `query_users_get_by_id`），参数顺序与 SQL 查询中的 `$1`、`$2` 占位符一致。
+### Runtime 设计
 
----
+Runtime 使用 concrete struct + closure 模式（因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法）：
 
-## 🤝 开发指南
+```moonbit
+pub struct DB {
+  exec_fn : (String) -> Int
+  execrows_fn : (String) -> Int64
+}
+```
 
-### 项目结构
+生成函数中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃。
+
+## 项目结构
 
 ```
 .
-├── plugin/              # WASM 插件主包
-│   ├── main.mbt         # 入口（WASI _start）
-│   ├── types.mbt        # sqlc 协议类型定义
-│   └── codec.mbt        # 手动 protobuf 编解码器
+├── plugin/              # WASM 插件主包 (13 .mbt 文件)
+│   ├── main.mbt         # 入口（空 main，被 shim _start 替换）
+│   ├── protocol.mbt     # WASM 插件协议 + 4-byte LE framing
+│   ├── adapter.mbt      # Protobuf → 内部模型适配器 (336 行)
+│   ├── types.mbt        # Protobuf 协议类型定义
+│   ├── codec.mbt        # 手动 protobuf 编解码 (LEB128 + length-delimited)
+│   ├── ir.mbt           # 中间表示层 (codegen 核心枢纽)
+│   ├── ast.mbt          # MoonBit AST 定义
+│   ├── emitter.mbt      # Pretty Printer (AST → 源码)
+│   ├── type_map.mbt     # SQL 类型 → MoonBit 类型映射
+│   ├── type_codegen.mbt # 类型代码生成器
+│   ├── query_codegen.mbt# 查询函数代码生成器
+│   └── golden_test.mbt  # Golden 测试（确定性输出验证）
 ├── runtime/             # 生成代码运行时库
-│   ├── db.mbt           # DB trait
-│   ├── decoder.mbt      # Decoder trait
-│   └── row.mbt          # Row trait
+│   ├── db.mbt           # DB concrete struct (exec/execrows)
+│   ├── decoder.mbt      # Decoder concrete struct
+│   └── row.mbt          # Row concrete struct (get_fn closure)
+├── shim/
+│   └── wasi_shim.wat    # WAT shim ABI bridge (I/O 层)
+├── scripts/
+│   └── merge-shim.ps1   # WAT shim 合并构建脚本
 ├── examples/            # 使用示例
-├── tests/               # Golden + 编译测试
-├── adr/                 # 架构决策记录
-└── tasks/               # 任务追踪
+├── tests/               # 集成测试
+├── adr/                 # 架构决策记录 (7 条)
+└── tasks/               # 任务追踪 (active.md + archive.md)
 ```
 
-### 构建命令
+## 测试
 
 ```bash
-moon check     # 类型检查
-moon build     # 构建调试 WASM
-moon test      # 运行所有测试
-moon build --target wasm  # 构建发布 WASM
+moon check              # 类型检查
+moon test               # 运行所有 185 个 inline 测试
+moon test --target wasm # 以 WASM 目标运行测试
 ```
 
-### 约定
+测试使用 inline `test { ... }` 块而非 `_test.mbt` 文件（main 包不支持 blackbox 测试）。空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型。
 
-- `snake_case` 函数名，`PascalCase` 类型名
-- Query 函数命名：`query_<表名>_<操作>`
-- 测试使用 inline `test { ... }` 块
-- 原型字段映射详见 `adr/ADR-001`
+## 约定
 
-### 贡献
+- 代码层始终通过 **AST → Pretty Printer** 管道生成，禁止字符串拼接
+- 生成函数使用 **snake_case** 函数名，**PascalCase** 类型名
+- Query 函数命名：`query_<表名>_<操作>`（如 `query_users_by_id`）
+- protobuf 保留关键字 `type` 映射为 `ty`
+- Enum constructor 不包含类型前缀：`One` 而非 `QueryCmd::One`
+- MoonBit struct 字段默认 file-private，跨文件构造需要 `pub fn new()`
+- 所有 doc comment 使用标准 MoonBit `///` 格式
 
-1. 查看 [`tasks/active.md`](tasks/active.md) 了解当前进度和待办任务
-2. Fork 本仓库并创建特性分支
-3. 提交前运行 `moon check` 和 `moon test` 确保无错误
-4. 创建 Pull Request
+## 架构决策记录
 
-已知问题请查阅 [GitHub Issues](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/issues)。
+| ADR | 标题 | 状态 |
+|-----|------|------|
+| ADR-001 | AST-based Code Generation Strategy | Accepted |
+| ADR-002 | Runtime Scope | Draft |
+| ADR-003 | Nullable Strategy | Draft |
+| ADR-004 | Naming Convention | Draft |
+| ADR-005 | Type Mapping Policy | Draft |
+| ADR-006 | AST Stability Policy | Draft |
+| ADR-007 | WAT Shim ABI Bridge | Accepted |
 
----
-
-## 🗺 路线图
-
-任务按优先级分为三档：
-
-| 优先级 | 范围 | 进度 |
-|--------|------|------|
-| **P0** | MVP 必经 — 类型定义、protobuf 编解码、WASI 协议、入口集成、测试 | 3 / 22 |
-| **P1** | 迭代 — 文档、CI/CD、示例 | 0 / 2 |
-| **P2** | 后续 — MySQL 支持 | 0 / 1 |
+## 路线图
 
 详细任务分解见 [`tasks/active.md`](tasks/active.md)，已完成任务见 [`tasks/archive.md`](tasks/archive.md)。
 
-### 架构流水线
+## 许可证
 
-```
-sqlc → CodeGenRequest (protobuf)
-  → P0-002: WASM Plugin Protocol
-  → P0-003: Protobuf Adapter Layer
-  → P0-004: Internal IR
-    → P0-007: Type Mapping
-    → P0-008: Type Code Generator
-    → P0-009: Query Code Generator
-    → P0-005: MoonBit AST
-      → P0-006: Pretty Printer
-        → CodeGenResponse → 生成 MoonBit 源码
-```
-
----
-
-## 📄 许可证
-
-本项目基于 Apache-2.0 许可证。详见 [LICENSE](LICENSE)。
-
----
+Apache-2.0。详见 [LICENSE](LICENSE)。
 
 *由 MoonBit 驱动，为 sqlc 生态系统而生。*

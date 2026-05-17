@@ -1,21 +1,10 @@
 # Active Tasks — UI Projection
 
-> 生成时间: 2026-05-17
+> 生成时间: 2026-05-17 (updated)
 > 项目: MoonBit sqlc WASM Plugin
 > 运行时状态来源: `runtime/tasks/active/{id}.yaml`
 
 ## P0 — MVP 必经
-
-### [P0-025] 构建流水线: shim 合并脚本
-- 优先级: P0
-- 类型: infra
-- 状态: 待办
-- 描述: 编写 merge-shim 脚本（moon build → wasm-tools merge），产出最终 plugin.wasm
-- 依赖: P0-023（hard），P0-024（hard）
-- 锁定: -
-- 重试: 0/3
-- 创建: 2026-05-17
-- 关联: -
 
 ### [P0-026] 集成验证: sqlc generate 端到端
 - 优先级: P0
