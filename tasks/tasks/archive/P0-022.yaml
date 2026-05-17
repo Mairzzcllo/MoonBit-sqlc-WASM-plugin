@@ -1,0 +1,23 @@
+id: P0-022
+title: 'P0-002e — 单元测试'
+priority: P0
+type: test
+status: 完成
+description: 为 P0-002 编写单元测试：codec roundtrip（encode→decode→assert_eq）、protocol framing 边界（零长度、最大长度）、无效输入的 error handling。
+dependencies:
+  hard:
+    - P0-019
+    - P0-020
+    - P0-021
+  soft: []
+lock:
+  owner: agent
+  timestamp: 2026-05-15T12:00:00
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+completed_at: 2026-05-15
+created_at: 2026-05-15
+related:
+  - P0-002

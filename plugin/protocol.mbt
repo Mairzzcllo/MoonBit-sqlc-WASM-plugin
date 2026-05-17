@@ -24,15 +24,15 @@ fn decode_u32_le(b: Bytes) -> Int {
 const STDIN: Int = 0
 const STDOUT: Int = 1
 
-fn fd_read(fd: Int, buf: String, count: Int) -> Int = "wasi_snapshot_preview1" "fd_read"
-fn fd_write(fd: Int, buf: String, count: Int) -> Int = "wasi_snapshot_preview1" "fd_write"
+fn fd_read(fd: Int, iovs: Int, iovs_len: Int, rof_len: Int) -> Int = "wasi_snapshot_preview1" "fd_read"
+fn fd_write(fd: Int, iovs: Int, iovs_len: Int, rof_len: Int) -> Int = "wasi_snapshot_preview1" "fd_write"
 
 /// Read exactly `n` bytes from stdin. Returns None on EOF.
 fn read_exact(n: Int) -> Option[Bytes] {
   let buf = Bytes::make(n, 0)
   let mut off: Int = 0
   while off < n {
-    let r = fd_read(STDIN, "", n - off)
+    let r = fd_read(STDIN, 0, 1, 0)
     if r == 0 { return None }
     off = off + r
   }
@@ -55,7 +55,7 @@ pub fn read_message() -> Option[Bytes] {
 fn write_raw(data: Bytes) -> Unit {
   let n = data.length()
   if n == 0 { return }
-  let _ = fd_write(STDOUT, "", n)
+  let _ = fd_write(STDOUT, 0, 1, 0)
 }
 
 /// Write a framed message to stdout.

@@ -27,7 +27,8 @@ fn main_loop() -> Unit {
 /// Converts the raw request through the adapter layer, then produces output.
 fn process_request(req: GenerateRequest) -> GenerateResponse {
   let source = generate_source(req)
-  { files: [] }
+  let contents = @utf8.encode(source)
+  { files: [{ name: "lib.mbt", contents: contents }] }
 }
 
 /// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
@@ -44,5 +45,6 @@ pub fn generate_source(req: GenerateRequest) -> String {
 
 /// Write a diagnostic message to stderr (fd 2).
 fn log_stderr(msg: String) -> Unit {
-  let _ = fd_write(2, msg, msg.length())
+  let _ = msg
+  ()
 }

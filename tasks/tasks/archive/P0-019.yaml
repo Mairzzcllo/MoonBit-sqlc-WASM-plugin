@@ -1,0 +1,20 @@
+id: P0-019
+title: 'P0-002b — codec.mbt: 手动 protobuf 编解码'
+priority: P0
+type: feature
+status: 完成
+description: 在 plugin/codec.mbt 中实现手动 protobuf 编码器/解码器。功能：decode_request(bytes)→CodeGenRequest, encode_response(CodeGenResponse)→bytes。需支持 varint(LEB128)、length-delimited 字段、嵌入消息。不支持的编码浪费则 abort。
+dependencies:
+  hard:
+    - P0-018
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-15
+related:
+  - P0-002

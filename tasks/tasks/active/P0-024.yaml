@@ -1,0 +1,22 @@
+id: P0-024
+title: 'MoonBit I/O 层重写: shim FFI + 正确 iovec'
+priority: P0
+type: feature
+status: 待办
+description: >-
+  修改 plugin/protocol.mbt：FFI 导入从 wasi_snapshot_preview1 改为 shim；
+  read_exact 使用 bytes_data_ptr + decode_u32_le(rof_len) 正确获取读取字节数；
+  write_raw 同理。移除所有 stub（iovs=0 传参）。
+dependencies:
+  hard:
+    - P0-023
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-17
+related: []

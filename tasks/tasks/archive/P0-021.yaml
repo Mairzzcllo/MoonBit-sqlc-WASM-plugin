@@ -1,0 +1,22 @@
+id: P0-021
+title: 'P0-002d — main.mbt: 入口集成 + 错误处理'
+priority: P0
+type: feature
+status: 完成
+description: 在 plugin/main.mbt 中整合协议循环：main()→protocol.read_message()→codec.decode_request()→process_request()(stub 只返回空响应)→codec.encode_response()→protocol.write_message()。含各级错误的 abort + stderr 日志。
+dependencies:
+  hard:
+    - P0-019
+    - P0-020
+  soft: []
+lock:
+  owner: agent
+  timestamp: 2026-05-15T12:00:00
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+completed_at: 2026-05-15
+created_at: 2026-05-15
+related:
+  - P0-002

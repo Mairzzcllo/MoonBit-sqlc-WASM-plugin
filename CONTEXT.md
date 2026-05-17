@@ -3,10 +3,9 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: MVP 管道完成 — 0 P0 任务待办
-- **当前任务**: P1-001 (文档与示例)
-- **最新事件**: P0-013~017 ADR 全部完成 — adr/ADR-002~006 写入，P0 tasks 22/22 全部完成
-- P0: 22/22 completed
-- P1: 0/2 completed
+- **阶段**: WAT shim ABI bridge 方案设计中 —— 方案 B（WAT shim）已确认，P0-023~P0-026 任务已拆解
+- **当前任务**: P0-023 (WAT shim 核心 ABI bridge)
+- **最新事件**: 2026-05-17 — 确认 WAT shim 方案替代 wasm-gc/String FFI 路线。MoonBit 已导出 memory，WAT shim 做 iovec 构造 + Bytes ptr 转换。4 个新 P0 任务已创建
+- P0: 22/22 completed + 4 新增
 - P1: 0/2 completed
 - P2: 0/1 completed

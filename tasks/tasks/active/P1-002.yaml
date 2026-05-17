@@ -1,0 +1,21 @@
+id: P1-002
+title: GitHub Actions CI/CD
+priority: P1
+type: infra
+status: 待办
+description: 配置 GitHub Actions 流水线：lint → test → build → release
+dependencies:
+  hard:
+    - P0-001
+    - P0-010
+    - P0-011
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-14
+related: []
