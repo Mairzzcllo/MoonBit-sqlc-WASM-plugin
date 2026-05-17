@@ -2,13 +2,11 @@
 
 ## 构建命令
 
-- `moon build` — 构建插件 WASM 二进制
-- `moon test` — 运行测试
+- `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
+- `moon test` — 运行测试（195+ 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
-- `scripts/merge-shim.ps1` — WAT shim 合并脚本 (需 npm i -g wabt)
-- `wasm2wat` — 检查 WASM 二进制 WAT 结构
-- `wat2wasm` — WAT 编译为 WASM 二进制
+- `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）
 
 ## 设计理念
 
@@ -22,7 +20,7 @@
 
 1. MoonBit 语言 — 编译到 WASM 体积小、性能高、类型系统强于 TypeScript
 2. Monorepo — plugin/runtime/tests 同步演进，避免版本协调问题
-3. WAT shim ABI bridge — MoonBit `--target wasm` 不支持 wasm-gc、无法构造 WASI iovec 时，手写 WAT shim 层接管 iovec 构造和 raw memory 操作。MoonBit 仅暴露 raw ptr/len，不依赖 runtime allocator/GC internals，不等待上游 FFI 更新。这解决了 MoonBit `--target wasm` 与 sqlc (wasmtime v1.31.1) 的 ABI 不兼容问题
+3. Native WASI I/O via inline WAT FFI — MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。构建一步到位（`moon build --target wasm`），无后处理步骤。保留了 shim 设计参考文档在 `shim/archive/` 供 MoonBit 工具链更新后对比优化。
 
 ### 约定
 
@@ -33,9 +31,9 @@
    - protobuf 保留关键字 `type` 映射为 `ty`（避免 MoonBit 关键字冲突）
     - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
-    - WASI FFI: 使用 WAT shim ABI bridge 方案。MoonBit `--target wasm` 不支持 reference types 跨 FFI 边界（error 4042: Invalid stub type）。改用反向架构：shim 包装层在 post-merge 阶段注入 MoonBit 模块，通过直接 WAT 调用调用 MoonBit 函数，MoonBit 侧零 FFI 声明。MoonBit 暴露 `pub fn process_message(data: Bytes) -> Bytes` 纯计算入口。
-    - WAT shim reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
-    - `moon test` 在 moonrun 下运行所有 185 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - WASI FFI: 使用内联 WAT ABI bridge 方案。MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构体（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。
+    - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
+    - `moon test` 在 moonrun 下运行所有 195 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
     - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
     - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
@@ -53,7 +51,8 @@
 - ADR-004 — Naming Convention（待定）
 - ADR-005 — Type Mapping Policy（待定）
 - ADR-006 — AST Stability Policy（待定）
-- ADR-007 — WAT Shim ABI Bridge（已接受）
+- ADR-007 — WAT Shim ABI Bridge（已接受，由 ADR-008 取代）
+- ADR-008 — Native WASI I/O via Inline WAT FFI（已接受）
 
 ## 远程仓库
 

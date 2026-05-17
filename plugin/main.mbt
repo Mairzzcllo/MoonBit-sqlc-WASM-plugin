@@ -1,16 +1,11 @@
 ///|
 /// sqlc WASM plugin — pure codegen pipeline.
-///
-/// I/O is handled by WAT shim wrapper (shim/wasi_shim.wat). MoonBit only
-/// exports `process_message` for the shim to call. See protocol.mbt.
+/// I/O protocol over WASI fd_read/fd_write via inline WAT FFI (wasi_io.mbt).
+/// process_message is the pure computation entry point (protocol.mbt).
 
-/// Entry point. Minimal stub — the post-merged shim wrapper replaces _start.
+/// WASM _start entry point. Delegates to the I/O protocol loop.
 fn main {
-  // Reference process_message to prevent dead-code elimination.
-  // The WAT shim calls process_message by its internal mangled name;
-  // MoonBit --target wasm DCE removes unreferenced functions.
-  let _ = process_message(b"")
-  ()
+  run_io_loop()
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.
@@ -33,8 +28,4 @@ pub fn generate_source(req: GenerateRequest) -> String {
   emit_source_file(ast)
 }
 
-/// Write a diagnostic message to stderr (fd 2).
-fn log_stderr(msg: String) -> Unit {
-  let _ = msg
-  ()
-}
+

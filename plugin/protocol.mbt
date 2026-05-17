@@ -1,18 +1,14 @@
 ///|
 /// I/O framing utilities for sqlc WASM plugin protocol.
 ///
-/// MoonBit `--target wasm` does not support reference types (Bytes, String)
-/// across FFI boundary. Instead, MoonBit exposes pure computation functions.
-/// All raw I/O (WASI fd_read/fd_write, iovec construction, LE framing) is
-/// handled by the WAT shim wrapper (shim/wasi_shim.wat) injected during the
-/// post-merge build step (P0-025).
+/// Native WASI I/O via inline WAT FFI (wasi_io.mbt). MoonBit encodes/decode
+/// LE frame headers; WASI fd_read/fd_write handle stdin/stdout I/O.
 ///
-/// Protocol flow (shim → MoonBit):
-///   1. Shim reads 4-byte LE frame header from stdin
-///   2. Shim reads N-byte body from stdin
-///   3. Shim allocates MoonBit GC Bytes, copies body in
-///   4. Shim calls MoonBit's `process_message(data: Bytes) -> Bytes`
-///   5. Shim reads response Bytes, writes framed response to stdout
+/// Protocol flow:
+///   1. run_io_loop reads 4-byte LE frame header from stdin
+///   2. run_io_loop reads N-byte body from stdin into GC-managed Bytes
+///   3. run_io_loop calls `process_message(data: Bytes) -> Bytes`
+///   4. run_io_loop writes framed response to stdout
 
 // === 4-byte LE framing (pure MoonBit, used by shim-wrapper and tests) ===
 

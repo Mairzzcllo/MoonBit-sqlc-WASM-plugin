@@ -239,3 +239,66 @@
 - 架构: 验证通过 — moon check 0 errors, moon test 61/61 passed, moon build 0 errors
 - 创建: 2026-05-14
 - 完成: 2026-05-15
+
+### [P0-026] 集成验证: sqlc generate 端到端
+- 优先级: P0
+- 类型: test
+- 状态: 完成
+- 描述: 用 sqlc generate 跑 examples/users/，验证帧协议 + protobuf payload 完整通过
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-027] wasi_ffi — 内联 WAT FFI 基础层
+- 优先级: P0
+- 类型: infra
+- 状态: 完成
+- 描述: 创建 plugin/wasi_io.mbt，实现 bytes_data_ptr，store_i32，load_i32 内联 WAT FFI 和 fd_read/fd_write 模块 FFI
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-028] wasi_io — I/O 协议循环
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 在 wasi_io.mbt 中实现 read_frame_header，read_body，write_frame，run_io_loop。12 字节 iovec 固定 [1024,1035]，数据缓冲区用 Bytes::new 动态分配
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-029] main 入口整合 + protocol 注释更新
+- 优先级: P0
+- 类型: refactor
+- 状态: 完成
+- 描述: main.mbt 改为 fn main { run_io_loop() }，去掉 process_message 引用 stub。protocol.mbt 去掉 shim 引用注释
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-030] 清理废弃文件
+- 优先级: P0
+- 类型: chore
+- 状态: 完成
+- 描述: shim/wasi_shim.wat → shim/archive/，移除 scripts/merge-shim.ps1，清理 plugin_test.wat 等
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-031] 验证脚本和文档更新
+- 优先级: P0
+- 类型: docs
+- 状态: 完成
+- 描述: validate_plugin.ps1 去掉 shim checks，AGENTS.md 更新构建命令，CONTEXT.md 更新进度，创建 ADR-008
+- 架构: moon check 0 errors, moon test 185/185 passed
+- 创建: 2026-05-17
+- 完成: 2026-05-17
+
+### [P0-032] 端到端集成验证
+- 优先级: P0
+- 类型: test
+- 状态: 完成
+- 描述: moon build --target wasm → sqlc generate 在 test project 中运行通过，WASM binary 结构验证。修复 protocol.mbt:34 process_message 遗留 stub
+- 架构: moon check 0 errors, moon test 195/195 passed, moon build --target wasm 0 errors
+- 创建: 2026-05-17
+- 完成: 2026-05-17

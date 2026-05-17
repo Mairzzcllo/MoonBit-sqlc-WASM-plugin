@@ -126,14 +126,31 @@ fn Decoder::read_bool(self: Decoder) -> Bool {
   self.read_varint() != 0
 }
 
-fn Decoder::skip_field(self: Decoder, wt: Int) -> Unit {
+fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
   if wt == WT_VARINT {
     let _ = self.read_varint()
   } else if wt == WT_LEN {
     let len = self.read_varint()
     self.pos = self.pos + len
+  } else if wt == 1 || wt == 5 {
+    self.pos = self.pos + (if wt == 1 { 8 } else { 4 })
+  } else if wt == 3 {
+    self.skip_group(fn_num)
+  } else if wt == 4 {
+    ()
   } else {
-    abort("unsupported wire type: \{wt}")
+    // Unknown wire type — skip to end of current message boundary
+    self.pos = self.end
+  }
+}
+
+fn Decoder::skip_group(self: Decoder, fn_num: Int) -> Unit {
+  while self.remaining() > 0 {
+    let (sub_fn, sub_wt) = self.read_tag()
+    if sub_wt == 4 && sub_fn == fn_num {
+      return
+    }
+    self.skip_field(sub_fn, sub_wt)
   }
 }
 
@@ -164,7 +181,7 @@ fn decode_file(dec: Decoder) -> File {
     match (fn_num, wt) {
       (1, WT_LEN) => name = Some(dec.read_string())
       (2, WT_LEN) => contents = Some(dec.read_bytes())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let name_val = match name { Some(v) => v; None => "" }
@@ -205,7 +222,7 @@ fn decode_settings(dec: Decoder) -> Settings {
       (3, WT_LEN) => schema.push(dec.read_string())
       (4, WT_LEN) => queries.push(dec.read_string())
       (12, WT_LEN) => codegen = Some(decode_embedded(dec, decode_codegen))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let version_val = match version { Some(v) => v; None => "" }
@@ -263,7 +280,7 @@ fn decode_codegen(dec: Decoder) -> Codegen {
       (4, WT_LEN) => env.push(dec.read_string())
       (5, WT_LEN) => process = Some(decode_embedded(dec, decode_codegen_process))
       (6, WT_LEN) => wasm = Some(decode_embedded(dec, decode_codegen_wasm))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let out_val = match out { Some(v) => v; None => "" }
@@ -285,7 +302,7 @@ fn decode_codegen_process(dec: Decoder) -> CodegenProcess {
     let (fn_num, wt) = dec.read_tag()
     match (fn_num, wt) {
       (1, WT_LEN) => cmd = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let cmd_val = match cmd { Some(v) => v; None => "" }
@@ -309,7 +326,7 @@ fn decode_codegen_wasm(dec: Decoder) -> CodegenWASM {
     match (fn_num, wt) {
       (1, WT_LEN) => url = Some(dec.read_string())
       (2, WT_LEN) => sha256 = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let url_val = match url { Some(v) => v; None => "" }
@@ -344,7 +361,7 @@ fn decode_catalog(dec: Decoder) -> Catalog {
       (2, WT_LEN) => default_schema = Some(dec.read_string())
       (3, WT_LEN) => name = Some(dec.read_string())
       (4, WT_LEN) => schemas.push(decode_embedded(dec, decode_schema))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let comment_val = match comment { Some(v) => v; None => "" }
@@ -388,7 +405,7 @@ fn decode_schema(dec: Decoder) -> Schema {
       (3, WT_LEN) => tables.push(decode_embedded(dec, decode_table))
       (4, WT_LEN) => enums.push(decode_embedded(dec, decode_enum))
       (5, WT_LEN) => composite_types.push(decode_embedded(dec, decode_composite_type))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let comment_val = match comment { Some(v) => v; None => "" }
@@ -413,7 +430,7 @@ fn decode_composite_type(dec: Decoder) -> CompositeType {
     match (fn_num, wt) {
       (1, WT_LEN) => name = Some(dec.read_string())
       (2, WT_LEN) => comment = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let name_val = match name { Some(v) => v; None => "" }
@@ -444,7 +461,7 @@ fn decode_enum(dec: Decoder) -> Enum {
       (1, WT_LEN) => name = Some(dec.read_string())
       (2, WT_LEN) => vals.push(dec.read_string())
       (3, WT_LEN) => comment = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let name_val = match name { Some(v) => v; None => "" }
@@ -475,7 +492,7 @@ fn decode_table(dec: Decoder) -> Table {
       (1, WT_LEN) => rel = Some(decode_embedded(dec, decode_identifier))
       (2, WT_LEN) => columns.push(decode_embedded(dec, decode_column))
       (3, WT_LEN) => comment = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let empty_id: Identifier = { catalog: "", schema: "", name: "" }
@@ -505,7 +522,7 @@ fn decode_identifier(dec: Decoder) -> Identifier {
       (1, WT_LEN) => catalog = Some(dec.read_string())
       (2, WT_LEN) => schema = Some(dec.read_string())
       (3, WT_LEN) => name = Some(dec.read_string())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let catalog_val = match catalog { Some(v) => v; None => "" }
@@ -603,7 +620,7 @@ fn decode_column(dec: Decoder) -> Column {
       (15, WT_LEN) => original_name = Some(dec.read_string())
       (16, WT_VARINT) => unsigned = Some(dec.read_bool())
       (17, WT_VARINT) => array_dims = Some(dec.read_varint())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let empty_id: Identifier = { catalog: "", schema: "", name: "" }
@@ -680,7 +697,7 @@ fn decode_query(dec: Decoder) -> Query {
       (6, WT_LEN) => comments.push(dec.read_string())
       (7, WT_LEN) => filename = Some(dec.read_string())
       (8, WT_LEN) => insert_into_table = Some(decode_embedded(dec, decode_identifier))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let text_val = match text { Some(v) => v; None => "" }
@@ -715,7 +732,7 @@ fn decode_parameter(dec: Decoder) -> Parameter {
     match (fn_num, wt) {
       (1, WT_VARINT) => number = Some(dec.read_varint())
       (2, WT_LEN) => column = Some(decode_embedded(dec, decode_column))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let number_val = match number { Some(v) => v; None => 0 }
@@ -751,7 +768,7 @@ fn decode_generate_request(dec: Decoder) -> GenerateRequest {
       (4, WT_LEN) => sqlc_version = Some(dec.read_string())
       (5, WT_LEN) => plugin_options = Some(dec.read_bytes())
       (6, WT_LEN) => global_options = Some(dec.read_bytes())
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   let empty_codegen: Codegen = {
@@ -792,7 +809,7 @@ fn decode_generate_response(dec: Decoder) -> GenerateResponse {
     let (fn_num, wt) = dec.read_tag()
     match (fn_num, wt) {
       (1, WT_LEN) => files.push(decode_embedded(dec, decode_file))
-      (_, _) => dec.skip_field(wt)
+      (_, _) => dec.skip_field(fn_num, wt)
     }
   }
   { files: files }
@@ -1304,7 +1321,7 @@ test "skip_field: varint" {
   let (field_num1, wt1) = dec.read_tag()
   inspect(field_num1, content="1")
   inspect(wt1, content="0")
-  dec.skip_field(wt1)
+  dec.skip_field(field_num1, wt1)
   let (field_num2, wt2) = dec.read_tag()
   inspect(field_num2, content="2")
   inspect(wt2, content="2")
@@ -1317,7 +1334,7 @@ test "skip_field: length-delimited" {
   let data = enc.finish()
   let dec = Decoder::new(data)
   let (field_num, wt) = dec.read_tag()
-  dec.skip_field(wt)
+  dec.skip_field(field_num, wt)
   inspect(dec.remaining(), content="0")
 }
 
