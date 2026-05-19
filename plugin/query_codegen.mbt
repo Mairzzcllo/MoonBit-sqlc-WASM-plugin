@@ -43,7 +43,8 @@ fn build_return_ty(cmd: QueryCardinality, result_type: String) -> TypeExpr {
 fn build_body(query: InternalQuery, result_type: String) -> Array[Expr] {
   let sql_let = Let("sql", StrLit(query.text))
   let db_call = match query.cmd {
-    OneRow | ManyRows | ExecResult => Call("db.exec", [Ident("sql")])
+    OneRow | ManyRows => Call("db.query", [Ident("sql")])
+    ExecResult => Call("db.exec", [Ident("sql")])
     ExecCount => Call("db.execrows", [Ident("sql")])
   }
   // Wrap db call in let _ = to discard the Int/Int64 return value
@@ -221,7 +222,7 @@ test "generate_query_fns: multiple queries" {
   inspect(name2, content="query_q2")
 }
 
-test "build_body: :many body uses db.exec" {
+test "build_body: :many body uses db.query" {
   let q: InternalQuery = {
     name: "list", text: "SELECT 1", cmd: ManyRows,
     params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
@@ -230,7 +231,7 @@ test "build_body: :many body uses db.exec" {
   }
   let body = build_body(q, "ListRow")
   inspect(body.length(), content="3")
-  // Second expression is let _ = db.exec(sql)
+  // Second expression is let _ = db.query(sql)
   let discard_name = match body[1] { Let(name, _) => name; _ => "" }
   inspect(discard_name, content="_")
   // Third expression is the return value (empty array)
@@ -278,5 +279,5 @@ test "generate_query_fn: full function emission matches expected pattern" {
   let sf: SourceFile = { items: [Fn(fn_def)] }
   let result = emit_source_file(sf)
   // Verify the emitted code matches expected output
-  inspect(result, content="/// Get a user by ID\npub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {\n  let sql = \"SELECT id, name FROM users WHERE id = $1\"\n  let _ = db.exec(sql)\n  None\n}\n")
+  inspect(result, content="/// Get a user by ID\npub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {\n  let sql = \"SELECT id, name FROM users WHERE id = \\$1\"\n  let _ = db.query(sql)\n  None\n}\n")
 }

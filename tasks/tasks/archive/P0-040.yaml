@@ -1,0 +1,29 @@
+id: P0-040
+title: Query 路由修复 (db.exec/db.query/db.execrows)
+priority: P0
+type: fix
+state: done
+description: >-
+  CRITICAL #3 — build_body 对所有 cardinality 统一用 db.exec()。
+  SELECT 查询（OneRow/ManyRows）应调用 db.query(sql)（返回 Array[Row]），
+  ExecResult 应调用 db.exec(sql)（返回 Int），ExecCount 应调用
+  db.execrows(sql)（返回 Int64）。同时修复 build_return_ty 的
+  return type 映射以匹配实际运行时类型。
+
+  修复文件：plugin/query_codegen.mbt
+
+  验证：moon check 0 errors；测试验证对应 cardinality 生成正确的
+  db 调用方法名。
+dependencies:
+  - id: P0-035
+    type: hard
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-19
+updated_at: 2026-05-19
+related: ["#3"]

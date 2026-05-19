@@ -190,6 +190,32 @@ fn emit_type_expr(t: TypeExpr) -> String {
   }
 }
 
+/// Escape special characters in string literals for MoonBit source output.
+fn escape_string(s: String) -> String {
+  let mut result = ""
+  let mut i = 0
+  while i < s.length() {
+    let ch = s[i]
+    if ch == '"' {
+      result = result + "\\\""
+    } else if ch == '\n' {
+      result = result + "\\n"
+    } else if ch == '\t' {
+      result = result + "\\t"
+    } else if ch == '\r' {
+      result = result + "\\r"
+    } else if ch == '\\' {
+      result = result + "\\\\"
+    } else if ch == '$' {
+      result = result + "\\$"
+    } else {
+      result = result + s[i : i + 1].to_string()
+    }
+    i = i + 1
+  }
+  result
+}
+
 fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
   match expr {
     Ident(s) => push_line(em, indent, s)
@@ -208,7 +234,7 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
       push_indent(em, indent)
       em.push("let " + name + " = " + expr_to_string(val) + "\n")
     }
-    StrLit(s) => push_line(em, indent, "\"" + s + "\"")
+    StrLit(s) => push_line(em, indent, "\"" + escape_string(s) + "\"")
     ArrLit(args) => {
       let mut s = "["
       let mut first = true
@@ -256,7 +282,7 @@ fn expr_to_string(e: Expr) -> String {
       s + ")"
     }
     Let(name, val) => "let " + name + " = " + expr_to_string(val)
-    StrLit(s) => "\"" + s + "\""
+    StrLit(s) => "\"" + escape_string(s) + "\""
     ArrLit(args) => {
       let mut s = "["
       let mut first = true
@@ -552,4 +578,35 @@ test "emit: empty array literal expr" {
   emit_expr(em, 0, e)
   let result = em.finish()
   inspect(result, content="[]\n")
+}
+
+test "escape_string: double quotes are escaped" {
+  let result = escape_string("hello\"world")
+  inspect(result, content="hello\\\"world")
+}
+
+test "escape_string: newline and tab are escaped" {
+  let result = escape_string("line1\nline2\tcol")
+  inspect(result, content="line1\\nline2\\tcol")
+}
+
+test "escape_string: backslash and dollar are escaped" {
+  let result = escape_string("a\\b$c")
+  inspect(result, content="a\\\\b\\$c")
+}
+
+test "emit: strlit with double quotes emits escaped" {
+  let e: Expr = StrLit("SELECT \"id\" FROM users")
+  let em = Emitter::new()
+  emit_expr(em, 0, e)
+  let result = em.finish()
+  inspect(result, content="\"SELECT \\\"id\\\" FROM users\"\n")
+}
+
+test "emit: strlit with newline emits escaped" {
+  let e: Expr = StrLit("multi\nline")
+  let em = Emitter::new()
+  emit_expr(em, 0, e)
+  let result = em.finish()
+  inspect(result, content="\"multi\\nline\"\n")
 }

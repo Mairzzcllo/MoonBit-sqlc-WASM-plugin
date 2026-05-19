@@ -22,10 +22,12 @@
 pub struct DB {
   exec_fn : (String) -> Int
   execrows_fn : (String) -> Int64
+  query_fn : (String) -> Array[Row]
 }
 
 pub fn DB::exec(self: DB, sql: String) -> Int { (self.exec_fn)(sql) }
 pub fn DB::execrows(self: DB, sql: String) -> Int64 { (self.execrows_fn)(sql) }
+pub fn DB::query(self: DB, sql: String) -> Array[Row] { (self.query_fn)(sql) }
 
 /// Row runtime stub (mirrors runtime/row.mbt for compilation testing).
 pub struct Row {
@@ -67,14 +69,14 @@ pub struct GetUserRow {
 /// List all users
 pub fn query_list_users(db: DB) -> Array[ListUsersRow] {
   let sql = "SELECT id, name, email FROM users"
-  let _ = db.exec(sql)
+  let _ = db.query(sql)
   []
 }
 
 /// Get user by ID
 pub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {
   let sql = "SELECT id, name, email FROM users WHERE id = $1"
-  let _ = db.exec(sql)
+  let _ = db.query(sql)
   None
 }
 

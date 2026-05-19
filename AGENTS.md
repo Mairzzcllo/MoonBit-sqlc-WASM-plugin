@@ -41,7 +41,8 @@
     - 生成函数 body 中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃，后跟 `None`（OneRow）/`[]`（ManyRows）
     - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
     - sqlc v2 配置格式: codegen 在 `sql[]` 下，WASM 插件定义在 `plugins[]` 下，URL 支持 `file://` 和 `https://`；sha256 建议填入避免启动时重复计算
-    - 验证脚本: `tests/integration/wasm/validate_plugin.ps1` 用于检查 WASM 构建产物和 sqlc 集成
+    - 字符串字面量转义使用 escape_string(s) 函数（emitter.mbt），转义表：'"'→'\"'、'\n'→'\\n'、'\t'→'\\t'、'\r'→'\\r'、'\\'→'\\\\'、'$'→'\\$'（MoonBit $ 标识符前缀需转义）
+- 验证脚本: `tests/integration/wasm/validate_plugin.ps1` 用于检查 WASM 构建产物和 sqlc 集成
 
 ## 决策索引
 

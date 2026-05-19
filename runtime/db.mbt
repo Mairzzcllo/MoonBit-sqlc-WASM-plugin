@@ -22,10 +22,11 @@
 pub struct DB {
   exec_fn : (String) -> Int
   execrows_fn : (String) -> Int64
+  query_fn : (String) -> Array[Row]
 }
 
-pub fn DB::new(exec_fn: (String) -> Int, execrows_fn: (String) -> Int64) -> DB {
-  { exec_fn: exec_fn, execrows_fn: execrows_fn }
+pub fn DB::new(exec_fn: (String) -> Int, execrows_fn: (String) -> Int64, query_fn: (String) -> Array[Row]) -> DB {
+  { exec_fn: exec_fn, execrows_fn: execrows_fn, query_fn: query_fn }
 }
 
 pub fn DB::exec(self: DB, sql: String) -> Int {
@@ -34,4 +35,8 @@ pub fn DB::exec(self: DB, sql: String) -> Int {
 
 pub fn DB::execrows(self: DB, sql: String) -> Int64 {
   (self.execrows_fn)(sql)
+}
+
+pub fn DB::query(self: DB, sql: String) -> Array[Row] {
+  (self.query_fn)(sql)
 }

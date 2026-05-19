@@ -3,9 +3,9 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: P0-035 完成。P0 第二阶段（bug 修复）推进：type_map 类型映射完善 + IR 层数组/RETURNING* 支持完成。架构迁移：WAT shim → 原生 WASI I/O
-- **当前任务**: P0-036（依赖 P0-034 + P0-035，均已就绪）
-- **最新事件**: 2026-05-19 — P0-034 Type Mapping 类型映射完善完成。修复 6 个缺陷（#5 serial/bigserial/smallserial, #6 pg_catalog.* schema 前缀, #7 空格类型名, #27 interval 注释, #32 大小写, numeric 精度注释）。P0-035 IR 层数组与 RETURNING* 支持完成。修复 2 个缺陷（#11 is_array 丢失, #21 RETURNING * 行数据丢失）。新增 23 个测试。moon check 0 errors，moon test 233/233 通过。
-- P0: 35/39 completed（紧急修复阶段：3/7）
+- **阶段**: P0 bug 修复中（P0-040 + P0-043 已完成）。P0-036 拆分为 4 子任务：P0-040(#3 query 路由)✅, P0-041(#2 decode 方法)待办, P0-042(#1 行解码)待办, P0-043(#22 字符串转义)✅
+- **当前任务**: P0-041（依赖 P0-040 ✅，可开始）
+- **最新事件**: 2026-05-19 — P0-040 Query 路由修复完成：runtime/db.mbt 新增 query_fn 字段和 DB::query() 方法；query_codegen.mbt 中 OneRow/ManyRows→db.query(sql), ExecResult→db.exec(sql), ExecCount→db.execrows(sql)。P0-043 字符串转义完成：emitter.mbt 新增 escape_string()，转义 " \\n \\t \\r \\\\ $；StrLit/expr_to_string 两处应用。测试新增 5 个，总数 238。moon check 0 errors，moon test 238/238 通过。
+- P0: 37/39 completed（P0-036 父任务进行中，剩余 P0-041/P0-042/P0-037/P0-038/P0-039）
 - P1: 0/2 completed
 - P2: 0/1 completed

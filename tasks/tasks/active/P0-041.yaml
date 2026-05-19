@@ -1,0 +1,30 @@
+id: P0-041
+title: 生成 decode(Row) 方法
+priority: P0
+type: fix
+state: todo
+description: >-
+  CRITICAL #2 — type_codegen.mbt 生成的 struct 没有对应的 decode(Row)
+  方法。runtime 的 Row 类型提供 get(Int) → T 方法，codegen 需为每个
+  struct 生成从 Row 反序列化的代码。
+
+  修复：在每个生成的 Row struct 后添加 pub fn decode(row: Row) -> Self
+  方法。按字段顺序调用 row.get(i) 填充字段。数组字段需 row.get_array(i)
+  特殊处理。
+
+  修复文件：plugin/type_codegen.mbt
+
+  验证：moon check 0 errors；golden test 验证 decode 方法签名和字段顺序。
+dependencies:
+  - id: P0-040
+    type: hard
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-19
+updated_at: 2026-05-19
+related: ["#2"]

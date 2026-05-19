@@ -1,0 +1,31 @@
+id: P0-043
+title: 字符串字面量转义
+priority: P0
+type: fix
+state: done
+description: >-
+  HIGH #22 — emitter.mbt 中 StrLit(s) 直接做 "\"" + s + "\""，
+  无任何转义。SQL 包含双引号、换行符、反斜杠时生成语法错误的 .mbt 文件。
+  SQL 中双引号尤其常见（引用标识符）。
+
+  修复：实现 escape_string(s) 函数，映射表：
+  '"' → '\"', '\n' → '\\n', '\t' → '\\t', '\r' → '\\r',
+  '\\' → '\\\\', '$' → '\\$'（MoonBit 允许 $ 标识符前缀需转义）。
+  在 emitter.mbt 中 StrLit 和 expr_to_string 两处调用点均需应用此转义。
+
+  修复文件：plugin/emitter.mbt
+
+  独立任务，可与 P0-040/P0-041/P0-042 并行执行。
+
+  验证：moon check 0 errors；golden test 验证含特殊字符的 SQL 生成正确。
+dependencies: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-19
+updated_at: 2026-05-19
+related: ["#22"]

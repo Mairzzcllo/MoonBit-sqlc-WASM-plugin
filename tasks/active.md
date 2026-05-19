@@ -6,16 +6,38 @@
 
 ## P0 — 紧急修复
 
-### [P0-036] Codegen 核心修复
+### [P0-036] Codegen 核心修复 (父任务)
 - 优先级: P0
 - 类型: fix
-- 状态: 待办
-- 描述: 修复 query_codegen.mbt / type_codegen.mbt / emitter.mbt 中 4 个 CRITICAL 缺陷：:one/:many 改用 db.query() 并解码行数据（不再返回 None/[]）；生成 decode(Row) 方法；字符串字面量转义（双引号、换行符）；清理 build_body 未使用的 result_type 参数
-- 依赖: P0-034（已完成），P0-035（已完成）
+- 状态: 进行中 (2/4 completed: P0-040✅ P0-043✅)
+- 描述: 4 个子任务：P0-040(#3, ✅) → P0-041(#2) → P0-042(#1)；P0-043(#22, ✅) 并行
+- 依赖: P0-041(hard) P0-042(hard)
 - 锁定: -
 - 重试: 0/3
 - 创建: 2026-05-18
 - 关联: #1 #2 #3 #22
+
+### [P0-041] 生成 decode(Row) 方法
+- 优先级: P0
+- 类型: fix
+- 状态: 待办
+- 描述: CRITICAL #2 — 为每个生成的 Row struct 添加 decode(row: Row) -> Self 方法，按字段顺序调用 row.get(i)，数组字段用 row.get_array(i)
+- 依赖: P0-040(hard, ✅)
+- 锁定: -
+- 重试: 0/3
+- 创建: 2026-05-19
+- 关联: #2
+
+### [P0-042] :one/:many 解码行数据
+- 优先级: P0
+- 类型: fix
+- 状态: 待办
+- 描述: CRITICAL #1 — 改用 db.query(sql) 获取结果，StructName::decode(row) 解码；OneRow 取首条 Option.wrap，ManyRows 遍历全部
+- 依赖: P0-040(hard, ✅) P0-041(hard)
+- 锁定: -
+- 重试: 0/3
+- 创建: 2026-05-19
+- 关联: #1
 
 ### [P0-037] 输出配置与导入声明
 - 优先级: P0
