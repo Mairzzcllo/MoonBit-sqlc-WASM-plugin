@@ -31,7 +31,7 @@ test "compilation: GetUserRow struct can be constructed" {
 }
 
 test "compilation: query functions are callable" {
-  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) } }
+  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) }, begin_fn: fn() { Err(ConnectionError("not supported")) } }
   let result = query_delete_user(db, 42L)
   inspect(match result { Ok(n) => n; Err(_) => 0L }, content="0")
 }
@@ -42,7 +42,7 @@ test "compilation: UserRole enum variants accessible" {
 }
 
 test "compilation: query_list_users accepts DB" {
-  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) } }
+  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) }, begin_fn: fn() { Err(ConnectionError("not supported")) } }
   let result = query_list_users(db)
   inspect(match result { Ok(rows) => rows.length(); Err(_) => -1 }, content="0")
 }

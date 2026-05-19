@@ -25,6 +25,7 @@ pub struct DB {
   execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
+  begin_fn : () -> Result[Transaction, DBError]
 }
 
 pub fn DB::new(
@@ -32,12 +33,14 @@ pub fn DB::new(
   execrows_fn: (String, Array[Value]) -> Result[Int64, DBError],
   query_fn: (String, Array[Value]) -> Result[RowIter, DBError],
   query_row_fn: (String, Array[Value]) -> Result[Row, DBError],
+  begin_fn: () -> Result[Transaction, DBError],
 ) -> DB {
   {
     exec_fn: exec_fn,
     execrows_fn: execrows_fn,
     query_fn: query_fn,
     query_row_fn: query_row_fn,
+    begin_fn: begin_fn,
   }
 }
 
@@ -61,12 +64,19 @@ pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row,
   (self.query_row_fn)(sql, params)
 }
 
+/// Begin a new transaction, returning a Result[Transaction, DBError].
+/// The caller is responsible for calling commit or rollback on success.
+pub fn DB::begin(self: DB) -> Result[Transaction, DBError] {
+  (self.begin_fn)()
+}
+
 test "DB::new and exec returns Ok" {
   let db = DB::new(
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
   )
   let result = db.exec("DELETE FROM t", [])
   let val = match result { Ok(n) => n; Err(_) => 0L }
@@ -79,6 +89,7 @@ test "DB::execrows returns Ok with count" {
     fn(_sql, _params) { Ok(5L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
   )
   let result = db.execrows("UPDATE t SET x = 1", [])
   let val = match result { Ok(n) => n; Err(_) => 0L }
@@ -91,6 +102,7 @@ test "DB::query returns RowIter" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
   )
   let result = db.query("SELECT 1", [])
   let empty = match result { Ok(iter) => { match iter.collect() { Ok(rows) => rows.length(); _ => -1 } }; _ => -1 }
@@ -103,6 +115,7 @@ test "DB::query_row returns Row" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
+    fn() { Err(QueryError("transactions not supported")) },
   )
   let result = db.query_row("SELECT 42", [])
   let val = match result { Ok(row) => row.get(0); Err(_) => "" }
@@ -115,8 +128,44 @@ test "DB::exec returns Err on failure" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
   )
   let result = db.exec("DROP TABLE t", [])
   let is_err = match result { Err(_) => true; _ => false }
+  inspect(is_err, content="true")
+}
+
+test "DB::begin returns Ok with Transaction" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() {
+      Ok(Transaction::new(
+        fn(_sql, _params) { Ok(1L) },
+        fn(_sql, _params) { Ok(1L) },
+        fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+        fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+        fn() { Ok(()) },
+        fn() { Ok(()) },
+      ))
+    },
+  )
+  let result = db.begin()
+  let ok = match result { Ok(_) => true; Err(_) => false }
+  inspect(ok, content="true")
+}
+
+test "DB::begin returns Err on failure" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("begin failed")) },
+  )
+  let result = db.begin()
+  let is_err = match result { Err(QueryError(_)) => true; _ => false }
   inspect(is_err, content="true")
 }

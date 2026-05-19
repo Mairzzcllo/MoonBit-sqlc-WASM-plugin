@@ -52,8 +52,10 @@
     - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
     - sqlc v2 配置格式: codegen 在 `sql[]` 下，WASM 插件定义在 `plugins[]` 下，URL 支持 `file://` 和 `https://`；sha256 建议填入避免启动时重复计算
     - 字符串字面量转义使用 escape_string(s) 函数（emitter.mbt），转义表：'"'→'\"'、'\n'→'\\n'、'\t'→'\\t'、'\r'→'\\r'、'\\'→'\\\\'、'$'→'\\$'（MoonBit $ 标识符前缀需转义）
+- Transaction struct: 与 DB 相同的 concrete struct + closure 模式，额外包含 commit_fn/rollback_fn。DB::begin() → Result[Transaction, DBError]
 - Row 类型化 getter 不可空变体返回 `Result[T, DBError]`，可空变体返回 `Result[Option[T], DBError]`，空字符串约定为 NULL 值
 - Row get_bytes 使用 `Array::make(n, (0).to_byte())` + for 循环逐字节构建 `Array[Byte]`，不使用 `String::to_bytes()`（返回 `Bytes` 类型而非 `Array[Byte]`）
+- MockDB in `runtime/mock.mbt`: `MockDB` struct (预设 exec/execrows/query/query_row 的 Result)，`MockDB::build()` → `DB`。Call tracking 通过 `let mut` 闭包在测试侧手动实现
 - Row get_json 使用 `@json.parse(raw[:])` + try/catch 解析 JSON 字符串
 - runtime/moon.pkg 导入 `moonbitlang/core/json` @json 和 `moonbitlang/core/string` @string
 - 验证脚本: `tests/integration/wasm/validate_plugin.ps1` 用于检查 WASM 构建产物和 sqlc 集成
@@ -69,6 +71,7 @@
 - ADR-007 — WAT Shim ABI Bridge（已接受，由 ADR-008 取代）
 - ADR-008 — Native WASI I/O via Inline WAT FFI（已接受）
 - ADR-009 — Known Limitations and MVP Boundaries（草稿）
+- ADR-010 — Transaction Support: Concrete Struct + Closure Pattern（已接受）
 
 ## 已知限制
 

@@ -24,12 +24,14 @@ pub struct DB {
   execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
+  begin_fn : () -> Result[Transaction, DBError]
 }
 
 pub fn DB::exec(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.exec_fn)(sql, params) }
 pub fn DB::execrows(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.execrows_fn)(sql, params) }
 pub fn DB::query(self: DB, sql: String, params: Array[Value]) -> Result[RowIter, DBError] { (self.query_fn)(sql, params) }
 pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row, DBError] { (self.query_row_fn)(sql, params) }
+pub fn DB::begin(self: DB) -> Result[Transaction, DBError] { (self.begin_fn)() }
 
 /// Row runtime stub (mirrors runtime/row.mbt for compilation testing).
 pub struct Row {
@@ -51,6 +53,16 @@ pub fn RowIter::collect(self: RowIter) -> Result[Array[Row], DBError] { Ok(self.
 
 /// Value runtime stub for compilation testing.
 pub enum Value { Null; Int64(Int64); String(String) }
+
+/// Transaction runtime stub (mirrors runtime/transaction.mbt for compilation testing).
+pub struct Transaction {
+  exec_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
+  query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
+  commit_fn : () -> Result[Unit, DBError]
+  rollback_fn : () -> Result[Unit, DBError]
+}
 
 /// DBError stub.
 pub enum DBError { ConnectionError(String) }

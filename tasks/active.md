@@ -42,24 +42,20 @@
 ### [P1-006] Transaction Support
 - 优先级: P1
 - 类型: feature
-- 状态: 待办
+- 状态: ✅ 已完成 — Transaction struct + DB::begin + commit/rollback + 11 tests
 - 描述: Transaction struct + DB::begin
-- 依赖: P1-003（hard）
-- 锁定: -
-- 重试: 0/3
+- 依赖: P1-003（hard），P1-005（soft）
 - 创建: 2026-05-19
-- 关联: -
+- 完成: 2026-05-19
 
 ### [P1-007] Mock DB + Integration Tests
 - 优先级: P1
 - 类型: test
-- 状态: 待办
+- 状态: ✅ 已完成 — MockDB preset + 8 tests covering all 4 modes + error/empty/decode
 - 描述: MockDB 实现 + 端到端集成测试（四种查询模式 + 参数绑定验证）
 - 依赖: P1-004（hard），P1-005（hard）
-- 锁定: -
-- 重试: 0/3
 - 创建: 2026-05-19
-- 关联: -
+- 完成: 2026-05-19
 
 ## P2 — 后续
 
