@@ -99,7 +99,7 @@ fn cmd_to_cardinality(cmd: QueryCmd) -> QueryCardinality {
 fn adapt_column_to_field(col: AdaptColumn) -> InternalField {
   {
     name: col.name,
-    ty: Named(col.ty.name),
+    ty: if col.is_array { Arr(Named(col.ty.name)) } else { Named(col.ty.name) },
     not_null: col.not_null,
     comment: col.comment,
   }
@@ -109,14 +109,16 @@ fn adapt_parameter_to_ir(p: AdaptParameter) -> InternalParameter {
   {
     number: p.number,
     name: p.column.name,
-    ty: Named(p.column.ty.name),
+    ty: if p.column.is_array { Arr(Named(p.column.ty.name)) } else { Named(p.column.ty.name) },
     not_null: p.column.not_null,
   }
 }
 
 fn build_result_shape(cmd: QueryCardinality, fields: Array[InternalField]) -> InternalResultShape {
   match cmd {
-    ExecResult | ExecCount => None
+    // PostgreSQL RETURNING *: exec-like commands may have result columns
+    ExecResult | ExecCount =>
+      if fields.length() > 0 { Rows(fields) } else { None }
     OneRow | ManyRows => Rows(fields)
   }
 }
@@ -369,4 +371,145 @@ test "build_ir: multiple queries" {
   inspect(ir.length(), content="2")
   inspect(ir[0].name, content="q1")
   inspect(ir[1].name, content="q2")
+}
+
+test "adapt_column_to_field: is_array wraps type in Arr" {
+  let col: AdaptColumn = {
+    name: "tags", not_null: true, is_array: true,
+    ty: { catalog: "", schema: "", name: "text" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "posts" },
+  }
+  let f = adapt_column_to_field(col)
+  inspect(f.name, content="tags")
+  inspect(f.ty, content="Arr(Named(\"text\"))")
+  inspect(f.not_null, content="true")
+}
+
+test "adapt_column_to_field: is_array false does not wrap" {
+  let col: AdaptColumn = {
+    name: "id", not_null: true, is_array: false,
+    ty: { catalog: "", schema: "", name: "int4" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "users" },
+  }
+  let f = adapt_column_to_field(col)
+  inspect(f.ty, content="Named(\"int4\")")
+}
+
+test "build_ir: :many with array column preserves Arr type" {
+  let col: AdaptColumn = {
+    name: "tags", not_null: true, is_array: true,
+    ty: { catalog: "", schema: "", name: "text" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "posts" },
+  }
+  let q: AdaptQuery = {
+    text: "SELECT tags FROM posts", name: "list_tags", cmd: Many,
+    columns: [col], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  let fields = match ir[0].result_shape {
+    Rows(f) => f
+    None => []
+  }
+  inspect(fields.length(), content="1")
+  inspect(fields[0].ty, content="Arr(Named(\"text\"))")
+}
+
+test "build_ir: :exec with RETURNING * produces Rows when columns non-empty" {
+  let col: AdaptColumn = {
+    name: "id", not_null: true, is_array: false,
+    ty: { catalog: "", schema: "", name: "int4" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "users" },
+  }
+  let q: AdaptQuery = {
+    text: "INSERT INTO users DEFAULT VALUES RETURNING id",
+    name: "create_user", cmd: Exec,
+    columns: [col], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  inspect(ir[0].cmd, content="ExecResult")
+  let has_rows = match ir[0].result_shape {
+    Rows(_) => true
+    None => false
+  }
+  inspect(has_rows, content="true")
+  let fields = match ir[0].result_shape {
+    Rows(f) => f
+    None => []
+  }
+  inspect(fields.length(), content="1")
+  inspect(fields[0].name, content="id")
+}
+
+test "build_ir: :execrows with RETURNING * produces Rows when columns non-empty" {
+  let col: AdaptColumn = {
+    name: "new_name", not_null: false, is_array: false,
+    ty: { catalog: "", schema: "", name: "text" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "users" },
+  }
+  let q: AdaptQuery = {
+    text: "UPDATE users SET name = $1 WHERE id = $2 RETURNING name",
+    name: "update_user", cmd: ExecRows,
+    columns: [col], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  inspect(ir[0].cmd, content="ExecCount")
+  let has_rows = match ir[0].result_shape {
+    Rows(_) => true
+    None => false
+  }
+  inspect(has_rows, content="true")
+}
+
+test "build_ir: :exec with empty columns still produces None" {
+  let q: AdaptQuery = {
+    text: "DELETE FROM users WHERE id = $1", name: "del", cmd: Exec,
+    columns: [], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  let is_none = match ir[0].result_shape {
+    None => true
+    Rows(_) => false
+  }
+  inspect(is_none, content="true")
+}
+
+test "adapt_parameter_to_ir: is_array wraps type in Arr" {
+  let col: AdaptColumn = {
+    name: "ids", not_null: true, is_array: true,
+    ty: { catalog: "", schema: "", name: "int4" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "", name: "" },
+  }
+  let p: AdaptParameter = { number: 1, column: col }
+  let param = adapt_parameter_to_ir(p)
+  inspect(param.ty, content="Arr(Named(\"int4\"))")
 }

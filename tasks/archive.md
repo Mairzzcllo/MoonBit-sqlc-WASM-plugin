@@ -302,3 +302,30 @@
 - 架构: moon check 0 errors, moon test 195/195 passed, moon build --target wasm 0 errors
 - 创建: 2026-05-17
 - 完成: 2026-05-17
+
+### [P0-034] Type Mapping 类型映射完善
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: 修复 type_map.mbt 中 6 个缺陷：#5 bigserial/serial/smallserial 映射；#6 schema 限定名 (pg_catalog.*) 前缀剥离；#7 完整空格类型名 (timestamp with time zone, double precision)；#27 interval MVP 注释；#32 大小写不敏感匹配；numeric→Double 精度损失注释
+- 架构: moon check 0 errors, moon test 226/226 passed (16 new tests)
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+
+### [P0-035] IR 层数组与 RETURNING* 支持
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: 修复 ir.mbt 中 2 个缺陷：#11 adapt_column_to_field/adapt_parameter_to_ir 添加 is_array 判断使 TEXT[] 不丢失数组信息；#21 build_result_shape 对 ExecResult/ExecCount 有返回列时返回 Rows(fields) 而非 None（RETURNING * 支持）
+- 架构: moon check 0 errors, moon test 233/233 passed (7 new tests)
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+
+### [P0-033] Codec 编解码安全加固
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: 修复 codec.mbt + protocol.mbt 中 9 个缺陷：#4 Varint 编码死循环（5 字节上限 + 掩码保护）、#8 Varint 解码 5 字节上限、#9 read_string/read_bytes 边界检查、#10 decode_embedded 长度验证、#15 skip_field match 重构 + 注释、#16 decode_embedded 位置推进修复（先子解析再推进）、#17 encode_request 空 plugin_options 无条件编码、#18 Column 字段 2 缺口注释、#19 decode_u32_le 边界保护
+- 架构: moon check 0 errors, moon test 210/210 passed (15 new boundary tests)
+- 创建: 2026-05-18
+- 完成: 2026-05-18

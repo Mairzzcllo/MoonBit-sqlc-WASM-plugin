@@ -20,14 +20,27 @@
 
 /// PostgreSQL canonical/common aliases → MoonBit type mapping.
 /// Returns the MoonBit TypeExpr for the given PG type name.
+/// Normalizes input: case-insensitive (via to_lower), strips schema prefix.
 fn map_pg_name(name: String) -> TypeExpr {
-  match name {
+  // Normalize: lowercase for case-insensitive matching, strip schema prefix
+  let normalized = {
+    let lower = name.to_lower()
+    let dot_idx = lower.rev_find(".")
+    match dot_idx {
+      Some(pos) => lower.substring(start = pos + 1)
+      None => lower
+    }
+  }
+  match normalized {
     // Integers
-    "int2" | "smallint" | "int4" | "integer" | "int" => Named("Int")
-    "int8" | "bigint" => Named("Int64")
+    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" => Named("Int")
+    "int8" | "bigint" | "bigserial" => Named("Int64")
     // Floats
     "float4" | "real" => Named("Float")
-    "float8" | "double" => Named("Double")
+    "float8" | "double" | "double precision" => Named("Double")
+    // numeric/decimal → Double (MVP).
+    // WARNING: PostgreSQL numeric(1000,0) supports ~1000 significant digits
+    // while Double only has 15-17 digits. Future: map to String or custom Decimal.
     "numeric" | "decimal" => Named("Double")
     // Boolean
     "bool" | "boolean" => Named("Bool")
@@ -42,8 +55,9 @@ fn map_pg_name(name: String) -> TypeExpr {
     // UUID
     "uuid" => Named("String")
     // Date/Time (encoded as String for MVP)
-    "date" | "time" | "timetz" | "timestamp" | "timestamptz" => Named("String")
-    // Interval
+    "date" | "time" | "timetz" | "timestamp" | "timestamptz" | "timestamp with time zone" => Named("String")
+    // Interval → String (MVP decision).
+    // MVP uses String as placeholder. Future: map to Duration or Int64 (microseconds).
     "interval" => Named("String")
     // Arrays are handled by the caller via Arr(inner)
     // Fallback for unknown types
@@ -202,4 +216,84 @@ test "map_pg_name: real alias" {
 test "map_pg_name: decimal alias" {
   let t = map_pg_name("decimal")
   inspect(t, content="Named(\"Double\")")
+}
+
+test "map_pg_name: serial maps to Int" {
+  let t = map_pg_name("serial")
+  inspect(t, content="Named(\"Int\")")
+}
+
+test "map_pg_name: bigserial maps to Int64" {
+  let t = map_pg_name("bigserial")
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: smallserial maps to Int" {
+  let t = map_pg_name("smallserial")
+  inspect(t, content="Named(\"Int\")")
+}
+
+test "map_pg_name: INT4 uppercase maps to Int" {
+  let t = map_pg_name("INT4")
+  inspect(t, content="Named(\"Int\")")
+}
+
+test "map_pg_name: BIGINT uppercase maps to Int64" {
+  let t = map_pg_name("BIGINT")
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: TEXT uppercase maps to String" {
+  let t = map_pg_name("TEXT")
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: pg_catalog.int4 strips schema prefix" {
+  let t = map_pg_name("pg_catalog.int4")
+  inspect(t, content="Named(\"Int\")")
+}
+
+test "map_pg_name: pg_catalog.int8 strips schema prefix" {
+  let t = map_pg_name("pg_catalog.int8")
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: pg_catalog.text strips schema prefix" {
+  let t = map_pg_name("pg_catalog.text")
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: pg_catalog.INT4 uppercase schema prefix strips correctly" {
+  let t = map_pg_name("pg_catalog.INT4")
+  inspect(t, content="Named(\"Int\")")
+}
+
+test "map_pg_name: pg_catalog.BIGSERIAL strips schema prefix" {
+  let t = map_pg_name("pg_catalog.BIGSERIAL")
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: timestamp with time zone maps to String" {
+  let t = map_pg_name("timestamp with time zone")
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: double precision maps to Double" {
+  let t = map_pg_name("double precision")
+  inspect(t, content="Named(\"Double\")")
+}
+
+test "map_pg_name: DOUBLE PRECISION uppercase maps to Double" {
+  let t = map_pg_name("DOUBLE PRECISION")
+  inspect(t, content="Named(\"Double\")")
+}
+
+test "map_pg_name: pg_catalog.float8 strips schema prefix" {
+  let t = map_pg_name("pg_catalog.float8")
+  inspect(t, content="Named(\"Double\")")
+}
+
+test "map_pg_name: serial type pg_catalog.SERIAL strips prefix" {
+  let t = map_pg_name("pg_catalog.SERIAL")
+  inspect(t, content="Named(\"Int\")")
 }
