@@ -1,0 +1,59 @@
+id: P0-039
+title: 文档与测试补全
+priority: P0
+type: docs
+status: 待办
+description: >-
+  修复 4 个文档/测试/注释缺陷。本任务在所有代码修复完成后执行：
+
+  MEDIUM #20 — 注释与实际架构不一致。protocol.mbt:7-11 的模块级注释
+  描述了已过时的帧头协议（旧 WAT shim 的 8 字节 header），当前实际
+  使用的是 4 字节 LE 长度前缀帧协议。
+
+  修复：更新 protocol.mbt 顶部注释，匹配当前 ADR-008 架构：描述
+  4 字节 LE 帧协议 + protobuf payload 格式。同时添加流程示意图说明
+  run_io_loop 的主循环步骤。
+
+  LOW #26 — WRITE_FRAME_DEBUG 调试代码写入 stderr。wasi_io.mbt（旧
+  版本）中存在开发期调试代码，每帧将前 4 字节写入 stderr。在生产插件
+  中产生无用输出，干扰 sqlc 的日志输出。
+
+  修复：删除 WRITE_FRAME_DEBUG 相关代码块，或将其置于编译期条件
+  编译后（如 MoonBit 的 test-only 块），确保 release 构建中不包含。
+
+  MEDIUM #28 — 测试与真实 sqlc 输入脱节。当前测试用例使用 int4 等
+  简单类型构造 mock 输入（plugin/types.mbt:200-219），但真实 sqlc
+  生产输入可能发送 bigserial、带 schema 限定的类型名、以及数组类型。
+
+  修复：在 plugin/types.mbt 和其他测试文件中添加真实 sqlc 输入风格的
+  测试用例：bigserial 列、pg_catalog.int8 类型名、TEXT[] 数组列、
+  timestamp with time zone 完整名。确保这些测试覆盖 P0-033~P0-036
+  的修复内容。
+
+  LOW #34 — 缺少 ADR 文档记录已知限制。当前已知限制（如 interval→
+  String 是 MVP placeholder、numeric→Double 精度损失）未在 adr/ 中
+  记录。生成代码不可用的 bug 修复前状态也应记录。
+
+  修复：创建 ADR-009（或扩展 ADR-003/ADR-005），记录：
+  1) 当前类型映射中的已知精度/语义损失
+  2) RETURNING * 的 MVP 限制
+  3) interval 类型暂用 String 的理由和后续路线
+  4) 编解码层的安全边界策略（最大 varint 5 字节等）
+dependencies:
+  hard:
+    - P0-033
+    - P0-034
+    - P0-035
+    - P0-036
+    - P0-037
+    - P0-038
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-18
+related: ["#20", "#26", "#28", "#34"]

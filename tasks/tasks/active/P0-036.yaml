@@ -1,0 +1,64 @@
+id: P0-036
+title: Codegen 核心修复
+priority: P0
+type: fix
+status: 待办
+description: >-
+  修复 plugin/query_codegen.mbt、plugin/type_codegen.mbt、
+  plugin/emitter.mbt 中 4 个 CRITICAL 缺陷。这是最关键的修复组，
+  直接影响生成代码的可用性：
+
+  CRITICAL #1 — :one/:many 生成代码永远返回 None/[]。build_body
+  对 OneRow/ManyRows 的固定逻辑是：1) 拼 sql let 绑定；2) 调用
+  db.exec(sql) 返回 Int；3) let _ = 丢弃结果；4) 返回 None 或 []。
+  数据库查询结果被完全丢弃。这是 P0 第一阶段留下的临时桩代码，
+  当时 runtime 的 Row 抽象尚未就绪。
+
+  修复：1) 为 OneRow/ManyRows 改用 db.query(sql)（返回 Array[Row]）；
+  2) 对返回的每条数据调用 StructName::decode(row)；3) OneRow 取
+  首条并 Option.wrap，ManyRows 遍历全部解码。
+
+  CRITICAL #2 — 未生成 decode() 方法。type_codegen.mbt 中生成的
+  struct 没有对应的 decode(IRow) 方法。runtime 的 Row 类型提供了
+  get(Int) → T 的方法，但 codegen 未为每个 struct 生成从 Row 反序列化
+  的代码。
+
+  修复：为每个生成的 Row struct 添加 pub fn decode(row: Row) -> Self
+  方法。按字段顺序调用 row.get(i) 填充每个字段。注意数组字段需
+  row.get_array(i) 特殊处理。解码方法应放在 struct 定义后。
+
+  CRITICAL #3 — SELECT 查询调用 db.exec() 而非 db.query()。exec 返回
+  Int（影响行数），query 返回 Array[Row]（查询结果行）。当前 build_body
+  对所有 cardinality 都统一用 db.exec()。
+
+  修复：build_body 中：OneRow/ManyRows → db.query(sql)；
+  ExecResult → db.exec(sql)；ExecCount → db.execrows(sql)。
+  同时修复 build_return_ty 的 return type 映射以匹配实际，
+  并在 body 中正确连接解码逻辑。
+
+  HIGH #22 — 字符串字面量未转义。emitter.mbt 中 StrLit(s) 直接做
+  "\"" + s + "\""，无任何转义。SQL 包含双引号、换行符、反斜杠时
+  生成语法错误的 .mbt 文件。SQL 中双引号尤其常见（引用标识符）。
+
+  修复：实现 escape_string(s) 函数，映射表：'"'→'\"', '\n'→'\\n',
+  '\t'→'\\t', '\r'→'\\r', '\\'→'\\\\', '$'→'\\$'（MoonBit 允许
+  $ 标识符前缀需转义）。同时在 emitter.mbt 中：StrLit 和 expr_to_string
+  两处调用点均需应用此转义。
+
+  CRITICAL 依赖：P0-035（IR 层 fields/array 正确性）和 P0-034（类型
+  映射完整性）必须先于本任务完成，否则 decode() 生成的类型和
+  fields 顺序不可靠。
+dependencies:
+  hard:
+    - P0-034
+    - P0-035
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-18
+related: ["#1", "#2", "#3", "#22"]

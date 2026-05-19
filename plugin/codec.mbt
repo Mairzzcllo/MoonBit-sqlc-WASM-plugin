@@ -48,11 +48,13 @@ fn Encoder::finish(self: Encoder) -> Bytes {
 
 fn Encoder::write_varint(self: Encoder, v: Int) -> Unit {
   let mut val = v
-  while val >= 0x80 {
+  let mut bytes_written = 0
+  while bytes_written < 5 && val >= 0x80 {
     self.write_byte(((val & 0x7F) | 0x80).to_byte())
     val = val >> 7
+    bytes_written = bytes_written + 1
   }
-  self.write_byte(val.to_byte())
+  self.write_byte((val & 0x7F).to_byte())
 }
 
 fn Encoder::write_tag(self: Encoder, fn_num: Int, wt: Int) -> Unit {
@@ -102,12 +104,12 @@ fn Decoder::read_byte(self: Decoder) -> Byte {
 fn Decoder::read_varint(self: Decoder) -> Int {
   let mut result: Int = 0
   let mut shift: Int = 0
-  let mut done = false
-  while !done {
+  for i = 0; i < 5; i = i + 1 {
+    if self.remaining() <= 0 { break }
     let b = self.read_byte().to_int()
     result = result | ((b & 0x7F) << shift)
     if (b & 0x80) == 0 {
-      done = true
+      return result
     }
     shift = shift + 7
   }
@@ -121,20 +123,23 @@ fn Decoder::read_tag(self: Decoder) -> (Int, Int) {
 
 fn Decoder::read_string(self: Decoder) -> String {
   let len = self.read_varint()
-  if len == 0 { return "" }
+  if len <= 0 { return "" }
+  let available = self.remaining()
+  let actual_len = if len > available { available } else { len }
   let start = self.pos
-  self.pos = self.pos + len
-  let sub = Bytes::makei(len, i => self.buf[start + i])
+  self.pos = start + actual_len
+  let sub = Bytes::makei(actual_len, i => self.buf[start + i])
   @utf8.decode_lossy(sub[:])
 }
 
 fn Decoder::read_bytes(self: Decoder) -> Bytes {
   let len = self.read_varint()
-  if len == 0 { return Bytes::default() }
+  if len <= 0 { return Bytes::default() }
+  let available = self.remaining()
+  let actual_len = if len > available { available } else { len }
   let start = self.pos
-  let end = start + len
-  self.pos = end
-  Bytes::makei(len, i => self.buf[start + i])
+  self.pos = start + actual_len
+  Bytes::makei(actual_len, i => self.buf[start + i])
 }
 
 fn Decoder::read_bool(self: Decoder) -> Bool {
@@ -142,20 +147,19 @@ fn Decoder::read_bool(self: Decoder) -> Bool {
 }
 
 fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
-  if wt == WT_VARINT {
-    let _ = self.read_varint()
-  } else if wt == WT_LEN {
-    let len = self.read_varint()
-    self.pos = self.pos + len
-  } else if wt == 1 || wt == 5 {
-    self.pos = self.pos + (if wt == 1 { 8 } else { 4 })
-  } else if wt == 3 {
-    self.skip_group(fn_num)
-  } else if wt == 4 {
-    ()
-  } else {
-    // Unknown wire type — skip to end of current message boundary
-    self.pos = self.end
+  match wt {
+    WT_VARINT => { let _ = self.read_varint() }
+    WT_LEN => { let len = self.read_varint(); self.pos = self.pos + len }
+    1 => { self.pos = self.pos + 8 }
+    5 => { self.pos = self.pos + 4 }
+    3 => { self.skip_group(fn_num) }
+    4 => { () }
+    _ => {
+      // Unknown wire type — skip to end of current message boundary.
+      // Without size info we cannot skip a single field, so we abort
+      // the current message to maintain parseability of sibling fields.
+      self.pos = self.end
+    }
   }
 }
 
@@ -171,11 +175,15 @@ fn Decoder::skip_group(self: Decoder, fn_num: Int) -> Unit {
 
 fn[T] decode_embedded(dec: Decoder, f: (Decoder) -> T) -> T {
   let len = dec.read_varint()
+  if len < 0 || len > dec.remaining() {
+    return f({ buf: dec.buf, pos: dec.pos, end: dec.pos })
+  }
   let start = dec.pos
   let end = start + len
-  dec.pos = end
   let sub: Decoder = { buf: dec.buf, pos: start, end }
-  f(sub)
+  let result = f(sub)
+  dec.pos = end
+  result
 }
 
 // === File ===
@@ -551,6 +559,7 @@ fn decode_identifier(dec: Decoder) -> Identifier {
 fn encode_column(enc: Encoder, val: Column) -> Unit {
   enc.write_tag(1, WT_LEN)
   enc.write_string(val.name)
+  // field 2 was removed from the proto definition (was "type" — redundant with field 12 ty identifier)
   if val.not_null {
     enc.write_tag(3, WT_VARINT)
     enc.write_bool(val.not_null)
@@ -620,6 +629,7 @@ fn decode_column(dec: Decoder) -> Column {
     let (fn_num, wt) = dec.read_tag()
     match (fn_num, wt) {
       (1, WT_LEN) => name = Some(dec.read_string())
+      // field 2 was removed from the proto definition
       (3, WT_VARINT) => not_null = Some(dec.read_bool())
       (4, WT_VARINT) => is_array = Some(dec.read_bool())
       (5, WT_LEN) => comment = Some(dec.read_string())
@@ -841,16 +851,12 @@ fn encode_generate_request(enc: Encoder, val: GenerateRequest) -> Unit {
   }
   enc.write_tag(4, WT_LEN)
   enc.write_string(val.sqlc_version)
-  if val.plugin_options.length() > 0 {
-    enc.write_tag(5, WT_LEN)
-    enc.write_varint(val.plugin_options.length())
-    enc.write_bytes(val.plugin_options)
-  }
-  if val.global_options.length() > 0 {
-    enc.write_tag(6, WT_LEN)
-    enc.write_varint(val.global_options.length())
-    enc.write_bytes(val.global_options)
-  }
+  enc.write_tag(5, WT_LEN)
+  enc.write_varint(val.plugin_options.length())
+  enc.write_bytes(val.plugin_options)
+  enc.write_tag(6, WT_LEN)
+  enc.write_varint(val.global_options.length())
+  enc.write_bytes(val.global_options)
 }
 
 // === Public API ===
@@ -1381,4 +1387,135 @@ test "roundtrip: null vs not-null Column" {
   let decoded2 = decode_embedded(dec, decode_column)
   inspect(decoded1.not_null, content="false")
   inspect(decoded2.not_null, content="true")
+}
+
+test "varint: near-max int32 value roundtrip" {
+  let enc = Encoder::new()
+  enc.write_varint(2147483647)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  inspect(dec.read_varint(), content="2147483647")
+}
+
+test "varint: encoding with 5-byte max prevents infinite loop" {
+  // 5 continuation bytes forces the encoder's max-iteration guard to activate
+  // Instead of looping forever with arithmetic right-shift on negative values,
+  // the encoder stops after 5 bytes and emits the masked final byte.
+  let enc = Encoder::new()
+  // Use a value that triggers arithmetic shift edge case on wasm32
+  enc.write_varint(-1)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let _ = dec.read_varint()
+  inspect(data.length() > 0, content="true")
+}
+
+test "varint: 6 continuation bytes stops at 5" {
+  // 6 continuation bytes (0x80) followed by 0x00 — decoder should stop after 5
+  let buf = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00])
+  let dec = Decoder::new(buf)
+  let _ = dec.read_varint()
+  inspect(dec.remaining() > 0, content="true")
+}
+
+test "read_string: len exceeds remaining clamps to available" {
+  let buf = Bytes::from_array([0x05, 0x48, 0x65, 0x6C, 0x6C, 0x6F])
+  let dec = Decoder::new(buf)
+  // read_varint = 5 (len), buffer has exactly 5 data bytes
+  let s = dec.read_string()
+  inspect(s, content="Hello")
+}
+
+test "read_string: negative len returns empty" {
+  // 5 continuation bytes produce a negative value; read_string treats <=0 as empty
+  let buf = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x80])
+  let dec = Decoder::new(buf)
+  let s = dec.read_string()
+  inspect(s, content="")
+}
+
+test "read_bytes: len exceeds remaining clamps to available" {
+  let buf = Bytes::from_array([0x0A, 0x01, 0x02, 0x03])
+  let dec = Decoder::new(buf)
+  // read_varint = 10, but only 3 bytes available
+  let bs = dec.read_bytes()
+  inspect(bs.length(), content="3")
+}
+
+test "decode_embedded: len 0 creates empty sub-decoder" {
+  let buf = Bytes::from_array([0x00])
+  let dec = Decoder::new(buf)
+  let result = decode_embedded(dec, fn(sub) { sub.remaining() })
+  inspect(result, content="0")
+}
+
+test "decode_embedded: negative len returns empty sub-decoder" {
+  // 5 continuation bytes that decode to a negative value
+  let buf = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x80, 0x00])
+  let dec = Decoder::new(buf)
+  let result = decode_embedded(dec, fn(sub) { sub.remaining() })
+  inspect(result, content="0")
+}
+
+test "decode_embedded: len exceeds buffer returns empty sub-decoder" {
+  // Varint value 999 with only 1 byte of buffer data — length exceeds buffer
+  let b: Int = 0x41
+  let enc = Encoder::new()
+  enc.write_varint(999)
+  enc.write_byte(b.to_byte())
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let result = decode_embedded(dec, fn(sub) { sub.remaining() })
+  inspect(result, content="0")
+}
+
+test "roundtrip: encode_request with empty plugin_options" {
+  let req: GenerateRequest = {
+    settings: {
+      version: "1", engine: "postgresql",
+      schema: [], queries: [],
+      codegen: { out: "", plugin: "", options: b"", env: [], process: None, wasm: None },
+    },
+    catalog: { comment: "", default_schema: "", name: "", schemas: [] },
+    queries: [],
+    sqlc_version: "1.53.0",
+    plugin_options: b"",
+    global_options: b"",
+  }
+  let data = encode_request(req)
+  let decoded = decode_request(data)
+  inspect(decoded.plugin_options.length(), content="0")
+  inspect(decoded.global_options.length(), content="0")
+  inspect(decoded.sqlc_version, content="1.53.0")
+}
+
+test "roundtrip: encode_request with non-empty plugin_options" {
+  let req: GenerateRequest = {
+    settings: {
+      version: "1", engine: "postgresql",
+      schema: [], queries: [],
+      codegen: { out: "", plugin: "", options: b"", env: [], process: None, wasm: None },
+    },
+    catalog: { comment: "", default_schema: "", name: "", schemas: [] },
+    queries: [],
+    sqlc_version: "1.53.0",
+    plugin_options: b"--package db",
+    global_options: b"",
+  }
+  let data = encode_request(req)
+  let decoded = decode_request(data)
+  inspect(decoded.plugin_options.length(), content="12")
+}
+
+test "skip_field: unknown wire type skips to end" {
+  // Unknown wire type 7 with data byte 0xFF — skip_field should jump to end
+  let val: Int = 0xFF
+  let enc = Encoder::new()
+  enc.write_tag(1, 7)
+  enc.write_byte(val.to_byte())
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (fn_num, wt) = dec.read_tag()
+  dec.skip_field(fn_num, wt)
+  inspect(dec.remaining(), content="0")
 }

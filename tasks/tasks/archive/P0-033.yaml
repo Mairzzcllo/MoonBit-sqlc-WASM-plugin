@@ -1,0 +1,54 @@
+id: P0-033
+title: Codec 编解码安全加固
+priority: P0
+type: fix
+status: 完成
+description: >-
+  修复 plugin/codec.mbt 和 plugin/protocol.mbt 中 9 个缺陷：
+
+  CRITICAL #4 — Varint 编码对大值潜在死循环。32-bit Int 算术右移（>>）在
+  wasm32 上是算术移位，v 接近 Int.MAX 时高位永不归零导致无限循环。需改为
+  逻辑右移或加最大迭代保护。
+
+  HIGH #8 — Varint 解码无最大长度限制。标准 protobuf 32-bit varint 最多 5 字节，
+  当前实现无上限，恶意输入可构造全 continuation-bit 字节流导致无限循环。
+  需加 5 字节硬上限。
+
+  HIGH #9 — read_string/read_bytes 无边界检查。len 从 varint 读取后直接
+  pos + len 访问缓冲区，负 len 或 len > remaining() 时越界 panic。
+  需在访问前验证 0 <= len <= remaining()。
+
+  HIGH #10 — decode_embedded 无长度验证。创建子解码器前未验证
+  start + len <= buf.length()，溢出时子解码器读取越界。
+  需验证 len 有效性，失败返回默认值或 panic 信息。
+
+  MEDIUM #15 — skip_field 对未知 wire type 直接跳到末尾。当前实现对未知
+  wire type 将整个剩余消息丢弃，数据无法恢复。需考虑更健壮的恢复策略。
+  同时将 if/else 链重构为模式匹配（如 MoonBit 支持 Int 匹配）。
+
+  MEDIUM #16 — decode_embedded 在子解析前就推进了父位置。当前
+  dec.pos = end 在子解析前执行，若 f(sub) 失败父解码器无法回退。
+  改为先子解析再推进父位置，或保存 checkpoint 支持回滚。
+
+  MEDIUM #17 — encode_request 丢失空 plugin_options。空字节数组 [] 与
+  字段缺失（不编码）行为不一致。需确保空 plugin_options 编码为零长度
+  字段而非完全省略，与 protobuf 语义一致。
+
+  MEDIUM #18 — Column 字段 2 的缺口无注释说明。proto 定义中 Column
+  的 field number 2 跳过了，当前无注释说明原因。添加 // field 2 was
+  removed 或解释性注释，标记 proto 变更历史。
+
+  MEDIUM #19 — decode_u32_le 短输入 panic。协议头解码假定至少 4 字节，
+  无边界检查。少于 4 字节时 b[0..3] 越界 panic。添加长度验证。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-18
+related: ["#4", "#8", "#9", "#10", "#15", "#16", "#17", "#18", "#19"]

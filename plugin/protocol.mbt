@@ -38,7 +38,9 @@ pub fn encode_u32_le(v: Int) -> Bytes {
 }
 
 /// Decode the first 4 bytes of `b` as a little-endian integer.
+/// Returns 0 if `b` is shorter than 4 bytes.
 pub fn decode_u32_le(b: Bytes) -> Int {
+  if b.length() < 4 { return 0 }
   b[0].to_int() | (b[1].to_int() << 8) | (b[2].to_int() << 16) | (b[3].to_int() << 24)
 }
 
@@ -107,10 +109,18 @@ test "encode_u32_le: zero-length frame encoding" {
   inspect(decode_u32_le(bs), content="0")
 }
 
-test "decode_u32_le: partial data" {
-  // If only 0-3 bytes provided, decode_u32_le still reads 4 bytes
-  // (access out of bounds — function assumes valid input)
-  let bs = Bytes::make(4, 0)
+test "decode_u32_le: empty input returns 0" {
+  let bs = Bytes::make(0, 0)
+  inspect(decode_u32_le(bs), content="0")
+}
+
+test "decode_u32_le: 3-byte input returns 0" {
+  let bs = Bytes::make(3, 0)
+  inspect(decode_u32_le(bs), content="0")
+}
+
+test "decode_u32_le: 1-byte input returns 0" {
+  let bs = Bytes::make(1, 0)
   inspect(decode_u32_le(bs), content="0")
 }
 
@@ -134,4 +144,9 @@ test "encode_u32_le: max positive value" {
   // MSB = 0x7F in LE format
   inspect(bs[3].to_int(), content="127")
   inspect(decode_u32_le(bs), content="2147483647")
+}
+
+test "decode_u32_le: 4-byte input with value 0" {
+  let bs = Bytes::from_array([0, 0, 0, 0])
+  inspect(decode_u32_le(bs), content="0")
 }

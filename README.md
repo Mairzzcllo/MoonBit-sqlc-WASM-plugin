@@ -214,4 +214,4 @@ moon test               # 运行所有 195 个 inline 测试
 
 Apache-2.0。详见 [LICENSE](LICENSE)。
 
-*由 MoonBit 驱动，为 sqlc 生态系统而生。*
+*由 sqlc 驱动，为 MoonBit 生态而生。*
