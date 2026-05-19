@@ -33,13 +33,11 @@
 ### [P1-005] Codegen: Decoder + 参数绑定 + :one/:many/:execrows
 - 优先级: P1
 - 类型: feature
-- 状态: 待办
+- 状态: ✅ 已完成 — 替换为 match+for loop（MoonBit 0.1 兼容）
 - 描述: type_codegen 改用 typed getter decode；query_codegen 传参 + Result 返回 + 三种模式全覆盖；更新 golden tests
 - 依赖: P1-003（hard），P1-004（hard）
-- 锁定: -
-- 重试: 0/3
 - 创建: 2026-05-19
-- 关联: -
+- 完成: 2026-05-19
 
 ### [P1-006] Transaction Support
 - 优先级: P1
