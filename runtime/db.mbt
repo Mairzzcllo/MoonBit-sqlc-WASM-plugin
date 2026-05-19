@@ -1,7 +1,7 @@
 ///|
 /// Database connection abstraction.
 /// Generated code accepts DB as a parameter for each query function.
-/// Real database drivers provide exec/execrows implementations via closures.
+/// Real database drivers provide exec/execrows/query/query_row implementations via closures.
 //
 // Copyright 2026 Mairzzcllo
 //
@@ -19,24 +19,104 @@
 //
 
 /// Concrete DB handle wrapping driver-specific implementations.
+/// Each method accepts a SQL string and typed parameters, returning Result.
 pub struct DB {
-  exec_fn : (String) -> Int
-  execrows_fn : (String) -> Int64
-  query_fn : (String) -> Array[Row]
+  exec_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
+  query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
 }
 
-pub fn DB::new(exec_fn: (String) -> Int, execrows_fn: (String) -> Int64, query_fn: (String) -> Array[Row]) -> DB {
-  { exec_fn: exec_fn, execrows_fn: execrows_fn, query_fn: query_fn }
+pub fn DB::new(
+  exec_fn: (String, Array[Value]) -> Result[Int64, DBError],
+  execrows_fn: (String, Array[Value]) -> Result[Int64, DBError],
+  query_fn: (String, Array[Value]) -> Result[RowIter, DBError],
+  query_row_fn: (String, Array[Value]) -> Result[Row, DBError],
+) -> DB {
+  {
+    exec_fn: exec_fn,
+    execrows_fn: execrows_fn,
+    query_fn: query_fn,
+    query_row_fn: query_row_fn,
+  }
 }
 
-pub fn DB::exec(self: DB, sql: String) -> Int {
-  (self.exec_fn)(sql)
+/// Execute a SQL statement returning the number of affected rows.
+pub fn DB::exec(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] {
+  (self.exec_fn)(sql, params)
 }
 
-pub fn DB::execrows(self: DB, sql: String) -> Int64 {
-  (self.execrows_fn)(sql)
+/// Execute a SQL statement returning the count of affected rows.
+pub fn DB::execrows(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] {
+  (self.execrows_fn)(sql, params)
 }
 
-pub fn DB::query(self: DB, sql: String) -> Array[Row] {
-  (self.query_fn)(sql)
+/// Execute a query returning a RowIter for :many results.
+pub fn DB::query(self: DB, sql: String, params: Array[Value]) -> Result[RowIter, DBError] {
+  (self.query_fn)(sql, params)
+}
+
+/// Execute a query returning a single Row for :one results.
+pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row, DBError] {
+  (self.query_row_fn)(sql, params)
+}
+
+test "DB::new and exec returns Ok" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+  )
+  let result = db.exec("DELETE FROM t", [])
+  let val = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(val, content="1")
+}
+
+test "DB::execrows returns Ok with count" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(5L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+  )
+  let result = db.execrows("UPDATE t SET x = 1", [])
+  let val = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(val, content="5")
+}
+
+test "DB::query returns RowIter" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+  )
+  let result = db.query("SELECT 1", [])
+  let empty = match result { Ok(iter) => { match iter.collect() { Ok(rows) => rows.length(); _ => -1 } }; _ => -1 }
+  inspect(empty, content="0")
+}
+
+test "DB::query_row returns Row" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
+  )
+  let result = db.query_row("SELECT 42", [])
+  let val = match result { Ok(row) => row.get(0); Err(_) => "" }
+  inspect(val, content="42")
+}
+
+test "DB::exec returns Err on failure" {
+  let db = DB::new(
+    fn(_sql, _params) { Err(QueryError("table not found")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+  )
+  let result = db.exec("DROP TABLE t", [])
+  let is_err = match result { Err(_) => true; _ => false }
+  inspect(is_err, content="true")
 }

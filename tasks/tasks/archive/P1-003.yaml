@@ -1,0 +1,33 @@
+id: P1-003
+title: "Runtime: Value + DBError + RowIter + DB 方法签名"
+priority: P1
+type: feature
+status: 已完成
+description: >-
+  创建参数化查询运行时基础设施：
+  (1) Value 枚举：Null | Int64(Int64) | String(String) | Bool(Bool) | Double(Double) |
+  Bytes(Array[Byte]) | Date(Date) | DateTime(DateTime) | JsonValue(JsonValue)；
+  (2) DBError 枚举：ConnectionError(String) | QueryError(String) | TypeError(String) | NoRows；
+  (3) RowIter 类型（支持 next() -> Result[Option[Row], DBError] 迭代）；
+  (4) DB 方法签名重写：exec(sql, Array[Value]) -> Result[Int64, DBError]，
+  execrows(sql, Array[Value]) -> Result[Int64, DBError]，
+  query(sql, Array[Value]) -> Result[RowIter, DBError]，
+  query_row(sql, Array[Value]) -> Result[Row, DBError]；
+  (5) 新建 runtime/value.mbt, runtime/error.mbt，更新 runtime/db.mbt。
+  注意：PG类型→Value的映射表建议在 runtime/type_mapping.mbt 或插件常量中，
+  但作为非强制项（ADR-005 待定），由 P1-005 按需引用。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-19
+related:
+  - P1-004
+  - P1-005
+  - P1-006

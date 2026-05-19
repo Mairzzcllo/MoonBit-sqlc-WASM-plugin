@@ -1,0 +1,31 @@
+id: P1-004
+title: "Runtime: Typed Row Getters + Nullable + RowIter"
+priority: P1
+type: feature
+status: 已完成
+description: >-
+  向 Row 添加类型安全 getter 方法：
+  (1) 不可空 getter：get_int64(pos) -> Result[Int64, DBError]，
+  get_string(pos) -> Result[String, DBError]，get_bool(pos) -> Result[Bool, DBError]，
+  get_double(pos) -> Result[Double, DBError]，
+  get_bytes(pos) -> Result[Array[Byte], DBError]，
+  get_date(pos) -> Result[Date, DBError]，
+  get_datetime(pos) -> Result[DateTime, DBError]，
+  get_json(pos) -> Result[JsonValue, DBError]；
+  (2) 可空 getter：get_nullable_int64(pos) -> Result[Option[Int64], DBError] 等；
+  (3) RowIter 适配：next() -> Result[Option[Row], DBError]，collect() -> Result[Array[Row], DBError]。
+  更新 runtime/row.mbt，新增 runtime/row_iter.mbt（若拆文件）。
+dependencies:
+  hard:
+    - P1-003
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-19
+related:
+  - P1-005

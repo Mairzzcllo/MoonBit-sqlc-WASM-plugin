@@ -3,9 +3,16 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: P0 bug 修复中（P0-036 全部子任务已完成）。P0-036 拆分为 4 子任务：P0-040(#3 query 路由)✅, P0-041(#2 decode 方法)✅, P0-042(#1 行解码)✅, P0-043(#22 字符串转义)✅
-- **当前任务**: 无（P0 全部完成）
-- **最新事件**: 2026-05-19 — P0-039 文档与测试补全完成：#20 更新 protocol.mbt shim-wrapper→wasi_io.mbt 注释；#26 移除 WRITE_FRAME_DEBUG stderr dump；#28 添加真实 sqlc 输入测试工厂 + golden tests（240 通过）；#34 创建 ADR-009 已知限制文档。P0 全部 39 项完成。
+- **阶段**: 规划完成 — P1 参数化查询 + 类型安全运行时阶段
+- **当前任务**: P1-004 ✅ → P1-005 待执行
+- **最新事件**: 2026-05-19 — P1-004 完成。runtime/row.mbt 新增 16 个类型化 getter（8 不可空 + 8 可空：int64/string/bool/double/bytes/date/datetime/json），使用 @string.parse_* 解析 + @json.parse 解析 JSON。runtime/moon.pkg 添加 @json/@string 导入。269 测试全通过。
 - P0: 39/39 completed ✅
-- P1: 0/2 completed
+- P1: 2/7 completed (P1-003 ✅ P1-004 ✅)
 - P2: 0/1 completed
+- 活跃任务: P1-005(待办), P1-006(待办), P1-007(待办), P1-001(待办), P1-002(待办)
+
+## 执行顺序
+
+1. P1-003 → P1-004 → P1-005（核心链，串行依赖）
+2. P1-006 可在 P1-003 后并行
+3. P1-007 在 P1-005 后收尾验证

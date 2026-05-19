@@ -1,6 +1,6 @@
 ///|
 /// Row abstraction for reading query results.
-/// Provides indexed access to column values.
+/// Provides indexed access to column values with typed getters.
 //
 // Copyright 2026 Mairzzcllo
 //
@@ -26,6 +26,7 @@ pub fn Row::new(get_fn: (Int) -> String) -> Row {
   { get_fn: get_fn }
 }
 
+/// Get raw string value by column index.
 pub fn Row::get(self: Row, index: Int) -> String {
   (self.get_fn)(index)
 }
@@ -36,4 +37,244 @@ pub fn Row::get(self: Row, index: Int) -> String {
 pub fn Row::get_array(self: Row, index: Int) -> Array[String] {
   let val = (self.get_fn)(index)
   [val]
+}
+
+// === Typed non-nullable getters ===
+
+/// Get an Int64 value by column index.
+pub fn Row::get_int64(self: Row, index: Int) -> Result[Int64, DBError] {
+  let raw = self.get(index)
+  try { Ok(@string.parse_int64(raw)) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+}
+
+/// Get a String value by column index.
+pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] {
+  Ok(self.get(index))
+}
+
+/// Get a Bool value by column index.
+pub fn Row::get_bool(self: Row, index: Int) -> Result[Bool, DBError] {
+  let raw = self.get(index)
+  try { Ok(@string.parse_bool(raw)) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+}
+
+/// Get a Double value by column index.
+pub fn Row::get_double(self: Row, index: Int) -> Result[Double, DBError] {
+  let raw = self.get(index)
+  try { Ok(@string.parse_double(raw)) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+}
+
+/// Get a Bytes (Array[Byte]) value by column index.
+pub fn Row::get_bytes(self: Row, index: Int) -> Result[Array[Byte], DBError] {
+  let raw = self.get(index)
+  let n = raw.length()
+  let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+  for i in 0..<n {
+    bytes[i] = raw[i].to_byte()
+  }
+  Ok(bytes)
+}
+
+/// Get a Date value by column index.
+pub fn Row::get_date(self: Row, index: Int) -> Result[Date, DBError] {
+  Ok(Date::new(self.get(index)))
+}
+
+/// Get a DateTime value by column index.
+pub fn Row::get_datetime(self: Row, index: Int) -> Result[DateTime, DBError] {
+  Ok(DateTime::new(self.get(index)))
+}
+
+/// Get a Json value by column index.
+pub fn Row::get_json(self: Row, index: Int) -> Result[Json, DBError] {
+  let raw = self.get(index)
+  try { Ok(@json.parse(raw[:])) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+}
+
+// === Typed nullable getters ===
+
+/// Get a nullable Int64 value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_int64(self: Row, index: Int) -> Result[Option[Int64], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try { Ok(Some(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+  }
+}
+
+/// Get a nullable String value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(raw)) }
+}
+
+/// Get a nullable Bool value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_bool(self: Row, index: Int) -> Result[Option[Bool], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try { Ok(Some(@string.parse_bool(raw))) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+  }
+}
+
+/// Get a nullable Double value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_double(self: Row, index: Int) -> Result[Option[Double], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try { Ok(Some(@string.parse_double(raw))) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+  }
+}
+
+/// Get a nullable Bytes value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_bytes(self: Row, index: Int) -> Result[Option[Array[Byte]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    let n = raw.length()
+    let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+    for i in 0..<n {
+      bytes[i] = raw[i].to_byte()
+    }
+    Ok(Some(bytes))
+  }
+}
+
+/// Get a nullable Date value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_date(self: Row, index: Int) -> Result[Option[Date], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(Date::new(raw))) }
+}
+
+/// Get a nullable DateTime value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_datetime(self: Row, index: Int) -> Result[Option[DateTime], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(DateTime::new(raw))) }
+}
+
+/// Get a nullable Json value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_json(self: Row, index: Int) -> Result[Option[Json], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try { Ok(Some(@json.parse(raw[:]))) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+  }
+}
+
+// === Tests ===
+
+test "Row::get_int64 parses valid int64" {
+  let row = Row::new(fn(i) { if i == 0 { "42" } else { "" } })
+  let val = row.get_int64(0)
+  match val {
+    Ok(n) => inspect(n, content="42")
+    Err(_) => inspect("fail", content="42")
+  }
+}
+
+test "Row::get_int64 returns TypeError on invalid" {
+  let row = Row::new(fn(_i) { "not_a_number" })
+  let val = row.get_int64(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::get_string returns raw value" {
+  let row = Row::new(fn(_i) { "hello" })
+  let val = row.get_string(0)
+  match val {
+    Ok(s) => inspect(s, content="hello")
+    Err(_) => inspect("fail", content="hello")
+  }
+}
+
+test "Row::get_bool parses valid bool" {
+  let row = Row::new(fn(_i) { "true" })
+  let val = row.get_bool(0)
+  match val {
+    Ok(b) => inspect(b, content="true")
+    Err(_) => inspect("fail", content="true")
+  }
+}
+
+test "Row::get_double parses valid double" {
+  let row = Row::new(fn(_i) { "3.14" })
+  let val = row.get_double(0)
+  match val {
+    Ok(d) => inspect(d, content="3.14")
+    Err(_) => inspect("fail", content="3.14")
+  }
+}
+
+test "Row::get_bytes returns byte array" {
+  let row = Row::new(fn(_i) { "abc" })
+  let val = row.get_bytes(0)
+  match val {
+    Ok(b) => inspect(b.length(), content="3")
+    Err(_) => inspect(0, content="3")
+  }
+}
+
+test "Row::get_date wraps string" {
+  let row = Row::new(fn(_i) { "2026-01-15" })
+  let val = row.get_date(0)
+  match val {
+    Ok(d) => inspect(d.to_string(), content="2026-01-15")
+    Err(_) => inspect("fail", content="2026-01-15")
+  }
+}
+
+test "Row::get_datetime wraps string" {
+  let row = Row::new(fn(_i) { "2026-01-15T10:30:00Z" })
+  let val = row.get_datetime(0)
+  match val {
+    Ok(dt) => inspect(dt.to_string(), content="2026-01-15T10:30:00Z")
+    Err(_) => inspect("fail", content="2026-01-15T10:30:00Z")
+  }
+}
+
+test "Row::get_nullable_int64: non-empty returns Some" {
+  let row = Row::new(fn(_i) { "42" })
+  let val = row.get_nullable_int64(0)
+  match val {
+    Ok(Some(n)) => inspect(n, content="42")
+    _ => inspect(0L, content="42")
+  }
+}
+
+test "Row::get_nullable_int64: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.get_nullable_int64(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::get_nullable_string: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.get_nullable_string(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::get_json parses valid json" {
+  let row = Row::new(fn(_i) { "{\"key\": 42}" })
+  let val = row.get_json(0)
+  let is_ok = match val { Ok(_) => true; Err(_) => false }
+  inspect(is_ok, content="true")
+}
+
+test "Row::get_nullable_json: empty returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.get_nullable_json(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
 }

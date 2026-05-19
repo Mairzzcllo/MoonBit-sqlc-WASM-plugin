@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Continue"
 $ROOT = Resolve-Path "$PSScriptRoot\..\..\.."
 $BUILD_DIR = "$ROOT\_build"
-$PLUGIN_WASM = "$BUILD_DIR\plugin.wasm"
+$PLUGIN_WASM = "$BUILD_DIR\wasm\debug\build\plugin\plugin.wasm"
 $SQLC_YAML = "$ROOT\examples\users\sqlc.yaml"
 $PASS = 0
 $FAIL = 0

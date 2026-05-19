@@ -402,6 +402,28 @@
 - 创建: 2026-05-18
 - 完成: 2026-05-19
 
+### [P1-004] Runtime: Typed Row Getters + Nullable
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: Row 新增 16 个类型化 getter（8 不可空 get_int64/get_string/get_bool/get_double/get_bytes/get_date/get_datetime/get_json + 8 可空 get_nullable_*）。不可空 → Result[T, DBError]，可空 → Result[Option[T], DBError]，空字符串约定为 NULL。使用 @string.parse_* 解析数值/bool，@json.parse 解析 JSON，逐字节 Array[Byte] 构建。
+- 依赖: P1-003(hard)
+- 架构: moon check 0 errors, moon test 269/269 passed
+- 创建: 2026-05-19
+- 完成: 2026-05-19
+- 关联: P1-005
+
+### [P1-003] Runtime: Value + DBError + RowIter + DB 签名
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: 创建 runtime/value.mbt（Value 枚举 9 variants + Date/DateTime struct 封装）、runtime/error.mbt（DBError 枚举 4 variants）、runtime/row_iter.mbt（RowIter next/collect）。重写 runtime/db.mbt（4 方法签名使用 Array[Value] params + Result[T, DBError] 返回）。
+- 依赖: 无
+- 架构: moon check 0 errors, moon test 256/256 passed
+- 创建: 2026-05-19
+- 完成: 2026-05-19
+- 关联: P1-004, P1-005, P1-006
+
 ### [P0-033] Codec 编解码安全加固
 - 优先级: P0
 - 类型: fix

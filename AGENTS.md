@@ -41,17 +41,27 @@
     - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
     - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
-    - Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn }, Row { get_fn }
-    - 生成函数 body：:one 使用 `let rows = db.query(sql); if rows.length() > 0 { Some(Type::decode(rows[0])) } else { None }`；:many 使用 `let rows = db.query(sql); rows.map({|row: Row| Type::decode(row)})`；:exec 使用 `db.exec(sql)`；:execrows 使用 `db.execrows(sql)`
+- Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn, query_fn, query_row_fn }, Row { get_fn }, RowIter { next_fn }
+- Value 枚举: `Null | Int64(Int64) | String(String) | Bool(Bool) | Double(Double) | Bytes(Array[Byte]) | Date(Date) | DateTime(DateTime) | JsonValue(JsonValue)`
+- DBError 枚举: `ConnectionError(String) | QueryError(String) | TypeError(String) | NoRows`
+- DB 方法签名：`exec(sql, Array[Value]) -> Result[Int64, DBError]`；`execrows(sql, Array[Value]) -> Result[Int64, DBError]`；`query(sql, Array[Value]) -> Result[RowIter, DBError]`；`query_row(sql, Array[Value]) -> Result[Row, DBError]`
+- Row 类型化 getter：不可空 `get_int64(pos) -> Result[Int64, DBError]` 等；可空 `get_nullable_int64(pos) -> Result[Option[Int64], DBError]`，每对覆盖 Int64/String/Bool/Double/Bytes/Date/DateTime/JsonValue 八种类型
+- RowIter 方法：`next() -> Result[Option[Row], DBError]`；`collect() -> Result[Array[Row], DBError]`
+- 生成函数 body：:one 使用 `db.query_row(sql, params)?; let row = ...; row.decode()` → `Result[T, DBError]`；:many 使用 `db.query(sql, params)?; iter.map(|row| T::decode(row)).collect()` → `Result[Array[T], DBError]`；:execrows 使用 `db.execrows(sql, params)` → `Result[Int64, DBError]`
+- Decode 方法返回 `Result[T, DBError]` 而非 `Option[T]`，保留错误传播
     - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
     - sqlc v2 配置格式: codegen 在 `sql[]` 下，WASM 插件定义在 `plugins[]` 下，URL 支持 `file://` 和 `https://`；sha256 建议填入避免启动时重复计算
     - 字符串字面量转义使用 escape_string(s) 函数（emitter.mbt），转义表：'"'→'\"'、'\n'→'\\n'、'\t'→'\\t'、'\r'→'\\r'、'\\'→'\\\\'、'$'→'\\$'（MoonBit $ 标识符前缀需转义）
+- Row 类型化 getter 不可空变体返回 `Result[T, DBError]`，可空变体返回 `Result[Option[T], DBError]`，空字符串约定为 NULL 值
+- Row get_bytes 使用 `Array::make(n, (0).to_byte())` + for 循环逐字节构建 `Array[Byte]`，不使用 `String::to_bytes()`（返回 `Bytes` 类型而非 `Array[Byte]`）
+- Row get_json 使用 `@json.parse(raw[:])` + try/catch 解析 JSON 字符串
+- runtime/moon.pkg 导入 `moonbitlang/core/json` @json 和 `moonbitlang/core/string` @string
 - 验证脚本: `tests/integration/wasm/validate_plugin.ps1` 用于检查 WASM 构建产物和 sqlc 集成
 
 ## 决策索引
 
 - ADR-001 — AST-based Code Generation Strategy
-- ADR-002 — Runtime Scope（待定）
+- ADR-002 — Runtime Scope（已接受 v3）
 - ADR-003 — Nullable Strategy（待定）
 - ADR-004 — Naming Convention（待定）
 - ADR-005 — Type Mapping Policy（待定）
@@ -59,6 +69,33 @@
 - ADR-007 — WAT Shim ABI Bridge（已接受，由 ADR-008 取代）
 - ADR-008 — Native WASI I/O via Inline WAT FFI（已接受）
 - ADR-009 — Known Limitations and MVP Boundaries（草稿）
+
+## 已知限制
+
+### sqlc WASM 集成状态
+
+sqlc v1.31.1 使用 wazero 作为 WASM 运行时，不支持 WASM GC/reference types。
+MoonBit `--target wasm` 输出始终包含 GC 类型注解（refany），导致以下问题：
+- `wasm2wat`: WAT 输出包含 refany 类型签名（非标准 WASM MVP）
+- `sqlc generate`: 加载 WASM 后出现 `proto: cannot parse invalid wire-format data`（wazero 无法解析 GC WASM 格式）
+- 当前 MoonBit v0.1.20260512 无法生成标准 WASM MVP 二进制
+
+### 构建二进制并存
+
+MoonBit 支持两个 WASM 目标，产生不同二进制：
+- `--target wasm`: `_build/wasm/debug/build/plugin/plugin.wasm` (270KB, 含 GC 类型)
+- `--target wasm-gc`: `_build/wasm-gc/debug/build/plugin/plugin.wasm` (153KB, 显式 GC 目标)
+
+两者均包含 GC 类型注解，目前均无法被 wazero 加载。
+
+### sqlc WASM 插件协议
+
+sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**（参考 sqlc-gen-greeter）:
+- stdin: 读取原始 protobuf `GenerateRequest` 字节
+- stdout: 写入原始 protobuf `GenerateResponse` 字节
+- 无 4 字节 LE 帧头前缀
+
+当前 MoonBit I/O 层使用 4 字节 LE 帧头格式（`read_frame_header` / `write_frame`），与 sqlc 协议不匹配
 
 ## 远程仓库
 

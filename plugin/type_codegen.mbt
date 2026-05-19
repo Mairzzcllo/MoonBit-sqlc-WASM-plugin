@@ -40,7 +40,7 @@ pub fn snake_to_pascal(s: String) -> String {
   let parts = s.split("_")
   let mut result = ""
   for part in parts {
-    result = result + capitalize_first(part.to_string())
+    result = result + capitalize_first(part.to_owned())
   }
   result
 }
@@ -131,74 +131,76 @@ pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> A
   items
 }
 
-/// Generate the convert expression for a field type at a given column index.
-fn field_to_decode_expr(field: FieldDef, index: Int) -> Expr {
-  let raw_get = "row.get(" + index.to_string() + ")"
-  match field.ty {
-    TypeExpr::Named(s) => Ident(type_to_decode_expr_str(s, raw_get))
+/// Map a MoonBit struct type name to the corresponding typed getter suffix.
+fn type_to_getter_suffix(type_name: String) -> String {
+  match type_name {
+    "Int64" => "int64"
+    "String" => "string"
+    "Bool" => "bool"
+    "Double" => "double"
+    "Bytes" => "bytes"
+    "JsonValue" => "json"
+    "Date" => "date"
+    "DateTime" => "datetime"
+    _ => "string"
+  }
+}
+
+/// Build a getter call expression for a field at a given index.
+fn field_getter_call(field: FieldDef, _index: Int) -> (String, String) {
+  let (suffix, nullable) = match field.ty {
+    Named(s) => (type_to_getter_suffix(s), false)
     Option(inner) => {
-      let inner_str = match inner {
-        TypeExpr::Named(s) => type_to_decode_expr_str(s, raw_get)
-        Parameterized("Array", [TypeExpr::Named(s)]) => {
-          let raw_arr = "row.get_array(" + index.to_string() + ")"
-          if s == "String" || s == "Bytes" || s == "JsonValue" {
-            raw_arr
-          } else {
-            raw_arr + ".map(fn(s) { " + type_to_decode_expr_str(s, "s") + " })"
-          }
-        }
-        _ => raw_get
+      let inner_name = match inner {
+        Named(n) => n
+        Parameterized("Array", [Named(n)]) => n
+        _ => "String"
       }
-      Ident("Some(" + inner_str + ")")
+      (type_to_getter_suffix(inner_name), true)
     }
-    Parameterized("Array", [TypeExpr::Named(s)]) => {
-      let raw_arr = "row.get_array(" + index.to_string() + ")"
-      if s == "String" || s == "Bytes" || s == "JsonValue" {
-        Ident(raw_arr)
-      } else {
-        Ident(raw_arr + ".map(fn(s) { " + type_to_decode_expr_str(s, "s") + " })")
-      }
-    }
-    _ => Ident(raw_get)
+    Parameterized("Array", [_]) => ("string", true)
+    _ => ("string", false)
   }
-}
-
-/// Get the string representation of a type conversion expression.
-/// Uses @string.parse_* APIs with try/catch defaults for numeric/bool parsing.
-fn type_to_decode_expr_str(type_name: String, value_expr: String) -> String {
-  if type_name == "Int" {
-    "try @string.parse_int(" + value_expr + ") catch { _ => 0 }"
-  } else if type_name == "Int64" {
-    "try @string.parse_int64(" + value_expr + ") catch { _ => 0L }"
-  } else if type_name == "Double" || type_name == "Float" {
-    "try @string.parse_double(" + value_expr + ") catch { _ => 0.0 }"
-  } else if type_name == "Bool" {
-    "try @string.parse_bool(" + value_expr + ") catch { _ => false }"
+  let getter_name = if nullable {
+    "row.get_nullable_" + suffix
   } else {
-    value_expr
+    "row.get_" + suffix
+  }
+  (getter_name, suffix)
+}
+
+/// Build a nested match expression for decoding all fields.
+/// For N fields, produces N levels of nested match.
+fn build_decode_match(fields: Array[FieldDef], start_index: Int) -> Expr {
+  let i = start_index
+  if i >= fields.length() {
+    // All fields decoded — build the Ok struct literal
+    let mut literal_fields = ""
+    let mut first = true
+    for f in fields {
+      if !first { literal_fields = literal_fields + ", " }
+      literal_fields = literal_fields + f.name + ": " + f.name
+      first = false
+    }
+    Call("Ok", [Ident("{ " + literal_fields + " }")])
+  } else {
+    let f = fields[i]
+    let (getter_name, _) = field_getter_call(f, i)
+    let getter_call = Call(getter_name, [IntLit(i)])
+    let ok_branch = Match(getter_call, [
+      ("Ok(" + f.name + ")", build_decode_match(fields, i + 1)),
+      ("Err(e)", Call("Err", [Ident("e")])),
+    ])
+    ok_branch
   }
 }
 
-/// Generate a decode function for a StructDef.
-/// Produces `pub fn StructName::decode(row: Row) -> StructName { { f0: expr0, f1: expr1, ... } }`
+/// Generate a decode function for a StructDef using typed getters.
+/// Uses nested match instead of ? operator (not available in MoonBit 0.1).
 pub fn generate_decode_fn(sd: StructDef) -> FnDef {
   let params = [{ name: "row", ty: TypeExpr::Named("Row") }]
-  let return_ty = TypeExpr::Named(sd.name)
-  let mut field_pairs = ""
-  let mut first = true
-  let mut i = 0
-  while i < sd.fields.length() {
-    if !first { field_pairs = field_pairs + ", " }
-    let val_str = match field_to_decode_expr(sd.fields[i], i) {
-      Ident(s) => s
-      _ => "row.get(" + i.to_string() + ")"
-    }
-    field_pairs = field_pairs + sd.fields[i].name + ": " + val_str
-    first = false
-    i = i + 1
-  }
-  let struct_literal = "{ " + field_pairs + " }"
-  let body = [Ident(struct_literal)]
+  let return_ty = Parameterized("Result", [Named(sd.name), Named("DBError")])
+  let body = [build_decode_match(sd.fields, 0)]
   let doc = Some("Decode a Row into a " + sd.name)
   { name: sd.name + "::decode", params: params, return_ty: return_ty, body: body, doc: doc, is_pub: true }
 }
@@ -242,7 +244,7 @@ test "generate_struct_from_fields: basic struct" {
   inspect(sd.name, content="User")
   inspect(sd.fields.length(), content="2")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
   inspect(sd.fields[1].name, content="email")
   inspect(sd.fields[1].ty, content="Option(Named(\"String\"))")
 }
@@ -263,7 +265,7 @@ test "generate_struct_from_table: snake_case table name to PascalCase" {
   inspect(sd.name, content="UserProfiles")
   inspect(sd.doc, content="Some(User profiles table)")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
 }
 
 test "generate_struct_from_table: nullable column becomes Option" {

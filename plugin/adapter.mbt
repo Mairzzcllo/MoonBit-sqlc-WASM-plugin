@@ -138,11 +138,11 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
   let text = @utf8.decode_lossy(data[:])
   let mut package_name = ""
   for line in text.split("\n") {
-    let s = line.trim().to_string()
+    let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
-      package_name = s[14:].trim().to_string()
+      package_name = s[14:].trim().to_owned()
     } else if s.has_prefix("package_name =") {
-      package_name = s[15:].trim().to_string()
+      package_name = s[15:].trim().to_owned()
     }
   }
   { package_name: package_name }

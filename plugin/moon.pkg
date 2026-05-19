@@ -1,6 +1,5 @@
 import {
   "moonbitlang/core/encoding/utf8" @utf8,
-  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
 }
 
 options(

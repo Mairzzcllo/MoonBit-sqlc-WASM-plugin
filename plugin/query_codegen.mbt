@@ -29,41 +29,88 @@ fn param_to_param_def(p: InternalParameter) -> ParamDef {
   { name: p.name, ty: moon_type }
 }
 
+/// Map an internal type to a Value constructor name.
+fn type_to_value_constructor(ir_type: InternalType) -> String {
+  let name = match ir_type {
+    Named(s) => s
+    Arr(_) => return "String"
+  }
+  match name {
+    "int4" | "int8" | "int2" | "integer" | "bigint" | "smallint" | "serial" | "bigserial" | "smallserial" | "int" => "Int64"
+    "float4" | "float8" | "real" | "double" | "numeric" | "decimal" => "Double"
+    "bool" | "boolean" => "Bool"
+    "bytea" => "Bytes"
+    "json" | "jsonb" => "JsonValue"
+    "date" => "Date"
+    "timestamp" | "timestamptz" | "time" | "timetz" => "DateTime"
+    _ => "String"
+  }
+}
+
+/// Build a single Value constructor expression for a parameter.
+fn param_to_value_expr(p: InternalParameter) -> Expr {
+  let ctor_name = type_to_value_constructor(p.ty)
+  if p.not_null {
+    Call(ctor_name, [Ident(p.name)])
+  } else {
+    Match(Ident(p.name), [
+      ("None", Ident("Null")),
+      ("Some(" + p.name + ")", Call(ctor_name, [Ident(p.name)])),
+    ])
+  }
+}
+
+/// Build the Array[Value] params expression from query parameters.
+fn build_params_expr(params: Array[InternalParameter]) -> Expr {
+  let value_exprs = params.map(param_to_value_expr)
+  ArrLit(value_exprs)
+}
+
 /// Build the return TypeExpr for a query based on its cardinality and result type.
 fn build_return_ty(cmd: QueryCardinality, result_type: String) -> TypeExpr {
   match cmd {
-    OneRow => Parameterized("Option", [Named(result_type)])
-    ManyRows => Parameterized("Array", [Named(result_type)])
-    ExecResult => Named("Int")
-    ExecCount => Named("Int64")
+    OneRow => Parameterized("Result", [Named(result_type), Named("DBError")])
+    ManyRows => Parameterized("Result", [Parameterized("Array", [Named(result_type)]), Named("DBError")])
+    ExecResult | ExecCount => Parameterized("Result", [Named("Int64"), Named("DBError")])
   }
 }
 
 /// Build the function body expressions for a query.
 fn build_body(query: InternalQuery, result_type: String) -> Array[Expr] {
   let sql_let = Let("sql", StrLit(query.text))
-  let rows_let = Let("rows", Call("db.query", [Ident("sql")]))
-  let decode_fn = Lambda(
-    [{ name: "row", ty: Named("Row") }],
-    Call(result_type + "::decode", [Ident("row")]),
-  )
+  let params_expr = build_params_expr(query.params)
+  let params_let = Let("params", params_expr)
   match query.cmd {
     OneRow => [
       sql_let,
-      rows_let,
-      If(
-        BinOp(">", Call("rows.length", []), IntLit(0)),
-        Call("Some", [Call(result_type + "::decode", [Index(Ident("rows"), IntLit(0))])]),
-        Ident("None"),
-      ),
+      params_let,
+      Match(Call("db.query_row", [Ident("sql"), Ident("params")]), [
+        ("Ok(row)", Call(result_type + "::decode", [Ident("row")])),
+        ("Err(e)", Call("Err", [Ident("e")])),
+      ]),
     ]
     ManyRows => [
       sql_let,
-      rows_let,
-      Call("rows.map", [decode_fn]),
+      params_let,
+      Match(Call("db.query", [Ident("sql"), Ident("params")]), [
+        ("Ok(iter)", Match(Call("iter.collect", []), [
+          ("Ok(rows)", Block([
+            Let("result", ArrLit([])),
+            ForLoop("row", Ident("rows"), [
+              Match(Call(result_type + "::decode", [Ident("row")]), [
+                ("Ok(v)", Call("result.push", [Ident("v")])),
+                ("Err(e)", Return(Call("Err", [Ident("e")]))),
+              ]),
+            ]),
+            Call("Ok", [Ident("result")]),
+          ])),
+          ("Err(e)", Call("Err", [Ident("e")])),
+        ])),
+        ("Err(e)", Call("Err", [Ident("e")])),
+      ]),
     ]
-    ExecResult => [sql_let, Call("db.exec", [Ident("sql")])]
-    ExecCount => [sql_let, Call("db.execrows", [Ident("sql")])]
+    ExecResult => [sql_let, params_let, Call("db.exec", [Ident("sql"), Ident("params")])]
+    ExecCount => [sql_let, params_let, Call("db.execrows", [Ident("sql"), Ident("params")])]
   }
 }
 
@@ -107,7 +154,7 @@ test "param_to_param_def: not_null param" {
   let p: InternalParameter = { number: 1, name: "id", ty: Named("int4"), not_null: true }
   let pd = param_to_param_def(p)
   inspect(pd.name, content="id")
-  inspect(pd.ty, content="Named(\"Int\")")
+  inspect(pd.ty, content="Named(\"Int64\")")
 }
 
 test "param_to_param_def: nullable param" {
@@ -116,27 +163,27 @@ test "param_to_param_def: nullable param" {
   inspect(pd.ty, content="Option(Named(\"String\"))")
 }
 
-test "build_return_ty: OneRow returns Option[T]" {
+test "build_return_ty: OneRow returns Result[T, DBError]" {
   let t = build_return_ty(OneRow, "User")
-  inspect(t, content="Parameterized(\"Option\", [Named(\"User\")])")
+  inspect(t, content="Parameterized(\"Result\", [Named(\"User\"), Named(\"DBError\")])")
 }
 
-test "build_return_ty: ManyRows returns Array[T]" {
+test "build_return_ty: ManyRows returns Result[Array[T], DBError]" {
   let t = build_return_ty(ManyRows, "User")
-  inspect(t, content="Parameterized(\"Array\", [Named(\"User\")])")
+  inspect(t, content="Parameterized(\"Result\", [Parameterized(\"Array\", [Named(\"User\")]), Named(\"DBError\")])")
 }
 
-test "build_return_ty: ExecResult returns Int" {
+test "build_return_ty: ExecResult returns Result[Int64, DBError]" {
   let t = build_return_ty(ExecResult, "User")
-  inspect(t, content="Named(\"Int\")")
+  inspect(t, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
 }
 
-test "build_return_ty: ExecCount returns Int64" {
+test "build_return_ty: ExecCount returns Result[Int64, DBError]" {
   let t = build_return_ty(ExecCount, "User")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
 }
 
-test "generate_query_fn: :one query has db param and option return" {
+test "generate_query_fn: :one query has db param and result return" {
   let params: Array[InternalParameter] = [
     { number: 1, name: "id", ty: Named("int4"), not_null: true },
   ]
@@ -152,8 +199,8 @@ test "generate_query_fn: :one query has db param and option return" {
   inspect(fn_def.params[0].name, content="db")
   inspect(fn_def.params[0].ty, content="Named(\"DB\")")
   inspect(fn_def.params[1].name, content="id")
-  inspect(fn_def.params[1].ty, content="Named(\"Int\")")
-  inspect(fn_def.return_ty, content="Parameterized(\"Option\", [Named(\"GetUserRow\")])")
+  inspect(fn_def.params[1].ty, content="Named(\"Int64\")")
+  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"GetUserRow\"), Named(\"DBError\")])")
   inspect(fn_def.doc, content="Some(Get a user by ID)")
   inspect(fn_def.is_pub, content="true")
 }
@@ -169,10 +216,10 @@ test "generate_query_fn: :many query has no params" {
   inspect(fn_def.name, content="query_list_users")
   inspect(fn_def.params.length(), content="1")
   inspect(fn_def.params[0].name, content="db")
-  inspect(fn_def.return_ty, content="Parameterized(\"Array\", [Named(\"ListUsersRow\")])")
+  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Parameterized(\"Array\", [Named(\"ListUsersRow\")]), Named(\"DBError\")])")
 }
 
-test "generate_query_fn: :exec query returns Int" {
+test "generate_query_fn: :exec query returns Result[Int64, DBError]" {
   let q: InternalQuery = {
     name: "delete_user", text: "DELETE FROM users WHERE id = $1", cmd: ExecResult,
     params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
@@ -181,9 +228,8 @@ test "generate_query_fn: :exec query returns Int" {
   }
   let fn_def = generate_query_fn(q)
   inspect(fn_def.name, content="query_delete_user")
-  inspect(fn_def.return_ty, content="Named(\"Int\")")
-  inspect(fn_def.body.length(), content="2")
-  // First body expr is let sql
+  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
+  inspect(fn_def.body.length(), content="3")
   let sql_text = match fn_def.body[0] {
     Let(_, StrLit(s)) => s
     _ => ""
@@ -191,7 +237,7 @@ test "generate_query_fn: :exec query returns Int" {
   inspect(sql_text, content="DELETE FROM users WHERE id = $1")
 }
 
-test "generate_query_fn: :execrows query returns Int64" {
+test "generate_query_fn: :execrows query returns Result[Int64, DBError]" {
   let q: InternalQuery = {
     name: "update_user_email", text: "UPDATE users SET email = $1 WHERE id = $2", cmd: ExecCount,
     params: [
@@ -202,7 +248,7 @@ test "generate_query_fn: :execrows query returns Int64" {
     comments: Array::make(0, ""), filename: "q.sql",
   }
   let fn_def = generate_query_fn(q)
-  inspect(fn_def.return_ty, content="Named(\"Int64\")")
+  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
   inspect(fn_def.params.length(), content="3")
   inspect(fn_def.params[1].name, content="email")
   inspect(fn_def.params[2].name, content="id")
@@ -229,7 +275,7 @@ test "generate_query_fns: multiple queries" {
   inspect(name2, content="query_q2")
 }
 
-test "build_body: :many body uses db.query + map decode" {
+test "build_body: :many body uses db.query + iter.collect + for loop" {
   let q: InternalQuery = {
     name: "list", text: "SELECT 1", cmd: ManyRows,
     params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
@@ -239,15 +285,18 @@ test "build_body: :many body uses db.query + map decode" {
   let body = build_body(q, "ListRow")
   inspect(body.length(), content="3")
   // First: let sql
-  // Second: let rows = db.query(sql)
-  let rows_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(rows_name, content="rows")
-  // Third: rows.map({|row: Row| ListRow::decode(row)})
-  let is_map = match body[2] { Call(name, _) => name == "rows.map"; _ => false }
-  inspect(is_map, content="true")
+  // Second: let params = []
+  let params_name = match body[1] { Let(name, _) => name; _ => "" }
+  inspect(params_name, content="params")
+  // Third: match db.query(sql, params) { ... }
+  let is_match = match body[2] {
+    Match(_, _) => true
+    _ => false
+  }
+  inspect(is_match, content="true")
 }
 
-test "build_body: :one body uses if rows.length() > 0" {
+test "build_body: :one body uses match db.query_row + decode" {
   let q: InternalQuery = {
     name: "get", text: "SELECT 1 WHERE id = $1", cmd: OneRow,
     params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
@@ -257,15 +306,18 @@ test "build_body: :one body uses if rows.length() > 0" {
   let body = build_body(q, "GetRow")
   inspect(body.length(), content="3")
   // First: let sql
-  // Second: let rows = db.query(sql)
-  let rows_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(rows_name, content="rows")
-  // Third: if rows.length() > 0 { Some(GetRow::decode(rows[0])) } else { None }
-  let is_if = match body[2] { If(_, _, _) => true; _ => false }
-  inspect(is_if, content="true")
+  // Second: let params = [Int64(id)]
+  let params_name = match body[1] { Let(name, _) => name; _ => "" }
+  inspect(params_name, content="params")
+  // Third: match db.query_row(sql, params) { ... }
+  let is_match = match body[2] {
+    Match(_, _) => true
+    _ => false
+  }
+  inspect(is_match, content="true")
 }
 
-test "build_body: :execrows uses db.execrows" {
+test "build_body: :execrows uses db.execrows with params" {
   let q: InternalQuery = {
     name: "del", text: "DELETE FROM t", cmd: ExecCount,
     params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
@@ -273,7 +325,7 @@ test "build_body: :execrows uses db.execrows" {
     comments: Array::make(0, ""), filename: "",
   }
   let body = build_body(q, "DelRow")
-  let call_name = match body[1] { Call(name, _) => name; _ => "" }
+  let call_name = match body[2] { Call(name, _) => name; _ => "" }
   inspect(call_name, content="db.execrows")
 }
 
@@ -287,6 +339,6 @@ test "generate_query_fn: full function emission matches expected pattern" {
   let fn_def = generate_query_fn(q)
   let sf: SourceFile = { items: [Fn(fn_def)] }
   let result = emit_source_file(sf)
-  // Verify the emitted code matches expected output
-  inspect(result, content="/// Get a user by ID\npub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {\n  let sql = \"SELECT id, name FROM users WHERE id = \\$1\"\n  let rows = db.query(sql)\n  if rows.length() > 0 {\n    Some(GetUserRow::decode(rows[0]))\n  } else {\n    None\n  }\n}\n")
+  inspect(result.contains("match db.query_row"), content="true")
+  inspect(result.contains("Err(e) => Err(e)"), content="true")
 }

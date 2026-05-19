@@ -20,14 +20,16 @@
 
 /// DB runtime stub (mirrors runtime/db.mbt for compilation testing).
 pub struct DB {
-  exec_fn : (String) -> Int
-  execrows_fn : (String) -> Int64
-  query_fn : (String) -> Array[Row]
+  exec_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
+  query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
 }
 
-pub fn DB::exec(self: DB, sql: String) -> Int { (self.exec_fn)(sql) }
-pub fn DB::execrows(self: DB, sql: String) -> Int64 { (self.execrows_fn)(sql) }
-pub fn DB::query(self: DB, sql: String) -> Array[Row] { (self.query_fn)(sql) }
+pub fn DB::exec(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.exec_fn)(sql, params) }
+pub fn DB::execrows(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.execrows_fn)(sql, params) }
+pub fn DB::query(self: DB, sql: String, params: Array[Value]) -> Result[RowIter, DBError] { (self.query_fn)(sql, params) }
+pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row, DBError] { (self.query_row_fn)(sql, params) }
 
 /// Row runtime stub (mirrors runtime/row.mbt for compilation testing).
 pub struct Row {
@@ -35,19 +37,44 @@ pub struct Row {
 }
 
 pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
-pub fn Row::get_array(self: Row, index: Int) -> Array[String] { [(self.get_fn)(index)] }
+pub fn Row::get_int64(self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
+pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] { Ok(self.get(index)) }
+pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] { let v = self.get(index); if v == "" { Ok(None) } else { Ok(Some(v)) } }
+
+/// RowIter runtime stub (mirrors runtime/row_iter.mbt for compilation testing).
+pub struct RowIter {
+  rows : Array[Row]
+}
+
+pub fn RowIter::new(rows: Array[Row]) -> RowIter { { rows: rows } }
+pub fn RowIter::collect(self: RowIter) -> Result[Array[Row], DBError] { Ok(self.rows) }
+
+/// Value runtime stub for compilation testing.
+pub enum Value { Null; Int64(Int64); String(String) }
+
+/// DBError stub.
+pub enum DBError { ConnectionError(String) }
 
 /// users table
 pub struct Users {
-  id: Int
+  id: Int64
   name: String
   /// user email address
   email: Option[String]
 }
 
 /// Decode a Row into a Users
-pub fn Users::decode(row: Row) -> Users {
-  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
+pub fn Users::decode(row: Row) -> Result[Users, DBError] {
+  match row.get_int64(0) {
+    Ok(id) => match row.get_string(1) {
+      Ok(name) => match row.get_nullable_string(2) {
+        Ok(email) => Ok({ id: id, name: name, email: email })
+        Err(e) => Err(e)
+      }
+      Err(e) => Err(e)
+    }
+    Err(e) => Err(e)
+  }
 }
 
 pub enum UserRole {
@@ -58,45 +85,82 @@ pub enum UserRole {
 
 /// List all users
 pub struct ListUsersRow {
-  id: Int
+  id: Int64
   name: String
   /// user email address
   email: Option[String]
 }
 
 /// Decode a Row into a ListUsersRow
-pub fn ListUsersRow::decode(row: Row) -> ListUsersRow {
-  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
+pub fn ListUsersRow::decode(row: Row) -> Result[ListUsersRow, DBError] {
+  match row.get_int64(0) {
+    Ok(id) => match row.get_string(1) {
+      Ok(name) => match row.get_nullable_string(2) {
+        Ok(email) => Ok({ id: id, name: name, email: email })
+        Err(e) => Err(e)
+      }
+      Err(e) => Err(e)
+    }
+    Err(e) => Err(e)
+  }
 }
 
 /// Get user by ID
 pub struct GetUserRow {
-  id: Int
+  id: Int64
   name: String
   /// user email address
   email: Option[String]
 }
 
 /// Decode a Row into a GetUserRow
-pub fn GetUserRow::decode(row: Row) -> GetUserRow {
-  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
+pub fn GetUserRow::decode(row: Row) -> Result[GetUserRow, DBError] {
+  match row.get_int64(0) {
+    Ok(id) => match row.get_string(1) {
+      Ok(name) => match row.get_nullable_string(2) {
+        Ok(email) => Ok({ id: id, name: name, email: email })
+        Err(e) => Err(e)
+      }
+      Err(e) => Err(e)
+    }
+    Err(e) => Err(e)
+  }
 }
 
 /// List all users
-pub fn query_list_users(db: DB) -> Array[ListUsersRow] {
+pub fn query_list_users(db: DB) -> Result[Array[ListUsersRow], DBError] {
   let sql = "SELECT id, name, email FROM users"
-  let _ = db.query(sql)
-  []
+  let params = []
+  match db.query(sql, params) {
+    Ok(iter) => match iter.collect() {
+      Ok(rows) => {
+        let result = []
+        for row in rows {
+          match ListUsersRow::decode(row) {
+            Ok(v) => result.push(v)
+            Err(e) => return Err(e)
+          }
+        }
+        Ok(result)
+      }
+      Err(e) => Err(e)
+    }
+    Err(e) => Err(e)
+  }
 }
 
 /// Get user by ID
-pub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {
+pub fn query_get_user(db: DB, id: Int64) -> Result[GetUserRow, DBError] {
   let sql = "SELECT id, name, email FROM users WHERE id = $1"
-  let _ = db.query(sql)
-  None
+  let params = [Int64(id)]
+  match db.query_row(sql, params) {
+    Ok(row) => GetUserRow::decode(row)
+    Err(e) => Err(e)
+  }
 }
 
-pub fn query_delete_user(db: DB, id: Int) -> Int {
+pub fn query_delete_user(db: DB, id: Int64) -> Result[Int64, DBError] {
   let sql = "DELETE FROM users WHERE id = $1"
-  db.exec(sql)
+  let params = [Int64(id)]
+  db.exec(sql, params)
 }

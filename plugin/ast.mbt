@@ -102,12 +102,19 @@ pub enum Expr {
   ArrLit(Array[Expr])
   /// Array/slice index: `arr[i]`
   Index(Expr, Expr)
-  /// Lambda: `{|row| Type::decode(row)}`
+  /// Lambda: `fn(row: Row) { Type::decode(row) }`
   Lambda(Array[ParamDef], Expr)
   /// Binary operation: `a > b`, `a != b`
   BinOp(String, Expr, Expr)
   /// If-else expression: `if cond { then } else { else }`
   If(Expr, Expr, Expr)
+  /// Return expression: `return expr`
+  Return(Expr)
+  /// Pattern match: `match expr { pat1 => body1; pat2 => body2 }`
+  /// Each arm: (pattern_string, body_expr)
+  Match(Expr, Array[(String, Expr)])
+  /// For loop: `for var in iterable { body_statements }`
+  ForLoop(String, Expr, Array[Expr])
   /// Unit / noop
   Unit
 }

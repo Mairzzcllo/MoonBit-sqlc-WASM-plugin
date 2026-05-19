@@ -78,7 +78,7 @@ fn emit_doc_comment(em: Emitter, indent: Int, doc: Option[String]) -> Unit {
   match doc {
     Some(text) => {
       for line in text.split("\n") {
-        push_line(em, indent, "/// " + line.to_string())
+        push_line(em, indent, "/// " + line.to_owned())
       }
     }
     None => ()
@@ -209,11 +209,57 @@ fn escape_string(s: String) -> String {
     } else if ch == '$' {
       result = result + "\\$"
     } else {
-      result = result + s[i : i + 1].to_string()
+      result = result + s[i : i + 1].to_owned()
     }
     i = i + 1
   }
   result
+}
+
+/// Emit arms of a match expression.
+/// Nested match bodies are emitted inline to keep formatting compact.
+/// Block bodies are emitted with full multi-line formatting.
+fn emit_match_arms(em: Emitter, arm_indent: Int, body_indent: Int, arms: Array[(String, Expr)]) -> Unit {
+  let mut i = 0
+  while i < arms.length() {
+    let arm = arms[i]
+    let pattern = arm.0
+    let body = arm.1
+    push_indent(em, arm_indent)
+    match body {
+      Match(_, _) => {
+        em.push(pattern + " => ")
+        emit_match_inline(em, body_indent, body)
+        em.push("\n")
+      }
+      Block(exprs) => {
+        em.push(pattern + " => {\n")
+        for e in exprs {
+          emit_expr(em, body_indent + 1, e)
+        }
+        push_indent(em, body_indent)
+        em.push("}\n")
+      }
+      _ => {
+        em.push(pattern + " => " + expr_to_string(body) + "\n")
+      }
+    }
+    i = i + 1
+  }
+}
+
+/// Emit a match expression inline (no leading newline/indent).
+/// Used for nested match arms to keep compact formatting.
+fn emit_match_inline(em: Emitter, indent: Int, m: Expr) -> Unit {
+  match m {
+    Match(scrutinee, arms) => {
+      em.push("match " + expr_to_string(scrutinee) + " {\n")
+      emit_match_arms(em, indent + 1, indent + 1, arms)
+      push_indent(em, indent)
+      em.push("}")
+    }
+    _ => em.push(expr_to_string(m))
+  }
 }
 
 fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
@@ -249,14 +295,14 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
     }
     Index(target, idx) => push_line(em, indent, expr_to_string(target) + "[" + expr_to_string(idx) + "]")
     Lambda(params, body) => {
-      let mut s = "{|"
+      let mut s = "fn("
       let mut first = true
       for p in params {
         if !first { s = s + ", " }
         s = s + p.name + ": " + emit_type_expr(p.ty)
         first = false
       }
-      s = s + "| " + expr_to_string(body) + "}"
+      s = s + ") { " + expr_to_string(body) + " }"
       push_line(em, indent, s)
     }
     BinOp(op, left, right) => push_line(em, indent, expr_to_string(left) + " " + op + " " + expr_to_string(right))
@@ -267,6 +313,25 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
       push_indent(em, indent)
       em.push("} else {\n")
       emit_expr(em, indent + 1, else_expr)
+      push_indent(em, indent)
+      em.push("}\n")
+    }
+    Return(val) => {
+      push_line(em, indent, "return " + expr_to_string(val))
+    }
+    ForLoop(varname, iter, body) => {
+      push_indent(em, indent)
+      em.push("for " + varname + " in " + expr_to_string(iter) + " {\n")
+      for stmt in body {
+        emit_expr(em, indent + 1, stmt)
+      }
+      push_indent(em, indent)
+      em.push("}\n")
+    }
+    Match(scrutinee, arms) => {
+      push_indent(em, indent)
+      em.push("match " + expr_to_string(scrutinee) + " {\n")
+      emit_match_arms(em, indent + 1, indent + 1, arms)
       push_indent(em, indent)
       em.push("}\n")
     }
@@ -310,18 +375,38 @@ fn expr_to_string(e: Expr) -> String {
     Index(target, idx) => expr_to_string(target) + "[" + expr_to_string(idx) + "]"
     Unit => "()"
     Lambda(params, body) => {
-      let mut s = "{|"
+      let mut s = "fn("
       let mut first = true
       for p in params {
         if !first { s = s + ", " }
         s = s + p.name + ": " + emit_type_expr(p.ty)
         first = false
       }
-      s + "| " + expr_to_string(body) + "}"
+      s + ") { " + expr_to_string(body) + " }"
     }
     BinOp(op, left, right) => expr_to_string(left) + " " + op + " " + expr_to_string(right)
     If(cond, then_expr, else_expr) => {
       "if " + expr_to_string(cond) + " { " + expr_to_string(then_expr) + " } else { " + expr_to_string(else_expr) + " }"
+    }
+    Return(val) => "return " + expr_to_string(val)
+    ForLoop(varname, iter, body) => {
+      let mut s = "for " + varname + " in " + expr_to_string(iter) + " {\n"
+      for stmt in body {
+        s = s + "  " + expr_to_string(stmt) + "\n"
+      }
+      s + "}"
+    }
+    Match(scrutinee, arms) => {
+      let mut s = "match " + expr_to_string(scrutinee) + " { "
+      let mut i = 0
+      while i < arms.length() {
+        let arm = arms[i]
+        let pattern = arm.0
+        let body = arm.1
+        s = s + pattern + " => " + expr_to_string(body) + "; "
+        i = i + 1
+      }
+      s + "}"
     }
     Block(exprs) => {
       let mut s = "{\n"
@@ -495,7 +580,7 @@ test "emit: lambda expression" {
   let em = Emitter::new()
   emit_expr(em, 0, lambda)
   let result = em.finish()
-  inspect(result, content="{|row: Row| x}\n")
+  inspect(result, content="fn(row: Row) { x }\n")
 }
 
 test "emit: block expression" {
@@ -534,6 +619,30 @@ test "emit: string literal expr" {
   inspect(result, content="\"SELECT * FROM users\"\n")
 }
 
+test "emit: index expression" {
+  let e: Expr = Index(Ident("arr"), IntLit(0))
+  let em = Emitter::new()
+  emit_expr(em, 0, e)
+  let result = em.finish()
+  inspect(result, content="arr[0]\n")
+}
+
+test "emit: binop expression" {
+  let e: Expr = BinOp(">", Ident("a"), IntLit(5))
+  let em = Emitter::new()
+  emit_expr(em, 0, e)
+  let result = em.finish()
+  inspect(result, content="a > 5\n")
+}
+
+test "emit: if expression" {
+  let e: Expr = If(BinOp(">", Ident("x"), IntLit(0)), Ident("x"), Ident("neg"))
+  let em = Emitter::new()
+  emit_expr(em, 0, e)
+  let result = em.finish()
+  inspect(result, content="if x > 0 {\n  x\n} else {\n  neg\n}\n")
+}
+
 test "emit: call expression with multiple args" {
   let call: Expr = Call("db.query_many", [Ident("db"), Ident("sql")])
   let em = Emitter::new()
@@ -551,7 +660,7 @@ test "emit: lambda with typed params" {
   let em = Emitter::new()
   emit_expr(em, 0, lambda)
   let result = em.finish()
-  inspect(result, content="{|row: Row| User::decode(row)}\n")
+  inspect(result, content="fn(row: Row) { User::decode(row) }\n")
 }
 
 test "emit: struct with doc comment and field doc comments" {

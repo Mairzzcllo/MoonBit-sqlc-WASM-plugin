@@ -198,7 +198,7 @@ moon test               # 运行所有 195 个 inline 测试
 | ADR | 标题 | 状态 |
 |-----|------|------|
 | ADR-001 | AST-based Code Generation Strategy | Accepted |
-| ADR-002 | Runtime Scope | Draft |
+| ADR-002 | Runtime Scope | Accepted (v3) |
 | ADR-003 | Nullable Strategy | Draft |
 | ADR-004 | Naming Convention | Draft |
 | ADR-005 | Type Mapping Policy | Draft |

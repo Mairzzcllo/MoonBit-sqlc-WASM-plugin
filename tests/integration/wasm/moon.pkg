@@ -1,6 +1,4 @@
-import {
-  "moonbitlang/core/string" @string,
-}
+import {}
 
 options(
   "is-main": true,
