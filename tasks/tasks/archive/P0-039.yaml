@@ -2,7 +2,7 @@ id: P0-039
 title: 文档与测试补全
 priority: P0
 type: docs
-status: 待办
+status: 已完成
 description: >-
   修复 4 个文档/测试/注释缺陷。本任务在所有代码修复完成后执行：
 

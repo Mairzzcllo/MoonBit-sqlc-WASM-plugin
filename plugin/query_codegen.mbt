@@ -42,21 +42,28 @@ fn build_return_ty(cmd: QueryCardinality, result_type: String) -> TypeExpr {
 /// Build the function body expressions for a query.
 fn build_body(query: InternalQuery, result_type: String) -> Array[Expr] {
   let sql_let = Let("sql", StrLit(query.text))
-  let db_call = match query.cmd {
-    OneRow | ManyRows => Call("db.query", [Ident("sql")])
-    ExecResult => Call("db.exec", [Ident("sql")])
-    ExecCount => Call("db.execrows", [Ident("sql")])
-  }
-  // Wrap db call in let _ = to discard the Int/Int64 return value
-  let discard = Let("_", db_call)
-  let return_val = match query.cmd {
-    OneRow => Ident("None")
-    ManyRows => ArrLit([])
-    ExecResult | ExecCount => db_call
-  }
+  let rows_let = Let("rows", Call("db.query", [Ident("sql")]))
+  let decode_fn = Lambda(
+    [{ name: "row", ty: Named("Row") }],
+    Call(result_type + "::decode", [Ident("row")]),
+  )
   match query.cmd {
-    ExecResult | ExecCount => [sql_let, db_call]
-    OneRow | ManyRows => [sql_let, discard, return_val]
+    OneRow => [
+      sql_let,
+      rows_let,
+      If(
+        BinOp(">", Call("rows.length", []), IntLit(0)),
+        Call("Some", [Call(result_type + "::decode", [Index(Ident("rows"), IntLit(0))])]),
+        Ident("None"),
+      ),
+    ]
+    ManyRows => [
+      sql_let,
+      rows_let,
+      Call("rows.map", [decode_fn]),
+    ]
+    ExecResult => [sql_let, Call("db.exec", [Ident("sql")])]
+    ExecCount => [sql_let, Call("db.execrows", [Ident("sql")])]
   }
 }
 
@@ -222,7 +229,7 @@ test "generate_query_fns: multiple queries" {
   inspect(name2, content="query_q2")
 }
 
-test "build_body: :many body uses db.query" {
+test "build_body: :many body uses db.query + map decode" {
   let q: InternalQuery = {
     name: "list", text: "SELECT 1", cmd: ManyRows,
     params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
@@ -231,15 +238,16 @@ test "build_body: :many body uses db.query" {
   }
   let body = build_body(q, "ListRow")
   inspect(body.length(), content="3")
-  // Second expression is let _ = db.query(sql)
-  let discard_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(discard_name, content="_")
-  // Third expression is the return value (empty array)
-  let is_arr = match body[2] { ArrLit(_) => true; _ => false }
-  inspect(is_arr, content="true")
+  // First: let sql
+  // Second: let rows = db.query(sql)
+  let rows_name = match body[1] { Let(name, _) => name; _ => "" }
+  inspect(rows_name, content="rows")
+  // Third: rows.map({|row: Row| ListRow::decode(row)})
+  let is_map = match body[2] { Call(name, _) => name == "rows.map"; _ => false }
+  inspect(is_map, content="true")
 }
 
-test "build_body: :one body has 3 items ending with None" {
+test "build_body: :one body uses if rows.length() > 0" {
   let q: InternalQuery = {
     name: "get", text: "SELECT 1 WHERE id = $1", cmd: OneRow,
     params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
@@ -248,12 +256,13 @@ test "build_body: :one body has 3 items ending with None" {
   }
   let body = build_body(q, "GetRow")
   inspect(body.length(), content="3")
-  // Second is discard
-  let discard_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(discard_name, content="_")
-  // Third expression is None
-  let is_none = match body[2] { Ident(s) => s == "None"; _ => false }
-  inspect(is_none, content="true")
+  // First: let sql
+  // Second: let rows = db.query(sql)
+  let rows_name = match body[1] { Let(name, _) => name; _ => "" }
+  inspect(rows_name, content="rows")
+  // Third: if rows.length() > 0 { Some(GetRow::decode(rows[0])) } else { None }
+  let is_if = match body[2] { If(_, _, _) => true; _ => false }
+  inspect(is_if, content="true")
 }
 
 test "build_body: :execrows uses db.execrows" {
@@ -279,5 +288,5 @@ test "generate_query_fn: full function emission matches expected pattern" {
   let sf: SourceFile = { items: [Fn(fn_def)] }
   let result = emit_source_file(sf)
   // Verify the emitted code matches expected output
-  inspect(result, content="/// Get a user by ID\npub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {\n  let sql = \"SELECT id, name FROM users WHERE id = \\$1\"\n  let _ = db.query(sql)\n  None\n}\n")
+  inspect(result, content="/// Get a user by ID\npub fn query_get_user(db: DB, id: Int) -> Option[GetUserRow] {\n  let sql = \"SELECT id, name FROM users WHERE id = \\$1\"\n  let rows = db.query(sql)\n  if rows.length() > 0 {\n    Some(GetUserRow::decode(rows[0]))\n  } else {\n    None\n  }\n}\n")
 }

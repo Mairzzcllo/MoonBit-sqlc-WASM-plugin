@@ -125,6 +125,29 @@ pub struct AdaptRequest {
   sqlc_version : String
 }
 
+/// Parsed plugin/global options from codegen configuration.
+pub struct PluginOptions {
+  /// Package name for generated code (e.g. "myapp" from codegen.options.package_name).
+  package_name : String
+}
+
+/// Parse plugin_options bytes into a PluginOptions struct.
+/// Silently returns defaults on empty data or parse failure.
+pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
+  if data.length() == 0 { return { package_name: "" } }
+  let text = @utf8.decode_lossy(data[:])
+  let mut package_name = ""
+  for line in text.split("\n") {
+    let s = line.trim().to_string()
+    if s.has_prefix("package_name=") {
+      package_name = s[14:].trim().to_string()
+    } else if s.has_prefix("package_name =") {
+      package_name = s[15:].trim().to_string()
+    }
+  }
+  { package_name: package_name }
+}
+
 // === Converters: raw protobuf types → internal model ===
 
 fn convert_identifier(id: Identifier) -> AdaptIdentifier {

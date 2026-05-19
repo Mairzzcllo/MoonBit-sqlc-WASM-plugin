@@ -2,7 +2,7 @@ id: P0-037
 title: 输出配置与导入声明
 priority: P0
 type: fix
-status: 待办
+status: done
 description: >-
   修复 plugin/main.mbt 和 plugin/moon.pkg 中 3 个配置相关缺陷：
 

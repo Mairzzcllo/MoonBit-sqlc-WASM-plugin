@@ -3,7 +3,7 @@
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
-- `moon test` — 运行测试（195+ 测试）
+- `moon test` — 运行测试（240 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
 - `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）
@@ -33,12 +33,16 @@
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
     - WASI FFI: 使用内联 WAT ABI bridge 方案。MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构体（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。
     - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
-    - `moon test` 在 moonrun 下运行所有 195 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - `moon test` 在 moonrun 下运行所有 240 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - AST Expr 新增变体：`If(cond, then, else)`、`Index(target, idx)`、`IntLit(n)`、`BinOp(op, left, right)` — 用于生成 if/else、索引访问、数字字面量和比较表达式
+    - Plugin options 解析：`parse_plugin_options(bytes)` → `PluginOptions { package_name }` — 从 `plugin_options` Bytes 中提取 key=value 配置。当前支持 `package_name` 项
+    - 输出文件名从 `req.settings.codegen.out` 获取，空值时默认 `"lib.mbt"`（process_request）
+    - plugin/moon.pkg 依赖 `Mairzzcllo/moonbit_sqlc_plugin/runtime` 保证编译期兼容性
     - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
     - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
     - Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn }, Row { get_fn }
-    - 生成函数 body 中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃，后跟 `None`（OneRow）/`[]`（ManyRows）
+    - 生成函数 body：:one 使用 `let rows = db.query(sql); if rows.length() > 0 { Some(Type::decode(rows[0])) } else { None }`；:many 使用 `let rows = db.query(sql); rows.map({|row: Row| Type::decode(row)})`；:exec 使用 `db.exec(sql)`；:execrows 使用 `db.execrows(sql)`
     - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
     - sqlc v2 配置格式: codegen 在 `sql[]` 下，WASM 插件定义在 `plugins[]` 下，URL 支持 `file://` 和 `https://`；sha256 建议填入避免启动时重复计算
     - 字符串字面量转义使用 escape_string(s) 函数（emitter.mbt），转义表：'"'→'\"'、'\n'→'\\n'、'\t'→'\\t'、'\r'→'\\r'、'\\'→'\\\\'、'$'→'\\$'（MoonBit $ 标识符前缀需转义）
@@ -54,6 +58,7 @@
 - ADR-006 — AST Stability Policy（待定）
 - ADR-007 — WAT Shim ABI Bridge（已接受，由 ADR-008 取代）
 - ADR-008 — Native WASI I/O via Inline WAT FFI（已接受）
+- ADR-009 — Known Limitations and MVP Boundaries（草稿）
 
 ## 远程仓库
 

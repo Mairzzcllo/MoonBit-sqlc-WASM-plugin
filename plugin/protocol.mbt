@@ -25,7 +25,7 @@
 // limitations under the License.
 //
 
-// === 4-byte LE framing (pure MoonBit, used by shim-wrapper and tests) ===
+// === 4-byte LE framing (pure MoonBit, used by wasi_io.mbt I/O loop and tests) ===
 
 /// Encode `v` as 4-byte little-endian byte sequence.
 pub fn encode_u32_le(v: Int) -> Bytes {

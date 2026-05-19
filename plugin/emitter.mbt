@@ -235,6 +235,7 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
       em.push("let " + name + " = " + expr_to_string(val) + "\n")
     }
     StrLit(s) => push_line(em, indent, "\"" + escape_string(s) + "\"")
+    IntLit(n) => push_line(em, indent, n.to_string())
     ArrLit(args) => {
       let mut s = "["
       let mut first = true
@@ -246,6 +247,7 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
       s = s + "]"
       push_line(em, indent, s)
     }
+    Index(target, idx) => push_line(em, indent, expr_to_string(target) + "[" + expr_to_string(idx) + "]")
     Lambda(params, body) => {
       let mut s = "{|"
       let mut first = true
@@ -256,6 +258,17 @@ fn emit_expr(em: Emitter, indent: Int, expr: Expr) -> Unit {
       }
       s = s + "| " + expr_to_string(body) + "}"
       push_line(em, indent, s)
+    }
+    BinOp(op, left, right) => push_line(em, indent, expr_to_string(left) + " " + op + " " + expr_to_string(right))
+    If(cond, then_expr, else_expr) => {
+      push_indent(em, indent)
+      em.push("if " + expr_to_string(cond) + " {\n")
+      emit_expr(em, indent + 1, then_expr)
+      push_indent(em, indent)
+      em.push("} else {\n")
+      emit_expr(em, indent + 1, else_expr)
+      push_indent(em, indent)
+      em.push("}\n")
     }
     Unit => push_line(em, indent, "()")
     Block(exprs) => {
@@ -283,6 +296,7 @@ fn expr_to_string(e: Expr) -> String {
     }
     Let(name, val) => "let " + name + " = " + expr_to_string(val)
     StrLit(s) => "\"" + escape_string(s) + "\""
+    IntLit(n) => n.to_string()
     ArrLit(args) => {
       let mut s = "["
       let mut first = true
@@ -293,6 +307,7 @@ fn expr_to_string(e: Expr) -> String {
       }
       s + "]"
     }
+    Index(target, idx) => expr_to_string(target) + "[" + expr_to_string(idx) + "]"
     Unit => "()"
     Lambda(params, body) => {
       let mut s = "{|"
@@ -303,6 +318,10 @@ fn expr_to_string(e: Expr) -> String {
         first = false
       }
       s + "| " + expr_to_string(body) + "}"
+    }
+    BinOp(op, left, right) => expr_to_string(left) + " " + op + " " + expr_to_string(right)
+    If(cond, then_expr, else_expr) => {
+      "if " + expr_to_string(cond) + " { " + expr_to_string(then_expr) + " } else { " + expr_to_string(else_expr) + " }"
     }
     Block(exprs) => {
       let mut s = "{\n"

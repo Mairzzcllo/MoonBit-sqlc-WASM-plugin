@@ -29,3 +29,11 @@ pub fn Row::new(get_fn: (Int) -> String) -> Row {
 pub fn Row::get(self: Row, index: Int) -> String {
   (self.get_fn)(index)
 }
+
+/// Get an array value from a row by column index.
+/// MVP: Returns the raw string as a single-element array.
+/// Real database drivers should provide proper JSON/PSQL array parsing.
+pub fn Row::get_array(self: Row, index: Int) -> Array[String] {
+  let val = (self.get_fn)(index)
+  [val]
+}

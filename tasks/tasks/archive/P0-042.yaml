@@ -2,7 +2,7 @@ id: P0-042
 title: ":one/:many 解码行数据"
 priority: P0
 type: fix
-state: todo
+state: done
 description: >-
   CRITICAL #1 — build_body 对 OneRow/ManyRows 的固定逻辑是：1) 拼 sql
   let 绑定；2) 调用 db.exec(sql) 返回 Int；3) let _ = 丢弃结果；

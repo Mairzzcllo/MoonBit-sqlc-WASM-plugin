@@ -205,6 +205,7 @@ moon test               # 运行所有 195 个 inline 测试
 | ADR-006 | AST Stability Policy | Draft |
 | ADR-007 | WAT Shim ABI Bridge | Superseded (by ADR-008) |
 | ADR-008 | Native WASI I/O via Inline WAT FFI | Accepted |
+| ADR-009 | Known Limitations and MVP Boundaries | Draft |
 
 ## 路线图
 

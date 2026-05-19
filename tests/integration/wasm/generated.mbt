@@ -35,6 +35,7 @@ pub struct Row {
 }
 
 pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
+pub fn Row::get_array(self: Row, index: Int) -> Array[String] { [(self.get_fn)(index)] }
 
 /// users table
 pub struct Users {
@@ -42,6 +43,11 @@ pub struct Users {
   name: String
   /// user email address
   email: Option[String]
+}
+
+/// Decode a Row into a Users
+pub fn Users::decode(row: Row) -> Users {
+  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
 }
 
 pub enum UserRole {
@@ -58,12 +64,22 @@ pub struct ListUsersRow {
   email: Option[String]
 }
 
+/// Decode a Row into a ListUsersRow
+pub fn ListUsersRow::decode(row: Row) -> ListUsersRow {
+  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
+}
+
 /// Get user by ID
 pub struct GetUserRow {
   id: Int
   name: String
   /// user email address
   email: Option[String]
+}
+
+/// Decode a Row into a GetUserRow
+pub fn GetUserRow::decode(row: Row) -> GetUserRow {
+  { id: try @string.parse_int(row.get(0)) catch { _ => 0 }, name: row.get(1), email: Some(row.get(2)) }
 }
 
 /// List all users

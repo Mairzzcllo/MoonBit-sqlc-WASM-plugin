@@ -218,3 +218,26 @@ pub fn make_users_request() -> GenerateRequest {
   let q_del : Query = { text : "DELETE FROM users WHERE id = $1", name : "delete_user", cmd : ":exec", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_del }], comments : Array::make(0, ""), filename : "users.sql", insert_into_table : empty_id }
   { settings : settings, catalog : catalog, queries : [q_list, q_get, q_del], sqlc_version : "1.0.0", plugin_options : b"", global_options : b"" }
 }
+
+/// Build a GenerateRequest with realistic sqlc input types: bigserial, schema-qualified,
+/// array columns, and full type names like "timestamp with time zone".
+pub fn make_realistic_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "posts" }
+  let bigserial_ty : Identifier = { catalog : "", schema : "", name : "bigserial" }
+  let pg_int8_ty : Identifier = { catalog : "", schema : "pg_catalog", name : "int8" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let timestamptz_ty : Identifier = { catalog : "", schema : "", name : "timestamp with time zone" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : bigserial_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_author : Column = { name : "author_id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : pg_int8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "author_id", unsigned : false, array_dims : 0 }
+  let col_title : Column = { name : "title", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "title", unsigned : false, array_dims : 0 }
+  let col_tags : Column = { name : "tags", not_null : false, is_array : true, comment : "post tags", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "tags", unsigned : false, array_dims : 0 }
+  let col_created : Column = { name : "created_at", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : timestamptz_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "created_at", unsigned : false, array_dims : 0 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_author, col_title, col_tags, col_created], comment : "posts table" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, author_id, title, tags, created_at FROM posts", name : "list_posts", cmd : ":many", columns : [col_id, col_author, col_title, col_tags, col_created], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all posts"], filename : "posts.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list], sqlc_version : "1.0.0", plugin_options : b"", global_options : b"" }
+}

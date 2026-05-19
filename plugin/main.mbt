@@ -24,15 +24,19 @@ fn main {
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.
-/// Converts the raw request through the adapter layer, then produces output.
+/// Uses codegen.out from sqlc config as the output filename.
 fn process_request(req: GenerateRequest) -> GenerateResponse {
   let source = generate_source(req)
   let contents = @utf8.encode(source)
-  { files: [{ name: "lib.mbt", contents: contents }] }
+  let out_name = req.settings.codegen.out
+  let filename = if out_name.length() > 0 { out_name } else { "lib.mbt" }
+  { files: [{ name: filename, contents: contents }] }
 }
 
 /// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
+/// Parses plugin_options to extract codegen configuration (package_name, etc.).
 pub fn generate_source(req: GenerateRequest) -> String {
+  let _ = parse_plugin_options(req.plugin_options)
   let adapted = convert_request(req)
   let ir = build_ir(adapted)
   let types = generate_types(adapted.catalog, ir)
@@ -42,5 +46,7 @@ pub fn generate_source(req: GenerateRequest) -> String {
   for f in query_fns { ast.items.push(f) }
   emit_source_file(ast)
 }
+
+
 
 

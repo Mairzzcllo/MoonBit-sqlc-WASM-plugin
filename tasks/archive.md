@@ -1,8 +1,89 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-17
+> 归档时间: 2026-05-19
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
+
+### [P0-036] Codegen 核心修复 (父任务)
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: 4 个子任务：P0-040(#3 query 路由) → P0-041(#2 decode 方法) → P0-042(#1 行解码) → P0-043(#22 字符串转义)。行解码逻辑修复：:many 使用 `rows.map({|row| Type::decode(row)})`，:one 使用 `if rows.length() > 0 { Some(Type::decode(rows[0])) } else { None }`
+- 架构: moon check 0 errors, moon test 238/238 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+- 关联: #1 #2 #3 #22
+
+### [P0-040] Query 路由修复 (P0-036a)
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: #3 — OneRow/ManyRows 的路由不应通过 db.exec() 丢弃
+- 架构: moon check 0 errors, moon test 228/228 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+
+### [P0-041] 生成 decode(Row) 方法
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: CRITICAL #2 — 为每个生成的 Row struct 添加 decode(row: Row) -> Self 方法。StructName::decode 语法，@string.parse_* + try/catch，238 测试通过
+- 依赖: P0-040(hard, ✅)
+- 架构: moon check 0 errors, moon test 238/238 passed
+- 创建: 2026-05-19
+- 完成: 2026-05-19
+- 关联: #2
+
+### [P0-042] :one/:many 解码行数据
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: CRITICAL #1 — 改用 db.query(sql) 获取结果，StructName::decode(row) 解码；OneRow 取首条 Option.wrap，ManyRows 遍历全部。AST 新增 If/Index/IntLit/BinOp 变体；emitter 新增对应格式化；build_body 生成行解码表达式
+- 依赖: P0-040(hard, ✅) P0-041(hard, ✅)
+- 架构: moon check 0 errors, moon test 238/238 passed
+- 创建: 2026-05-19
+- 完成: 2026-05-19
+- 关联: #1
+
+### [P0-043] 字符串转义修复 (P0-036d)
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: #22 — SQL 字符串字面量中的 `$1` 等字符在 MoonBit 中需转义为 `\$1`
+- 架构: moon check 0 errors, moon test 228/228 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+
+### [P0-037] 输出配置与导入声明
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: 修复 3 个缺陷：#23 process_request 使用 codegen.out 作为输出文件名（默认 "lib.mbt"）；#24 新增 PluginOptions + parse_plugin_options 解析 package_name（实验性）；#25 plugin/moon.pkg 添加 runtime 依赖
+- 依赖: P0-036（hard）
+- 架构: moon check 0 errors, moon test 238/238 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+- 关联: #23 #24 #25
+
+### [P0-038] WASM I/O 清理
+- 优先级: P0
+- 类型: refactor
+- 状态: 完成
+- 描述: 清理 wasi_io.mbt 中 5 个缺陷：#13 入口点验证（wasm2wat 确认 _start→__moonbit__main→run_io_loop，添加注释）；#14 O(n²) 字节拷贝不存在（WASI fd_read/fd_write 直接 iovec 传输，添加注释）；#29 SCRATCH 用途文档化注释；#30 read_body fd_read 错误时返回空 Bytes；#31 单次分配已实现（注释说明）
+- 架构: moon check 0 errors, moon test 238/238 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+- 关联: #13 #14 #29 #30 #31
+
+### [P0-039] 文档与测试补全
+- 优先级: P0
+- 类型: docs
+- 状态: 完成
+- 描述: 修复 4 个文档/测试缺陷：#20 更新 protocol.mbt shim-wrapper→wasi_io.mbt 注释；#26 移除 WRITE_FRAME_DEBUG stderr dump；#28 添加真实 sqlc 输入测试工厂 + golden 测试（bigserial→Int64, pg_catalog.int8→Int64, TEXT[]→Option[Array[String]], timestamptz→String）；#34 创建 ADR-009 已知限制文档
+- 架构: moon check 0 errors, moon test 240/240 passed
+- 创建: 2026-05-18
+- 完成: 2026-05-19
+- 关联: #20 #26 #28 #34
 
 ### [P0-023] WAT shim: 核心 ABI bridge
 - 优先级: P0

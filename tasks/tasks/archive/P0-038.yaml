@@ -2,7 +2,7 @@ id: P0-038
 title: WASM I/O 清理
 priority: P0
 type: refactor
-status: 待办
+status: 已完成
 description: >-
   清理 plugin/wasi_io.mbt 中 5 个缺陷。注意：ADR-008（内联 WAT FFI）
   已取代 WAT shim 方案，因此与 shim/ 相关的 #12 和 #33 已不再适用，
@@ -45,8 +45,8 @@ dependencies:
   hard: []
   soft: []
 lock:
-  owner: null
-  timestamp: null
+  owner: opencode
+  timestamp: 2026-05-19T12:00:00Z
   expires_at: null
 retry:
   count: 0

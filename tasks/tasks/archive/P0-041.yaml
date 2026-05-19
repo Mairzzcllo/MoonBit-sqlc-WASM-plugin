@@ -2,7 +2,7 @@ id: P0-041
 title: 生成 decode(Row) 方法
 priority: P0
 type: fix
-state: todo
+state: done
 description: >-
   CRITICAL #2 — type_codegen.mbt 生成的 struct 没有对应的 decode(Row)
   方法。runtime 的 Row 类型提供 get(Int) → T 方法，codegen 需为每个
@@ -14,7 +14,15 @@ description: >-
 
   修复文件：plugin/type_codegen.mbt
 
-  验证：moon check 0 errors；golden test 验证 decode 方法签名和字段顺序。
+  实现方案：
+  - generate_decode_fn() 生成 StructName::decode 语法
+  - field_to_decode_expr() 按字段类型映射 decode 表达式
+  - type_to_decode_expr_str() 映射 MoonBit 类型名到 @string.parse_* 转换
+  - try/catch 处理 @string.parse_* 的 raise 类型
+  - 集成测试 stubs 同步更新 try/catch 语法
+
+  验证：moon check 0 errors；moon test 238/238 全部通过；
+  golden test 验证 decode 方法签名和字段顺序。
 dependencies:
   - id: P0-040
     type: hard
@@ -27,4 +35,5 @@ retry:
   max: 3
 created_at: 2026-05-19
 updated_at: 2026-05-19
+completed_at: 2026-05-19
 related: ["#2"]

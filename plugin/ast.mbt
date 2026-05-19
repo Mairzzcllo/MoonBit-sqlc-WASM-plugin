@@ -96,10 +96,18 @@ pub enum Expr {
   Let(String, Expr)
   /// String literal: `"SELECT ..."`
   StrLit(String)
+  /// Integer literal: `0`, `42`
+  IntLit(Int)
   /// Array literal: `[1, 2, 3]`
   ArrLit(Array[Expr])
+  /// Array/slice index: `arr[i]`
+  Index(Expr, Expr)
   /// Lambda: `{|row| Type::decode(row)}`
   Lambda(Array[ParamDef], Expr)
+  /// Binary operation: `a > b`, `a != b`
+  BinOp(String, Expr, Expr)
+  /// If-else expression: `if cond { then } else { else }`
+  If(Expr, Expr, Expr)
   /// Unit / noop
   Unit
 }

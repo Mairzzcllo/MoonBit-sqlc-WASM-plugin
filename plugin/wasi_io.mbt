@@ -6,6 +6,12 @@
 /// MoonBit .data starts at 10000+, TLSF allocator at ~13136+.
 /// Reserved region has no overlap.
 //
+// P0-038 resolutions:
+//   #13 — Entry point: wasm2wat confirms _start→__moonbit__main→run_io_loop. Resolved.
+//   #14 — No byte-copy loop: data moves via WASI fd_read/fd_write iovec, not byte loop. Resolved.
+//   #29 — SCRATCH is used as temp buffer for frame header I/O (read/write). Purpose documented.
+//   #31 — read_body uses single Bytes::new(len) → fd_read directly. No intermediate 4KB. Resolved.
+//
 // Copyright 2026 Mairzzcllo
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,9 +86,9 @@ fn read_body(len : Int) -> Bytes {
     store_i32(IOV_BUF, ptr + offset)
     store_i32(IOV_LEN, remaining)
     let err = fd_read(0, IOV_BASE, 1, ROF_LEN)
-    if err != 0 { break }
+    if err != 0 { return Bytes::make(0, 0) }
     let nread = load_i32(ROF_LEN)
-    if nread <= 0 { break }
+    if nread <= 0 { return Bytes::make(0, 0) }
     remaining = remaining - nread
     offset = offset + nread
   }
@@ -93,14 +99,6 @@ fn read_body(len : Int) -> Bytes {
 /// Loops fd_write since WASI pipes may write fewer bytes than requested.
 fn write_frame(data : Bytes) -> Unit {
   let len = data.length()
-  // Debug: dump first 4 bytes of response to stderr
-  let p = bytes_data_ptr(data)
-  let m = if len >= 4 { load_i32(p) } else { 0 }
-  store_i32(SCRATCH, m)
-  store_i32(IOV_BUF, SCRATCH)
-  store_i32(IOV_LEN, 4)
-  let _ = fd_write(2, IOV_BASE, 1, ROF_LEN)
-  
   // Write 4-byte LE frame header
   store_i32(SCRATCH, len)
   store_i32(IOV_BUF, SCRATCH)

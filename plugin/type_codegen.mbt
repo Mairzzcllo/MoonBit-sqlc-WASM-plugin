@@ -83,13 +83,14 @@ pub fn generate_enum_from_enum(name: String, vals: Array[String], comment: Strin
 }
 
 /// Generate all type definitions from an AdaptCatalog.
-/// Produces StructDef for each table and EnumDef for each enum in every schema.
+/// Produces StructDef for each table (with decode method) and EnumDef for every enum.
 pub fn generate_types_from_catalog(catalog: AdaptCatalog) -> Array[TopLevel] {
   let items: Array[TopLevel] = []
   for schema in catalog.schemas {
     for table in schema.tables {
       let sd = generate_struct_from_table(table.name, table.columns, table.comment)
       items.push(Struct(sd))
+      items.push(Fn(generate_decode_fn(sd)))
     }
     for e in schema.enums {
       let ed = generate_enum_from_enum(e.name, e.vals, e.comment)
@@ -100,7 +101,7 @@ pub fn generate_types_from_catalog(catalog: AdaptCatalog) -> Array[TopLevel] {
 }
 
 /// Generate struct definitions for query result types.
-/// Produces a StructDef for each query that has a Rows result shape.
+/// Produces a StructDef (with decode method) for each query that has a Rows result shape.
 /// The struct is named `<QueryName>Row` in PascalCase.
 pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLevel] {
   let items: Array[TopLevel] = []
@@ -111,6 +112,7 @@ pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLe
         let doc: Option[String] = if q.comments.length() > 0 { Some(q.comments[0]) } else { None }
         let sd = generate_struct_from_fields(type_name, fields, doc, true)
         items.push(Struct(sd))
+        items.push(Fn(generate_decode_fn(sd)))
       }
       None => ()
     }
@@ -119,6 +121,7 @@ pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLe
 }
 
 /// Generate all type definitions from both catalog and queries.
+/// Each struct is followed by its decode method.
 pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> Array[TopLevel] {
   let items = generate_types_from_catalog(catalog)
   let query_items = generate_types_from_queries(queries)
@@ -126,6 +129,78 @@ pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> A
     items.push(item)
   }
   items
+}
+
+/// Generate the convert expression for a field type at a given column index.
+fn field_to_decode_expr(field: FieldDef, index: Int) -> Expr {
+  let raw_get = "row.get(" + index.to_string() + ")"
+  match field.ty {
+    TypeExpr::Named(s) => Ident(type_to_decode_expr_str(s, raw_get))
+    Option(inner) => {
+      let inner_str = match inner {
+        TypeExpr::Named(s) => type_to_decode_expr_str(s, raw_get)
+        Parameterized("Array", [TypeExpr::Named(s)]) => {
+          let raw_arr = "row.get_array(" + index.to_string() + ")"
+          if s == "String" || s == "Bytes" || s == "JsonValue" {
+            raw_arr
+          } else {
+            raw_arr + ".map(fn(s) { " + type_to_decode_expr_str(s, "s") + " })"
+          }
+        }
+        _ => raw_get
+      }
+      Ident("Some(" + inner_str + ")")
+    }
+    Parameterized("Array", [TypeExpr::Named(s)]) => {
+      let raw_arr = "row.get_array(" + index.to_string() + ")"
+      if s == "String" || s == "Bytes" || s == "JsonValue" {
+        Ident(raw_arr)
+      } else {
+        Ident(raw_arr + ".map(fn(s) { " + type_to_decode_expr_str(s, "s") + " })")
+      }
+    }
+    _ => Ident(raw_get)
+  }
+}
+
+/// Get the string representation of a type conversion expression.
+/// Uses @string.parse_* APIs with try/catch defaults for numeric/bool parsing.
+fn type_to_decode_expr_str(type_name: String, value_expr: String) -> String {
+  if type_name == "Int" {
+    "try @string.parse_int(" + value_expr + ") catch { _ => 0 }"
+  } else if type_name == "Int64" {
+    "try @string.parse_int64(" + value_expr + ") catch { _ => 0L }"
+  } else if type_name == "Double" || type_name == "Float" {
+    "try @string.parse_double(" + value_expr + ") catch { _ => 0.0 }"
+  } else if type_name == "Bool" {
+    "try @string.parse_bool(" + value_expr + ") catch { _ => false }"
+  } else {
+    value_expr
+  }
+}
+
+/// Generate a decode function for a StructDef.
+/// Produces `pub fn StructName::decode(row: Row) -> StructName { { f0: expr0, f1: expr1, ... } }`
+pub fn generate_decode_fn(sd: StructDef) -> FnDef {
+  let params = [{ name: "row", ty: TypeExpr::Named("Row") }]
+  let return_ty = TypeExpr::Named(sd.name)
+  let mut field_pairs = ""
+  let mut first = true
+  let mut i = 0
+  while i < sd.fields.length() {
+    if !first { field_pairs = field_pairs + ", " }
+    let val_str = match field_to_decode_expr(sd.fields[i], i) {
+      Ident(s) => s
+      _ => "row.get(" + i.to_string() + ")"
+    }
+    field_pairs = field_pairs + sd.fields[i].name + ": " + val_str
+    first = false
+    i = i + 1
+  }
+  let struct_literal = "{ " + field_pairs + " }"
+  let body = [Ident(struct_literal)]
+  let doc = Some("Decode a Row into a " + sd.name)
+  { name: sd.name + "::decode", params: params, return_ty: return_ty, body: body, doc: doc, is_pub: true }
 }
 
 // === Tests ===
@@ -229,12 +304,17 @@ test "generate_types_from_catalog: single schema with table" {
   }
   let catalog: AdaptCatalog = { name: "", default_schema: "public", schemas: [schema] }
   let items = generate_types_from_catalog(catalog)
-  inspect(items.length(), content="1")
+  inspect(items.length(), content="2")
   let name = match items[0] {
     Struct(s) => s.name
     _ => ""
   }
   inspect(name, content="Users")
+  let fn_name = match items[1] {
+    Fn(f) => f.name
+    _ => ""
+  }
+  inspect(fn_name, content="Users::decode")
 }
 
 test "generate_types_from_catalog: table and enum" {
@@ -251,16 +331,18 @@ test "generate_types_from_catalog: table and enum" {
   }
   let catalog: AdaptCatalog = { name: "", default_schema: "public", schemas: [schema] }
   let items = generate_types_from_catalog(catalog)
-  inspect(items.length(), content="2")
+  inspect(items.length(), content="3")
   let names = items.map(fn(item) {
     match item {
       Struct(s) => s.name
       Enum(e) => e.name
+      Fn(f) => f.name
       _ => ""
     }
   })
   inspect(names[0], content="Orders")
-  inspect(names[1], content="Status")
+  inspect(names[1], content="Orders::decode")
+  inspect(names[2], content="Status")
 }
 
 test "generate_types_from_queries: :many query produces Row struct" {
@@ -278,7 +360,7 @@ test "generate_types_from_queries: :many query produces Row struct" {
     filename: "query.sql",
   }
   let items = generate_types_from_queries([q])
-  inspect(items.length(), content="1")
+  inspect(items.length(), content="2")
   let sd = match items[0] {
     Struct(s) => s
     _ => { name: "", fields: [], doc: (None: Option[String]), is_pub: false }
@@ -287,6 +369,11 @@ test "generate_types_from_queries: :many query produces Row struct" {
   inspect(sd.fields.length(), content="2")
   inspect(sd.fields[0].name, content="id")
   inspect(sd.fields[1].name, content="name")
+  let fn_name = match items[1] {
+    Fn(f) => f.name
+    _ => ""
+  }
+  inspect(fn_name, content="ListUsersRow::decode")
 }
 
 test "generate_types_from_queries: :exec query produces no struct" {
@@ -329,17 +416,27 @@ test "generate_types: combines catalog and query types" {
     filename: "q.sql",
   }
   let items = generate_types(catalog, [q])
-  inspect(items.length(), content="2")
+  inspect(items.length(), content="4")
   let first_name = match items[0] {
     Struct(s) => s.name
     _ => ""
   }
   let second_name = match items[1] {
+    Fn(f) => f.name
+    _ => ""
+  }
+  let third_name = match items[2] {
     Struct(s) => s.name
     _ => ""
   }
+  let fourth_name = match items[3] {
+    Fn(f) => f.name
+    _ => ""
+  }
   inspect(first_name, content="Users")
-  inspect(second_name, content="GetUserRow")
+  inspect(second_name, content="Users::decode")
+  inspect(third_name, content="GetUserRow")
+  inspect(fourth_name, content="GetUserRow::decode")
 }
 
 test "capitalize_first: lowercase letter" {
