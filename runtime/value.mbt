@@ -47,8 +47,6 @@ pub enum Value {
   Null
   Int64(Int64)
   String(String)
-  Date(Date)
-  DateTime(DateTime)
 }
 
 test "Date::new and to_string roundtrip" {

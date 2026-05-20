@@ -24,12 +24,17 @@ fn main {
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.
-/// Uses codegen.out from sqlc config as the output filename.
+/// Uses codegen.out from sqlc config as the output directory prefix + "lib.mbt".
 fn process_request(req: GenerateRequest) -> GenerateResponse {
   let source = generate_source(req)
   let contents = @utf8.encode(source)
   let out_name = req.settings.codegen.out
-  let filename = if out_name.length() > 0 { out_name } else { "lib.mbt" }
+  let filename = if out_name.length() > 0 {
+    let dir = if out_name[out_name.length() - 1] == '/' { out_name[0:out_name.length() - 1].to_owned() } else { out_name }
+    dir + "/lib.mbt"
+  } else {
+    "lib.mbt"
+  }
   { files: [{ name: filename, contents: contents }] }
 }
 

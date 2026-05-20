@@ -4,6 +4,32 @@
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
+### [P1-021] 修复验证脚本假阴性
+- 优先级: P1
+- 类型: bugfix
+- 状态: 完成
+- 描述: validate_plugin.ps1 wasm2wat 多行输出 + stderr 污染导致 -notmatch 假阴性。改用 2>$null 过滤 stderr + -join 合并单字符串后做否定匹配。16 warnings → 1 (pre-existing)。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-020] 清理编译警告
+- 优先级: P1
+- 类型: refactor
+- 状态: 完成
+- 描述: (1)移除 plugin/moon.pkg 未用 runtime import (2)Value 枚举移除未用 Date/DateTime 变体 (3)tests stubs 清理 unused self/Null/String/Editor/Viewer/Transaction/begin_fn/UserRole。16 warnings → 1 (pre-existing)。
+- 架构: moon check 0 errors, moon test 296/296 passed
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-019] 修复输出文件名 + examples 集成
+- 优先级: P1
+- 类型: bugfix
+- 状态: 完成
+- 描述: (1) process_request 将 codegen.out 作为目录前缀 + "lib.mbt"（处理尾随斜杠），空值时默认 "lib.mbt" (2) examples/users 配置正确（moon.pkg 含 runtime 依赖, sqlc.yaml out: "."），生成代码落地到包内。
+- 架构: moon check 0 errors, moon test 296/296 passed
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
 ### [P1-016] 类型映射修复: date/timestamp → Date/DateTime
 - 优先级: P1
 - 类型: fix

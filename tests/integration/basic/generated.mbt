@@ -24,14 +24,12 @@ pub struct DB {
   execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
-  begin_fn : () -> Result[Transaction, DBError]
 }
 
 pub fn DB::exec(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.exec_fn)(sql, params) }
 pub fn DB::execrows(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.execrows_fn)(sql, params) }
 pub fn DB::query(self: DB, sql: String, params: Array[Value]) -> Result[RowIter, DBError] { (self.query_fn)(sql, params) }
 pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row, DBError] { (self.query_row_fn)(sql, params) }
-pub fn DB::begin(self: DB) -> Result[Transaction, DBError] { (self.begin_fn)() }
 
 /// Row runtime stub (mirrors runtime/row.mbt for compilation testing).
 pub struct Row {
@@ -39,7 +37,7 @@ pub struct Row {
 }
 
 pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
-pub fn Row::get_int64(self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
+pub fn Row::get_int64(_self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] { Ok(self.get(index)) }
 pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] { let v = self.get(index); if v == "" { Ok(None) } else { Ok(Some(v)) } }
 
@@ -52,17 +50,7 @@ pub fn RowIter::new(rows: Array[Row]) -> RowIter { { rows: rows } }
 pub fn RowIter::collect(self: RowIter) -> Result[Array[Row], DBError] { Ok(self.rows) }
 
 /// Value runtime stub for compilation testing.
-pub enum Value { Null; Int64(Int64); String(String) }
-
-/// Transaction runtime stub (mirrors runtime/transaction.mbt for compilation testing).
-pub struct Transaction {
-  exec_fn : (String, Array[Value]) -> Result[Int64, DBError]
-  execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
-  query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
-  query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
-  commit_fn : () -> Result[Unit, DBError]
-  rollback_fn : () -> Result[Unit, DBError]
-}
+pub enum Value { Int64(Int64) }
 
 /// DBError stub.
 pub enum DBError { ConnectionError(String) }
@@ -87,12 +75,6 @@ pub fn Users::decode(row: Row) -> Result[Users, DBError] {
     }
     Err(e) => Err(e)
   }
-}
-
-pub enum UserRole {
-  Admin
-  Editor
-  Viewer
 }
 
 /// List all users
