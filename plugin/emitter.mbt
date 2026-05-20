@@ -206,8 +206,6 @@ fn escape_string(s: String) -> String {
       result = result + "\\r"
     } else if ch == '\\' {
       result = result + "\\\\"
-    } else if ch == '$' {
-      result = result + "\\$"
     } else {
       result = result + s[i : i + 1].to_owned()
     }
@@ -718,9 +716,9 @@ test "escape_string: newline and tab are escaped" {
   inspect(result, content="line1\\nline2\\tcol")
 }
 
-test "escape_string: backslash and dollar are escaped" {
+test "escape_string: backslash is escaped, dollar is not escaped" {
   let result = escape_string("a\\b$c")
-  inspect(result, content="a\\\\b\\$c")
+  inspect(result, content="a\\\\b$c")
 }
 
 test "emit: strlit with double quotes emits escaped" {

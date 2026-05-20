@@ -1,0 +1,19 @@
+id: P1-017
+title: 修复类型映射 StringView 退化
+priority: P1
+type: bugfix
+status: 已取消
+description: type_map.mbt 中 match 分支统一为 StringView 后字面量模式匹配失效，导致 SQL 类型全面退化为 String。修复 Some(pos) 分支加 .to_owned()
+dependencies:
+  hard:
+    - P0-007
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+related: ["P1-018", "P1-019"]

@@ -115,9 +115,30 @@ fn build_body(query: InternalQuery, result_type: String) -> Array[Expr] {
   }
 }
 
+/// Convert PascalCase or camelCase to snake_case.
+/// Handles: "GetUser" → "get_user", "getUser" → "get_user", "list_users" → "list_users"
+fn to_snake_case(s: String) -> String {
+  let mut result = ""
+  let mut i = 0
+  while i < s.length() {
+    if s[i] >= 'A' && s[i] <= 'Z' {
+      if i > 0 {
+        if s[i - 1] >= 'a' && s[i - 1] <= 'z' {
+          result = result + "_"
+        } else if i + 1 < s.length() && s[i + 1] >= 'a' && s[i + 1] <= 'z' {
+          result = result + "_"
+        }
+      }
+    }
+    result = result + s[i : i + 1].to_owned()
+    i = i + 1
+  }
+  result.to_lower()
+}
+
 /// Generate a single query function FnDef.
 pub fn generate_query_fn(query: InternalQuery) -> FnDef {
-  let fn_name = "query_" + query.name
+  let fn_name = "query_" + to_snake_case(query.name)
   let result_type = get_result_type_name(query)
   // First param is always db: DB
   let db_param: ParamDef = { name: "db", ty: Named("DB") }
@@ -342,4 +363,38 @@ test "generate_query_fn: full function emission matches expected pattern" {
   let result = emit_source_file(sf)
   inspect(result.contains("match db.query_row"), content="true")
   inspect(result.contains("Err(e) => Err(e)"), content="true")
+}
+
+test "to_snake_case: PascalCase GetUser converts to get_user" {
+  let result = to_snake_case("GetUser")
+  inspect(result, content="get_user")
+}
+
+test "to_snake_case: camelCase getUser converts to get_user" {
+  let result = to_snake_case("getUser")
+  inspect(result, content="get_user")
+}
+
+test "to_snake_case: already snake_case unchanged" {
+  let result = to_snake_case("get_user")
+  inspect(result, content="get_user")
+}
+
+test "to_snake_case: PascalCase with acronym GetUserByID" {
+  let result = to_snake_case("GetUserByID")
+  inspect(result, content="get_user_by_id")
+}
+
+test "generate_query_fn: PascalCase query name converted to snake_case fn name" {
+  let params: Array[InternalParameter] = [
+    { number: 1, name: "id", ty: Named("int4"), not_null: true },
+  ]
+  let q: InternalQuery = {
+    name: "GetUser", text: "SELECT * FROM users WHERE id = $1", cmd: OneRow,
+    params: params,
+    result_shape: (None: InternalResultShape),
+    comments: ["Get a user by ID"], filename: "q.sql",
+  }
+  let fn_def = generate_query_fn(q)
+  inspect(fn_def.name, content="query_get_user")
 }

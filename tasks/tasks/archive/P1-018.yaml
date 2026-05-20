@@ -1,0 +1,21 @@
+id: P1-018
+title: 修复生成代码命名规范 + $ 转义
+priority: P1
+type: bugfix
+status: 已完成
+description: |
+  (1) query_codegen.mbt 中 query.name 直接拼接导致保留 PascalCase 原始名称，需实现 to_snake_case() 转换
+  (2) emitter.mbt escape_string 中 $ 转义多余（MoonBit 普通字符串不需转义 $），移除该分支
+dependencies:
+  hard:
+    - P1-017
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+related: []
