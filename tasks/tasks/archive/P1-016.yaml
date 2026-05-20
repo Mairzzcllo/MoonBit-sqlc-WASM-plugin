@@ -1,0 +1,33 @@
+id: P1-016
+title: "类型映射修复: date/timestamp → Date/DateTime（当前 String）"
+priority: P1
+type: fix
+state: done
+description: >-
+  PostgreSQL date 和 timestamp 类型目前被映射到 String，
+  丢失了类型信息。runtime 已定义 Date 和 DateTime 封装类型
+  （runtime/value.mbt），应将其作为目标类型。
+
+  修复文件：
+  1. plugin/type_map.mbt — 修改日期/时间类型的目标类型
+     从 `Named("String")` 改为 `Named("Date")` / `Named("DateTime")`
+  2. plugin/type_codegen.mbt — 确保生成的 struct 字段正确引用
+     这两个类型（可能需要确保 runtime 包被导入）
+  3. plugin/golden_test.mbt — 更新 golden 包中的 expected output
+
+  受影响 SQL 类型：
+  - date → Date
+  - timestamp / timestamptz → DateTime
+  - time → String（保留，无对应封装）
+  - interval → String（保留）
+dependencies: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []

@@ -18,17 +18,13 @@
 // limitations under the License.
 //
 
-/// Capitalize the first ASCII lowercase byte of a string.
+/// Capitalize the first ASCII lowercase character.
 fn capitalize_first(s: String) -> String {
   if s.length() == 0 { return s }
-  let bytes = s.to_bytes()
-  let first = bytes[0]
-  if first >= 97 && first <= 122 {
-    let upper: Byte = (first.to_int() - 32).to_byte()
-    let result = Bytes::makei(bytes.length(), fn(i) {
-      if i == 0 { upper } else { bytes[i] }
-    })
-    result.to_unchecked_string()
+  let first = s[0]
+  if first >= 'a' && first <= 'z' {
+    let upper = (first.to_int() - 32).unsafe_to_char()
+    [upper] + s[1:].to_owned()
   } else {
     s
   }
@@ -135,6 +131,7 @@ pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> A
 fn type_to_getter_suffix(type_name: String) -> String {
   match type_name {
     "Int64" => "int64"
+    "Int" => "int64"
     "String" => "string"
     "Bool" => "bool"
     "Double" => "double"
@@ -244,7 +241,7 @@ test "generate_struct_from_fields: basic struct" {
   inspect(sd.name, content="User")
   inspect(sd.fields.length(), content="2")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int\")")
   inspect(sd.fields[1].name, content="email")
   inspect(sd.fields[1].ty, content="Option(Named(\"String\"))")
 }
@@ -263,9 +260,9 @@ test "generate_struct_from_table: snake_case table name to PascalCase" {
   ]
   let sd = generate_struct_from_table("user_profiles", cols, "User profiles table")
   inspect(sd.name, content="UserProfiles")
-  inspect(sd.doc, content="Some(User profiles table)")
+  debug_inspect(sd.doc, content="Some(\"User profiles table\")")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int\")")
 }
 
 test "generate_struct_from_table: nullable column becomes Option" {

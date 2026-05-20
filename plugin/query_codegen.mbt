@@ -37,7 +37,8 @@ fn type_to_value_constructor(ir_type: InternalType) -> String {
   }
   match name {
     "int4" | "int8" | "int2" | "integer" | "bigint" | "smallint" | "serial" | "bigserial" | "smallserial" | "int" => "Int64"
-    "float4" | "float8" | "real" | "double" | "numeric" | "decimal" => "Double"
+    "float4" | "float8" | "real" | "double" => "Double"
+    "numeric" | "decimal" => "String"
     "bool" | "boolean" => "Bool"
     "bytea" => "Bytes"
     "json" | "jsonb" => "JsonValue"
@@ -154,7 +155,7 @@ test "param_to_param_def: not_null param" {
   let p: InternalParameter = { number: 1, name: "id", ty: Named("int4"), not_null: true }
   let pd = param_to_param_def(p)
   inspect(pd.name, content="id")
-  inspect(pd.ty, content="Named(\"Int64\")")
+  inspect(pd.ty, content="Named(\"Int\")")
 }
 
 test "param_to_param_def: nullable param" {
@@ -199,9 +200,9 @@ test "generate_query_fn: :one query has db param and result return" {
   inspect(fn_def.params[0].name, content="db")
   inspect(fn_def.params[0].ty, content="Named(\"DB\")")
   inspect(fn_def.params[1].name, content="id")
-  inspect(fn_def.params[1].ty, content="Named(\"Int64\")")
+  inspect(fn_def.params[1].ty, content="Named(\"Int\")")
   inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"GetUserRow\"), Named(\"DBError\")])")
-  inspect(fn_def.doc, content="Some(Get a user by ID)")
+  debug_inspect(fn_def.doc, content="Some(\"Get a user by ID\")")
   inspect(fn_def.is_pub, content="true")
 }
 

@@ -1,0 +1,30 @@
+id: P1-015
+title: "类型映射修复: numeric → String（当前 Double 精度丢失）"
+priority: P1
+type: fix
+state: done
+description: >-
+  PostgreSQL numeric/decimal 类型目前被映射到 Double，
+  对于 numeric(1000,0) 等大精度数值会丢失精度。
+  正确映射应为 String 保留完整精度表示，
+  或后续自定义 Decimal 类型。
+
+  修复文件：plugin/type_map.mbt
+  修改 numeric/decimal 的目标类型从
+  `Named("Double")` 改为 `Named("String")`。
+  同步更新 P0-034 中关于 numeric→Double 精度损失的注释，
+  改为明确说明 String 映射。
+  更新 golden test 预期输出。
+
+  注意：此变更会影响生成的 struct 字段和参数绑定签名。
+dependencies: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []

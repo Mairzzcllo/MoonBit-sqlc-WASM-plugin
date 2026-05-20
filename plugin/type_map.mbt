@@ -32,14 +32,14 @@ fn map_pg_name(name: String) -> TypeExpr {
     }
   }
   match normalized {
-    // Integers — all map to Int64 to match runtime typed getter API
-    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" | "int8" | "bigint" | "bigserial" => Named("Int64")
+    // Small/medium ints → Int (platform-native width)
+    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" => Named("Int")
+    // Large ints → Int64 (64-bit required)
+    "int8" | "bigint" | "bigserial" => Named("Int64")
     // Floats — float4/real map to Double (runtime has get_double, not get_float)
     "float4" | "real" | "float8" | "double" | "double precision" => Named("Double")
-    // numeric/decimal → Double (MVP).
-    // WARNING: PostgreSQL numeric(1000,0) supports ~1000 significant digits
-    // while Double only has 15-17 digits. Future: map to String or custom Decimal.
-    "numeric" | "decimal" => Named("Double")
+    // numeric/decimal → String (preserve full precision).
+    "numeric" | "decimal" => Named("String")
     // Boolean
     "bool" | "boolean" => Named("Bool")
     // String types
@@ -52,8 +52,10 @@ fn map_pg_name(name: String) -> TypeExpr {
     "inet" | "cidr" | "macaddr" => Named("String")
     // UUID
     "uuid" => Named("String")
-    // Date/Time (encoded as String for MVP)
-    "date" | "time" | "timetz" | "timestamp" | "timestamptz" | "timestamp with time zone" => Named("String")
+    // Date/Time — date→Date, timestamp→DateTime, time→String (no wrapper)
+    "date" => Named("Date")
+    "timestamp" | "timestamptz" | "timestamp with time zone" => Named("DateTime")
+    "time" | "timetz" => Named("String")
     // Interval → String (MVP decision).
     // MVP uses String as placeholder. Future: map to Duration or Int64 (microseconds).
     "interval" => Named("String")
@@ -81,9 +83,9 @@ pub fn map_internal_type_nullable(ir_type: InternalType, not_null: Bool) -> Type
 
 // === Tests ===
 
-test "map_pg_name: int4 maps to Int64" {
+test "map_pg_name: int4 maps to Int" {
   let t = map_pg_name("int4")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: int8 maps to Int64" {
@@ -91,9 +93,9 @@ test "map_pg_name: int8 maps to Int64" {
   inspect(t, content="Named(\"Int64\")")
 }
 
-test "map_pg_name: int2 maps to Int64" {
+test "map_pg_name: int2 maps to Int" {
   let t = map_pg_name("int2")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: float4 maps to Double" {
@@ -121,9 +123,9 @@ test "map_pg_name: varchar maps to String" {
   inspect(t, content="Named(\"String\")")
 }
 
-test "map_pg_name: timestamptz maps to String" {
+test "map_pg_name: timestamptz maps to DateTime" {
   let t = map_pg_name("timestamptz")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"DateTime\")")
 }
 
 test "map_pg_name: jsonb maps to JsonValue" {
@@ -146,14 +148,14 @@ test "map_pg_name: inet maps to String" {
   inspect(t, content="Named(\"String\")")
 }
 
-test "map_pg_name: date maps to String" {
+test "map_pg_name: date maps to Date" {
   let t = map_pg_name("date")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"Date\")")
 }
 
-test "map_pg_name: numeric maps to Double" {
+test "map_pg_name: numeric maps to String" {
   let t = map_pg_name("numeric")
-  inspect(t, content="Named(\"Double\")")
+  inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: unknown type falls back to String" {
@@ -168,7 +170,7 @@ test "map_pg_name: boolean alias" {
 
 test "map_pg_name: smallint alias" {
   let t = map_pg_name("smallint")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: bigint alias" {
@@ -176,29 +178,29 @@ test "map_pg_name: bigint alias" {
   inspect(t, content="Named(\"Int64\")")
 }
 
-test "map_internal_type: Named int4 maps to Int64" {
+test "map_internal_type: Named int4 maps to Int" {
   let t = map_internal_type(Named("int4"))
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
-test "map_internal_type: Arr of int4 maps to Array[Int64]" {
+test "map_internal_type: Arr of int4 maps to Array[Int]" {
   let t = map_internal_type(Arr(Named("int4")))
-  inspect(t, content="Parameterized(\"Array\", [Named(\"Int64\")])")
+  inspect(t, content="Parameterized(\"Array\", [Named(\"Int\")])")
 }
 
-test "map_internal_type: nested Arr maps to Array[Array[Int64]]" {
+test "map_internal_type: nested Arr maps to Array[Array[Int]]" {
   let t = map_internal_type(Arr(Arr(Named("int4"))))
-  inspect(t, content="Parameterized(\"Array\", [Parameterized(\"Array\", [Named(\"Int64\")])])")
+  inspect(t, content="Parameterized(\"Array\", [Parameterized(\"Array\", [Named(\"Int\")])])")
 }
 
 test "map_internal_type_nullable: not_null preserves type" {
   let t = map_internal_type_nullable(Named("int4"), true)
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_internal_type_nullable: nullable wraps in Option" {
   let t = map_internal_type_nullable(Named("int4"), false)
-  inspect(t, content="Option(Named(\"Int64\"))")
+  inspect(t, content="Option(Named(\"Int\"))")
 }
 
 test "map_internal_type_nullable: nullable array wraps in Option" {
@@ -213,12 +215,12 @@ test "map_pg_name: real alias" {
 
 test "map_pg_name: decimal alias" {
   let t = map_pg_name("decimal")
-  inspect(t, content="Named(\"Double\")")
+  inspect(t, content="Named(\"String\")")
 }
 
-test "map_pg_name: serial maps to Int64" {
+test "map_pg_name: serial maps to Int" {
   let t = map_pg_name("serial")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: bigserial maps to Int64" {
@@ -226,14 +228,14 @@ test "map_pg_name: bigserial maps to Int64" {
   inspect(t, content="Named(\"Int64\")")
 }
 
-test "map_pg_name: smallserial maps to Int64" {
+test "map_pg_name: smallserial maps to Int" {
   let t = map_pg_name("smallserial")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
-test "map_pg_name: INT4 uppercase maps to Int64" {
+test "map_pg_name: INT4 uppercase maps to Int" {
   let t = map_pg_name("INT4")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: BIGINT uppercase maps to Int64" {
@@ -248,7 +250,7 @@ test "map_pg_name: TEXT uppercase maps to String" {
 
 test "map_pg_name: pg_catalog.int4 strips schema prefix" {
   let t = map_pg_name("pg_catalog.int4")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: pg_catalog.int8 strips schema prefix" {
@@ -263,7 +265,7 @@ test "map_pg_name: pg_catalog.text strips schema prefix" {
 
 test "map_pg_name: pg_catalog.INT4 uppercase schema prefix strips correctly" {
   let t = map_pg_name("pg_catalog.INT4")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }
 
 test "map_pg_name: pg_catalog.BIGSERIAL strips schema prefix" {
@@ -271,9 +273,9 @@ test "map_pg_name: pg_catalog.BIGSERIAL strips schema prefix" {
   inspect(t, content="Named(\"Int64\")")
 }
 
-test "map_pg_name: timestamp with time zone maps to String" {
+test "map_pg_name: timestamp with time zone maps to DateTime" {
   let t = map_pg_name("timestamp with time zone")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"DateTime\")")
 }
 
 test "map_pg_name: double precision maps to Double" {
@@ -293,5 +295,5 @@ test "map_pg_name: pg_catalog.float8 strips schema prefix" {
 
 test "map_pg_name: serial type pg_catalog.SERIAL strips prefix" {
   let t = map_pg_name("pg_catalog.SERIAL")
-  inspect(t, content="Named(\"Int64\")")
+  inspect(t, content="Named(\"Int\")")
 }

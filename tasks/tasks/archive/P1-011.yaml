@@ -1,0 +1,34 @@
+id: P1-011
+title: 清理未使用的 Value 枚举变体
+priority: P1
+type: refactor
+state: done
+description: >-
+  moon check 报告 runtime/value.mbt 中 Value 枚举的 6 个
+  变体从未被构造：
+
+  - Bool(Bool) — line 50
+  - Double(Double) — line 51
+  - Bytes(Array[Byte]) — line 52
+  - Date(Date) — line 53
+  - DateTime(DateTime) — line 54
+  - JsonValue(Json) — line 55
+
+  当前 codegen 只生成 Null/Int64/String 三种变体的构造。
+  其余变体是为未来扩展预留。
+
+  修复方案（三选一）：
+  a. 移除未使用变体，需要时再加回
+  b. 添加 `#[warning(pedantic)]` 抑制
+  c. 保留不变，标注 `// reserved for future use` 注释
+dependencies: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []

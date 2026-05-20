@@ -47,12 +47,8 @@ pub enum Value {
   Null
   Int64(Int64)
   String(String)
-  Bool(Bool)
-  Double(Double)
-  Bytes(Array[Byte])
   Date(Date)
   DateTime(DateTime)
-  JsonValue(Json)
 }
 
 test "Date::new and to_string roundtrip" {
