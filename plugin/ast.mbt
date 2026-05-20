@@ -192,7 +192,7 @@ test "StructDef with fields" {
   inspect(s.fields.length(), content="2")
   inspect(s.fields[0].name, content="id")
   inspect(s.fields[1].name, content="email")
-  inspect(s.fields[1].doc, content="Some(user email)")
+  debug_inspect(s.fields[1].doc, content="Some(\"user email\")")
   inspect(s.is_pub, content="true")
 }
 
@@ -230,12 +230,12 @@ test "FnDef with body" {
 test "ImportDef with alias" {
   let i: ImportDef = { path: "moonbitlang/core/builtin", import_alias: Some("builtin") }
   inspect(i.path, content="moonbitlang/core/builtin")
-  inspect(i.import_alias, content="Some(builtin)")
+  debug_inspect(i.import_alias, content="Some(\"builtin\")")
 }
 
 test "ImportDef without alias" {
   let i: ImportDef = { path: "moonbitlang/core/array", import_alias: None }
-  inspect(i.import_alias, content="None")
+  debug_inspect(i.import_alias, content="None")
 }
 
 test "Construct Call expression" {

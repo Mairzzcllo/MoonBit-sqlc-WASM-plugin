@@ -59,6 +59,9 @@
 - Row get_json 使用 `@json.parse(raw[:])` + try/catch 解析 JSON 字符串
 - runtime/moon.pkg 导入 `moonbitlang/core/json` @json 和 `moonbitlang/core/string` @string
 - 验证脚本: `tests/integration/wasm/validate_plugin.ps1` 用于检查 WASM 构建产物和 sqlc 集成
+    - 测试中 deprecated `inspect(value, content=...)` 迁移为 `debug_inspect(value, content=...)`（独立函数，prelude 内置，无需 import）
+    - MoonBit String 内部存储为 UTF-16LE，`s.to_bytes()` 返回 UTF-16LE 字节；字符串操作应使用 Char/StringView 方法而非字节操作
+    - `capitalize_first`: `let upper = (c.to_int() - 32).unsafe_to_char(); [upper] + s[1:].to_owned()`
 
 ## 决策索引
 
@@ -77,19 +80,9 @@
 
 ### sqlc WASM 集成状态
 
-sqlc v1.31.1 使用 wazero 作为 WASM 运行时，不支持 WASM GC/reference types。
-MoonBit `--target wasm` 输出始终包含 GC 类型注解（refany），导致以下问题：
-- `wasm2wat`: WAT 输出包含 refany 类型签名（非标准 WASM MVP）
-- `sqlc generate`: 加载 WASM 后出现 `proto: cannot parse invalid wire-format data`（wazero 无法解析 GC WASM 格式）
-- 当前 MoonBit v0.1.20260512 无法生成标准 WASM MVP 二进制
+sqlc v1.31.1 使用 wazero 作为 WASM 运行时。**实测确认 wazero 可加载含 refany GC 类型注解的 WASM 二进制**（270KB, 269 个 refany 类型）— 错误 `proto: cannot parse invalid wire-format data` 的根源是**帧头协议不匹配**，非 GC 类型拒绝。
 
-### 构建二进制并存
-
-MoonBit 支持两个 WASM 目标，产生不同二进制：
-- `--target wasm`: `_build/wasm/debug/build/plugin/plugin.wasm` (270KB, 含 GC 类型)
-- `--target wasm-gc`: `_build/wasm-gc/debug/build/plugin/plugin.wasm` (153KB, 显式 GC 目标)
-
-两者均包含 GC 类型注解，目前均无法被 wazero 加载。
+MoonBit `--target wasm` 输出始终包含 GC 类型注解（refany），WAT 输出包含 refany 类型签名（非标准 WASM MVP），但 wazero 可以正常加载和执行。
 
 ### sqlc WASM 插件协议
 
@@ -98,7 +91,7 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - stdout: 写入原始 protobuf `GenerateResponse` 字节
 - 无 4 字节 LE 帧头前缀
 
-当前 MoonBit I/O 层使用 4 字节 LE 帧头格式（`read_frame_header` / `write_frame`），与 sqlc 协议不匹配
+当前 MoonBit I/O 层已修复（P0-045）：使用 `read_all` + `write_all` 无帧格式原始 protobuf。
 
 ## 远程仓库
 

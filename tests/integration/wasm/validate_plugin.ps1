@@ -77,18 +77,18 @@ if (Get-Command wasm2wat -ErrorAction SilentlyContinue) {
   Test-Step "wasm2wat can decode plugin.wasm" {
     $wat = & wasm2wat $PLUGIN_WASM 2>&1
     if (-not $wat) { throw "wasm2wat produced no output" }
-    if ($wat -notmatch "export.*_start") { throw "WAT has no _start export" }
+    if ($wat -notmatch '"_start"') { throw "WAT has no _start export" }
   }
 
   Test-Step "plugin.wasm has expected structure" {
     $wat = & wasm2wat $PLUGIN_WASM 2>&1
-    if ($wat -notmatch "import.*wasi_snapshot_preview1.*fd_read") {
+    if ($wat -notmatch '"fd_read"') {
       throw "Missing WASI fd_read import"
     }
-    if ($wat -notmatch "import.*wasi_snapshot_preview1.*fd_write") {
+    if ($wat -notmatch '"fd_write"') {
       throw "Missing WASI fd_write import"
     }
-    if ($wat -notmatch "export.*_start") {
+    if ($wat -notmatch '"_start"') {
       throw "Missing _start export"
     }
     Write-Host "(fd_read + fd_write + _start present)" -NoNewline

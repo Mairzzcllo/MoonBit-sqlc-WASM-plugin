@@ -1,14 +1,16 @@
 ///|
-/// I/O framing utilities for sqlc WASM plugin protocol.
+/// sqlc WASM plugin protocol — unframed raw protobuf over stdin/stdout.
 ///
-/// Native WASI I/O via inline WAT FFI (wasi_io.mbt). MoonBit encodes/decode
-/// LE frame headers; WASI fd_read/fd_write handle stdin/stdout I/O.
+/// Native WASI I/O via inline WAT FFI (wasi_io.mbt). WASI fd_read/fd_write
+/// handle stdin/stdout I/O directly without 4-byte LE framing.
 ///
 /// Protocol flow:
-///   1. run_io_loop reads 4-byte LE frame header from stdin
-///   2. run_io_loop reads N-byte body from stdin into GC-managed Bytes
-///   3. run_io_loop calls `process_message(data: Bytes) -> Bytes`
-///   4. run_io_loop writes framed response to stdout
+///   1. run_io_loop reads all bytes from stdin via fd_read until EOF
+///   2. run_io_loop calls `process_message(data: Bytes) -> Bytes`
+///   3. run_io_loop writes raw response bytes to stdout via fd_write
+///
+/// encode_u32_le/decode_u32_le remain available for protobuf varint fields
+/// and are no longer used for I/O framing.
 //
 // Copyright 2026 Mairzzcllo
 //

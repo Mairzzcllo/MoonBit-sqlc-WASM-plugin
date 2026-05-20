@@ -1,6 +1,6 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-19
+> 归档时间: 2026-05-20
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
@@ -44,6 +44,15 @@
 - 创建: 2026-05-19
 - 完成: 2026-05-19
 - 关联: #1
+
+### [P0-044] 分析 WASM GC 类型对 wazero/sqlc 兼容性影响
+- 优先级: P0
+- 类型: research
+- 状态: 完成
+- 描述: 用 wasm2wat + sqlc generate 验证根本原因。结论：wazero 成功加载含 269 个 refany 类型注解的 WASM 二进制（270KB）。错误 `proto: cannot parse invalid wire-format data` 来自插件内部 protobuf 解码器，根源是帧头协议不匹配，非 GC 类型拒绝。无需 P0-046。
+- 架构: moon check 0 errors, moon test 291/291 passed, sqlc generate exit 1 (预期内)
+- 创建: 2026-05-20
+- 完成: 2026-05-20
 
 ### [P0-043] 字符串转义修复 (P0-036d)
 - 优先级: P0

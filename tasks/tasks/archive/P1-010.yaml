@@ -1,0 +1,25 @@
+id: P1-010
+title: 迁移 s.to_bytes() → @encoding/utf8.encode
+priority: P1
+type: refactor
+state: done
+description: >-
+  moon check 报告 type_codegen.mbt:24 s.to_bytes()
+  已被标记为 deprecated，建议使用 @encoding/utf8.encode。
+
+  `let bytes = s.to_bytes()` 替换为
+  `let bytes = @utf8.encode(s)`。
+
+  plugin/moon.pkg 已导入 `moonbitlang/core/encoding/utf8` as @utf8，
+  无需额外修改 moon.pkg。
+dependencies: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []

@@ -1,0 +1,31 @@
+id: P0-044
+title: 分析 WASM GC 类型对 wazero/sqlc 兼容性影响
+priority: P0
+type: research
+state: done
+lock:
+  owner: ai-assistant
+  timestamp: 2026-05-20
+  expires_at: 2026-05-21
+description: >-
+  当前 MoonBit `--target wasm` 输出包含 refany GC 类型注解。
+  sqlc v1.31.1 使用 wazero 运行时，`sqlc generate` 报错
+  `proto: cannot parse invalid wire-format data`。
+
+  需确认该错误是 wazero 拒绝 GC 类型导致，还是帧头协议不匹配导致。
+
+  分析步骤：
+  1. wasm2wat 确认 refany 段在 WASM 二进制中的位置和结构
+  2. 用 wazero CLI 单独加载 plugin.wasm，记录报错信息
+  3. 若 wazero 可加载，则是帧头问题（P0-045 即可解阻塞）
+  4. 若 wazero 拒绝加载，则需进一步研究 GC 类型剥离方案
+     （P0-046 可能条件触发）
+
+  关键产出：判断 wazero 报错的根本原因，决定 Phase 0 后续路径。
+dependencies: []
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []

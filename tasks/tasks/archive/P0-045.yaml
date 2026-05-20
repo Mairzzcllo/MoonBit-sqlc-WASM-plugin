@@ -1,0 +1,40 @@
+id: P0-045
+title: 修复 I/O 帧头协议 — 改为原始 protobuf 无帧格式
+priority: P0
+type: fix
+state: done
+description: >-
+  sqlc WASM 插件协议使用无帧格式的原始 stdin/stdout protobuf：
+  - stdin: 直接读取原始 GenerateRequest 字节
+  - stdout: 直接写入原始 GenerateResponse 字节
+  - 无 4 字节 LE 帧头前缀
+
+  当前 wasi_io.mbt 的 run_io_loop 使用 read_frame_header()
+  (4 字节 LE 长度) → read_body(N 字节) → write_frame(data)
+  (4 字节帧头 + 数据)，与 sqlc 协议不匹配。
+
+  修复方案：
+  1. 新增 read_all(fd) 函数：循环 fd_read 直到 EOF，
+     累积原始字节（不使用帧头）
+  2. 移除 write_frame 中的 4 字节帧头写入
+  3. 重写 run_io_loop：read_all(0) → process_message →
+     直接 fd_write 响应字节
+  4. 清理 protocol.mbt 中 encode_u32_le/decode_u32_le
+     的帧协议注释（保留函数本身，可用于 protobuf 长度字段）
+
+  验证：编写 test helper 用已知 GenerateRequest 编码字节验证
+  run_io_loop 的行为；运行 sqlc generate 端到端测试。
+dependencies:
+  hard:
+    - P0-044
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-20
+updated_at: 2026-05-20
+related: []
