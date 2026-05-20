@@ -4,6 +4,54 @@
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
+### [P1-016] 类型映射修复: date/timestamp → Date/DateTime
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: PostgreSQL date→Date, timestamp/timestamptz→DateTime (runtime 封装类型)。加回 Date/DateTime Value 变体；type_map.mbt 更新 date/timestamp 映射；golden test 更新 realistic 测试。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-015] 类型映射修复: numeric → String
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: numeric/decimal 从 Double 改为 String，保留完整精度。type_to_value_constructor 同步更新 numeric→String。所有测试期望更新。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-014] 类型映射修复: int2/int4 → Int
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: int2/int4/serial→Int (平台字宽), int8/bigint→Int64 (保留)。type_map.mbt 拆分整数映射；type_codegen.mbt 新增 "Int"→"int64" getter 后缀；所有测试期望 + golden 更新。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-013] 迁移 main 包黑盒测试到 inline test
+- 优先级: P1
+- 类型: refactor
+- 状态: 完成
+- 描述: 重命名 golden_test.mbt→golden.mbt, wasm_integration_test.mbt→wasm_integration.mbt，消除 "Main package uses blackbox-only test inputs" 警告。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-012] 修复 plugin/moon.pkg runtime 依赖声明
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: 添加 "Mairzzcllo/moonbit_sqlc_plugin/runtime" 到 plugin/moon.pkg，对齐 AGENTS.md 约定。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
+### [P1-011] 清理未使用的 Value 枚举变体
+- 优先级: P1
+- 类型: refactor
+- 状态: 完成
+- 描述: 移除 Bool/Double/Bytes/JsonValue 4 个未用变体；Date/DateTime 因 P1-016 需要临时移除后加回。6 个 unused_constructor 警告消除。
+- 创建: 2026-05-20
+- 完成: 2026-05-20
+
 ### [P0-036] Codegen 核心修复 (父任务)
 - 优先级: P0
 - 类型: fix
