@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+        with:
+          moonbit-version: "0.1.20260512"
+      - run: moon check
+      - run: moon test
+      - run: moon build --target wasm
+      - name: Generate SHA256
+        working-directory: _build/wasm/release/build/plugin
+        run: sha256sum plugin.wasm > plugin.wasm.sha256
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            _build/wasm/release/build/plugin/plugin.wasm
+            _build/wasm/release/build/plugin/plugin.wasm.sha256
+          generate_release_notes: true

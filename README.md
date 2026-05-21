@@ -152,7 +152,7 @@ pub struct DB {
 ├── plugin/              # WASM 插件主包 (14 .mbt 文件)
 │   ├── main.mbt         # 入口 (fn main → run_io_loop)
 │   ├── wasi_io.mbt      # Native WASI I/O via inline WAT FFI
-│   ├── protocol.mbt     # WASM 插件协议 + 4-byte LE framing + process_message
+│   ├── protocol.mbt     # WASM 插件协议 + process_message
 │   ├── adapter.mbt      # Protobuf → 内部模型适配器
 │   ├── types.mbt        # Protobuf 协议类型定义
 │   ├── codec.mbt        # 手动 protobuf 编解码 (LEB128 + length-delimited)
@@ -162,23 +162,29 @@ pub struct DB {
 │   ├── type_map.mbt     # SQL 类型 → MoonBit 类型映射
 │   ├── type_codegen.mbt # 类型代码生成器
 │   ├── query_codegen.mbt# 查询函数代码生成器
-│   └── golden_test.mbt  # Golden 测试（确定性输出验证）
+│   └── golden.mbt       # Golden 测试（确定性输出验证）
 ├── runtime/             # 生成代码运行时库
-│   ├── db.mbt           # DB concrete struct (exec/execrows)
-│   ├── decoder.mbt      # Decoder concrete struct
-│   └── row.mbt          # Row concrete struct (get_fn closure)
+│   ├── db.mbt           # DB concrete struct (exec/execrows/query/query_row/begin)
+│   ├── row.mbt          # Row concrete struct (typed getter 16 种)
+│   ├── row_iter.mbt     # RowIter streaming iterator
+│   ├── transaction.mbt  # Transaction (commit/rollback)
+│   ├── decoder.mbt      # Decoder convention
+│   ├── value.mbt        # Value enum + Date/DateTime wrappers
+│   ├── error.mbt        # DBError enum
+│   └── mock.mbt         # MockDB for testing
 ├── shim/archive/        # 存档 (WAT shim 参考实现)
-├── examples/            # 使用示例
-├── tests/               # 集成测试
-├── adr/                 # 架构决策记录 (8 条)
-└── tasks/               # 任务追踪 (active.md + archive.md)
+├── examples/users/      # 完整使用示例 (schema.sql + query.sql + sqlc.yaml)
+├── tests/               # 集成测试 (basic + wasm)
+├── docs/                # API 参考与快速开始指南
+├── adr/                 # 架构决策记录 (10 条)
+└── tasks/               # 任务追踪 (active.md + archive/)
 ```
 
 ## 测试
 
 ```bash
 moon check              # 类型检查
-moon test               # 运行所有 195 个 inline 测试
+moon test               # 运行所有 240 个 inline 测试
 ```
 
 测试使用 inline `test { ... }` 块而非 `_test.mbt` 文件（main 包不支持 blackbox 测试）。空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型。
@@ -206,6 +212,7 @@ moon test               # 运行所有 195 个 inline 测试
 | ADR-007 | WAT Shim ABI Bridge | Superseded (by ADR-008) |
 | ADR-008 | Native WASI I/O via Inline WAT FFI | Accepted |
 | ADR-009 | Known Limitations and MVP Boundaries | Draft |
+| ADR-010 | Transaction Support: Concrete Struct + Closure Pattern | Accepted |
 
 ## 路线图
 

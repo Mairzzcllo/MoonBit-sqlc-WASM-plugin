@@ -2,7 +2,7 @@ id: P1-001
 title: 文档与示例
 priority: P1
 type: docs
-status: 待办
+status: 已完成
 description: 项目 README、使用示例、API 文档、快速开始指南
 dependencies:
   hard:
@@ -10,9 +10,9 @@ dependencies:
     - P0-009
   soft: []
 lock:
-  owner: null
-  timestamp: null
-  expires_at: null
+  owner: "opencode"
+  timestamp: 2026-05-21
+  expires_at: 2026-05-22
 retry:
   count: 0
   max: 3

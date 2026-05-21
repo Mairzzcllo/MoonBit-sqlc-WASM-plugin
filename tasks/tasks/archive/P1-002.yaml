@@ -2,8 +2,8 @@ id: P1-002
 title: GitHub Actions CI/CD
 priority: P1
 type: infra
-status: 待办
-description: 配置 GitHub Actions 流水线：lint → test → build → release
+status: 已完成
+description: GitHub Actions CI/CD 流水线: check → test → build → validate + release
 dependencies:
   hard:
     - P0-001
@@ -11,9 +11,9 @@ dependencies:
     - P0-011
   soft: []
 lock:
-  owner: null
-  timestamp: null
-  expires_at: null
+  owner: "opencode"
+  timestamp: 2026-05-21
+  expires_at: 2026-05-22
 retry:
   count: 0
   max: 3

@@ -1,5 +1,6 @@
 ///|
 /// Generated code for users table will be placed here by the codegen pipeline.
+/// Run `sqlc generate` in this directory to produce the actual implementation.
 //
 // Copyright 2026 Mairzzcllo
 //
