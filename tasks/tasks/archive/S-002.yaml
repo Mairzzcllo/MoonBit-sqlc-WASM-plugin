@@ -1,0 +1,43 @@
+id: S-002
+title: package_name 接入 codegen 管道
+priority: P0
+type: feature
+state: todo
+description: >
+  将 parse_plugin_options() 解析出的 package_name 传入 generate_source() 并在 emitter 层
+  生成 package 声明语句。当前 package_name 被正确解析（adapter.mbt:136-149）但结果被丢弃
+  （main.mbt:44 let _ =）。修改 generate_source() 函数签名接受 PluginOptions，
+  在 emitter 新增 emit_package_declaration()，更新 GOLDEN_USERS 常量以包含 package 声明行。
+  注意：sqlc.yaml options 使用 key "package_name=" 非 "package="，解析器与配置一致，
+  不存在 key mismatch 问题。
+dependencies:
+  - id: P0-006
+    type: hard
+  - id: P0-011
+    type: hard
+  - id: P0-026
+    type: soft
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-22
+updated_at: 2026-05-22
+artifacts:
+  - type: implementation
+    path: plugin/main.mbt
+  - type: implementation
+    path: plugin/emitter.mbt
+references:
+  - plugin/main.mbt
+  - plugin/emitter.mbt
+  - plugin/golden.mbt
+  - plugin/adapter.mbt
+execution_notes: >
+  generate_source 新增参数 opts: PluginOptions，process_request 调用处同步修改。
+  emitter 新增函数 emit_package_declaration(name: String) -> String，
+  在 emit_source_file 开头插入 "package name" 行。golden 测试需要预期输出新增首行。
+  注意：与 S-001 无依赖关系，可并行执行。

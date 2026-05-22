@@ -1,0 +1,35 @@
+id: S-001
+title: Value enum 补全：新增 6 个变体
+priority: P0
+type: feature
+state: todo
+description: >
+  在 runtime/value.mbt 的 Value enum 中新增 Bool(Bool)、Double(Double)、Bytes(Array[Byte])、
+  Date(Date)、DateTime(DateTime)、JsonValue(Json) 六个变体，补齐 ADR-002 v3 规划的 9 变体完整集合。
+  同时更新内联测试验证新变体的构造和解构。Value enum 扩展后，type_to_value_constructor 中已存在的
+  映射（Bool/Double/Bytes/Date/DateTime/JsonValue）才能真正生效——当前这些映射是死代码，
+  生成的代码引用不存在的构造器会导致编译失败。
+dependencies:
+  - id: P0-008
+    type: hard
+  - id: P0-010
+    type: soft
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-22
+updated_at: 2026-05-22
+artifacts:
+  - type: implementation
+    path: runtime/value.mbt
+references:
+  - runtime/value.mbt
+  - plugin/query_codegen.mbt
+execution_notes: >
+  type_to_value_constructor() 已有全部映射无需修改；param_to_value_expr() nullable 分支
+  使用 Some(p.name) 解构后调用构造器，类型系统自动推导，无需修改。
+  现有 Value 模式匹配均有通配符 _，新增变体不破坏。需要同步验证 wasm_integration golden 无变动。

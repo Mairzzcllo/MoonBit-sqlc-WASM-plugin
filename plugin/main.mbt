@@ -26,7 +26,8 @@ fn main {
 /// Process a GenerateRequest and produce a GenerateResponse.
 /// Uses codegen.out from sqlc config as the output directory prefix + "lib.mbt".
 fn process_request(req: GenerateRequest) -> GenerateResponse {
-  let source = generate_source(req)
+  let opts = parse_plugin_options(req.plugin_options)
+  let source = generate_source(req, opts)
   let contents = @utf8.encode(source)
   let out_name = req.settings.codegen.out
   let filename = if out_name.length() > 0 {
@@ -39,9 +40,8 @@ fn process_request(req: GenerateRequest) -> GenerateResponse {
 }
 
 /// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
-/// Parses plugin_options to extract codegen configuration (package_name, etc.).
-pub fn generate_source(req: GenerateRequest) -> String {
-  let _ = parse_plugin_options(req.plugin_options)
+/// Accepts parsed PluginOptions for codegen configuration (package_name, etc.).
+pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
   let adapted = convert_request(req)
   let ir = build_ir(adapted)
   let types = generate_types(adapted.catalog, ir)
@@ -49,7 +49,7 @@ pub fn generate_source(req: GenerateRequest) -> String {
   let ast: SourceFile = { items: [] }
   for t in types { ast.items.push(t) }
   for f in query_fns { ast.items.push(f) }
-  emit_source_file(ast)
+  emit_package_declaration(opts.package_name) + emit_source_file(ast)
 }
 
 

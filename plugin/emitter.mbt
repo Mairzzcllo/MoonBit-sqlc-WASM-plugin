@@ -52,6 +52,15 @@ fn Emitter::finish(self: Emitter) -> String {
   result
 }
 
+/// Emit a package declaration line if package_name is non-empty.
+pub fn emit_package_declaration(name: String) -> String {
+  if name.length() > 0 {
+    "package " + name + "\n\n"
+  } else {
+    ""
+  }
+}
+
 /// Emit a SourceFile to a formatted MoonBit source string.
 pub fn emit_source_file(file: SourceFile) -> String {
   let em = Emitter::new()

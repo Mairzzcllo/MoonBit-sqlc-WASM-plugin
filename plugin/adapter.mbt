@@ -140,9 +140,9 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
   for line in text.split("\n") {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
-      package_name = s[14:].trim().to_owned()
+      package_name = s[13:].trim().to_owned()
     } else if s.has_prefix("package_name =") {
-      package_name = s[15:].trim().to_owned()
+      package_name = s[14:].trim().to_owned()
     }
   }
   { package_name: package_name }

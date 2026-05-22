@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - "v*"
+    paths-ignore:
+      - "**.md"
+      - "AGENTS.md"
+      - "CONTEXT.md"
+      - "tasks/**"
+      - "adr/**"
+      - "docs/**"
+      - "events/**"
+      - "shim/**"
+      - "scripts/**"
+      - ".env.template"
 
 permissions:
   contents: write

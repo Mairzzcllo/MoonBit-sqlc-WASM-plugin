@@ -45,7 +45,7 @@
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
     - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
 - Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn, query_fn, query_row_fn }, Row { get_fn }, RowIter { next_fn }
-- Value 枚举: `Null | Int64(Int64) | String(String) | Bool(Bool) | Double(Double) | Bytes(Array[Byte]) | Date(Date) | DateTime(DateTime) | JsonValue(JsonValue)`
+- Value 枚举: `Null | Int64(Int64) | String(String) | Bool(Bool) | Double(Double) | Bytes(Array[Byte]) | Date(Date) | DateTime(DateTime) | JsonValue(Json)` — JsonValue 变体使用 `@json.Json` 类型，非 `JsonValue`
 - DBError 枚举: `ConnectionError(String) | QueryError(String) | TypeError(String) | NoRows`
 - DB 方法签名：`exec(sql, Array[Value]) -> Result[Int64, DBError]`；`execrows(sql, Array[Value]) -> Result[Int64, DBError]`；`query(sql, Array[Value]) -> Result[RowIter, DBError]`；`query_row(sql, Array[Value]) -> Result[Row, DBError]`
 - Row 类型化 getter：不可空 `get_int64(pos) -> Result[Int64, DBError]` 等；可空 `get_nullable_int64(pos) -> Result[Option[Int64], DBError]`，每对覆盖 Int64/String/Bool/Double/Bytes/Date/DateTime/JsonValue 八种类型
@@ -95,6 +95,27 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - 无 4 字节 LE 帧头前缀
 
 当前 MoonBit I/O 层已修复（P0-045）：使用 `read_all` + `write_all` 无帧格式原始 protobuf。
+
+## 代码库勘误（2026-05-22 深度评审记录）
+
+### 规划陷阱清单 — 避免重复犯错
+
+1. **`:execresult` 已实现** — `ir.mbt` 中 `ExecResult` 对应 `:exec`，`ExecCount` 对应 `:execrows`，均有完整 codegen。不要重复实现
+2. **PostgreSQL enum 已支持** — `generate_enum_from_enum()` 在 `type_codegen.mbt:74` 完整实现，golden 输出包含 `UserRole` 枚举
+3. **Engine 字段位置** — `AdaptSettings.engine`（`adapter.mbt:117`），非 `AdaptCatalog`
+4. **`package_name` key 一致** — 解析器和配置都用 `package_name=`，不存在 mismatch
+5. **MoonBit 无可空指针** — `nullable_style: "pointer"` 不可行，`Option[T]` 唯一可空表示（ADR-003）
+6. **`emit_empty_slices` 非 easy win** — 与 ADR-003 冲突，推迟至 Phase 2
+7. **`type_to_value_constructor()` 完整** — `query_codegen.mbt:33` 已有全部映射（Int64/String/Double/Bool/Bytes/Date/DateTime/JsonValue），无需修改
+8. **`param_to_value_expr()` nullable 正确** — `Some(x) => Ctor(x)` 模式类型推导自动匹配，无需修改
+9. **`parse_plugin_options` slice indices 必须手工验证** — `adapter.mbt` 中 `s[14:]` 应为 `s[13:]`（`"package_name="` 为 13 字符）。硬编码前缀长度与 `has_prefix` 常量字符串长度需一致，不可凭印象写值
+
+### 任务分解约定
+
+- Sprint 任务使用 `S-` 前缀（如 `S-001`），优先级映射 P0/P1/P2
+- 并行性分析: `S-xxx ↔ S-yyy` 表示无依赖可并行；`S-xxx → S-yyy` 表示硬依赖
+- 每个任务 yaml 包含 `execution_notes` 字段记录实现注意事项
+- Golden 更新是每个 codegen 变更的验收标准，非留到最后统一处理
 
 ## 远程仓库
 

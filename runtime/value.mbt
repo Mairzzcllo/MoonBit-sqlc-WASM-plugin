@@ -47,6 +47,12 @@ pub enum Value {
   Null
   Int64(Int64)
   String(String)
+  Bool(Bool)
+  Double(Double)
+  Bytes(Array[Byte])
+  Date(Date)
+  DateTime(DateTime)
+  JsonValue(Json)
 }
 
 test "Date::new and to_string roundtrip" {
@@ -75,4 +81,49 @@ test "Value::String construction" {
   let v: Value = String("hello")
   let val = match v { String(s) => s; _ => "" }
   inspect(val, content="hello")
+}
+
+test "Value::Bool construction" {
+  let v: Value = Bool(true)
+  let val = match v { Bool(b) => b; _ => false }
+  inspect(val, content="true")
+}
+
+test "Value::Double construction" {
+  let v: Value = Double(3.14)
+  let val = match v { Double(d) => d; _ => 0.0 }
+  inspect(val, content="3.14")
+}
+
+test "Value::Bytes construction" {
+  let bytes: Array[Byte] = Array::make(3, (0).to_byte())
+  bytes[0] = (65).to_byte()
+  bytes[1] = (66).to_byte()
+  bytes[2] = (67).to_byte()
+  let v: Value = Bytes(bytes)
+  let val = match v { Bytes(b) => b.length(); _ => 0 }
+  inspect(val, content="3")
+  let first = match v { Bytes(b) => b[0].to_int(); _ => 0 }
+  inspect(first, content="65")
+}
+
+test "Value::Date construction" {
+  let d = Date::new("2026-06-15")
+  let v: Value = Date(d)
+  let val = match v { Date(dt) => dt.to_string(); _ => "" }
+  inspect(val, content="2026-06-15")
+}
+
+test "Value::DateTime construction" {
+  let dt = DateTime::new("2026-06-15T12:00:00Z")
+  let v: Value = DateTime(dt)
+  let val = match v { DateTime(dtz) => dtz.to_string(); _ => "" }
+  inspect(val, content="2026-06-15T12:00:00Z")
+}
+
+test "Value::JsonValue construction" {
+  let j = @json.parse("{\"key\": 42}")
+  let v: Value = JsonValue(j)
+  let is_json_val = match v { JsonValue(_) => true; _ => false }
+  inspect(is_json_val, content="true")
 }
