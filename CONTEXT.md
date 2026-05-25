@@ -3,8 +3,8 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 进行中
-- **最新事件**: 2026-05-22 — 深度代码评审完成，修正规划错误后实施 S-1（Value enum 补全 + package_name 接通 + Release v0.1.0）
+- **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅
+- **最新事件**: 2026-05-25 — S-003 Golden 测试扩展完成 + S-004 构建验证
 - P0: 45/45 completed ✅
 - P1: 21/21 completed ✅
 - P2: 0/1 completed (P2-001 MySQL 推迟至 S-1 之后)
@@ -16,10 +16,11 @@
 |----|------|--------|------|
 | S-001 | Value enum 补全：新增 6 个变体 | P0 | ✅ done |
 | S-002 | package_name 接入 codegen 管道 | P0 | ✅ done |
-| S-003 | Golden 测试扩展：全 PG 类型覆盖 | P1 | todo |
-| S-004 | Release v0.1.0 初始版本标记 | P1 | todo |
+| S-003 | Golden 测试扩展：全 PG 类型覆盖 | P1 | ✅ done |
+| S-004 | Release v0.1.0 初始版本标记 | P1 | 🟡 build verified |
 
-并行性: S-001 ↔ S-002 已并行完成；S-003 依赖 S-001；S-004 依赖 S-001+S-002。
+并行性: S-001 ↔ S-002 已并行完成；S-003 依赖 S-001；S-004 依赖 S-001+S-002+S-003。
+Sprint S-1 全部完成，S-004 构建已验证可发布。
 
 ## 关键勘误记录（2026-05-22 代码评审）
 
@@ -59,3 +60,5 @@
 1. **S-001 ✅** — Value enum 补全：新增 Bool/Double/Bytes/Date/DateTime/JsonValue 六个变体，补齐 9 变体完整集合。新增 6 个内联测试。moon test 302/302 pass (原 296)。
 2. **S-002 ✅** — package_name 接入 codegen 管道：`generate_source` 接受 `PluginOptions` 参数；`emit_source_file` 新增 `emit_package_declaration()` 前置输出 `"package <name>\n\n"`；GOLDEN_USERS 更新包含 package 声明行；`make_users_request` 设置 `plugin_options: b"package_name=testdb"`。
    - **Bug 修复**: `parse_plugin_options` 中 `s[14:]` 应为 `s[13:]`（`"package_name="` 为 13 字符非 14），导致包名首字符被静默丢弃（`"testdb"` → `"estdb"`）
+3. **S-003 ✅** — Golden 测试扩展：全 PG 类型覆盖。新增 `make_all_types_request()` 构建含 17 个 PG 类型（bool, float8, bytea, date, timestamp, timestamptz, jsonb, numeric, uuid, inet, int2, float4, varchar, time, interval, text[], int4）的 GenerateRequest。新增 3 个 golden 测试验证 struct 字段类型、decode getter、Value constructor。moon test 305/305 pass (原 302)。
+4. **S-004 🟡** — Release v0.1.0 构建验证：`moon build --target wasm --release` ✅, WASM 91KB, SHA256 确认。未推送 tag（用户选择仅验证）。

@@ -241,3 +241,58 @@ pub fn make_realistic_request() -> GenerateRequest {
   let q_list : Query = { text : "SELECT id, author_id, title, tags, created_at FROM posts", name : "list_posts", cmd : ":many", columns : [col_id, col_author, col_title, col_tags, col_created], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all posts"], filename : "posts.sql", insert_into_table : empty_id }
   { settings : settings, catalog : catalog, queries : [q_list], sqlc_version : "1.0.0", plugin_options : b"", global_options : b"" }
 }
+
+/// Build a GenerateRequest covering all PG types for comprehensive golden tests.
+/// Includes bool, float8, bytea, date, timestamp, timestamptz, jsonb, numeric,
+/// uuid, inet, int2, float4, time, interval, varchar, and text array.
+pub fn make_all_types_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "all_types" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let int2_ty : Identifier = { catalog : "", schema : "", name : "int2" }
+  let float8_ty : Identifier = { catalog : "", schema : "", name : "float8" }
+  let float4_ty : Identifier = { catalog : "", schema : "", name : "float4" }
+  let bool_ty : Identifier = { catalog : "", schema : "", name : "bool" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let bytea_ty : Identifier = { catalog : "", schema : "", name : "bytea" }
+  let date_ty : Identifier = { catalog : "", schema : "", name : "date" }
+  let timestamp_ty : Identifier = { catalog : "", schema : "", name : "timestamp" }
+  let timestamptz_ty : Identifier = { catalog : "", schema : "", name : "timestamptz" }
+  let jsonb_ty : Identifier = { catalog : "", schema : "", name : "jsonb" }
+  let numeric_ty : Identifier = { catalog : "", schema : "", name : "numeric" }
+  let uuid_ty : Identifier = { catalog : "", schema : "", name : "uuid" }
+  let inet_ty : Identifier = { catalog : "", schema : "", name : "inet" }
+  let varchar_ty : Identifier = { catalog : "", schema : "", name : "varchar" }
+  let time_ty : Identifier = { catalog : "", schema : "", name : "time" }
+  let interval_ty : Identifier = { catalog : "", schema : "", name : "interval" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_bool : Column = { name : "is_active", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : bool_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "is_active", unsigned : false, array_dims : 0 }
+  let col_float8 : Column = { name : "score", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : float8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "score", unsigned : false, array_dims : 0 }
+  let col_bytea : Column = { name : "data", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : bytea_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "data", unsigned : false, array_dims : 0 }
+  let col_date : Column = { name : "created_date", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : date_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "created_date", unsigned : false, array_dims : 0 }
+  let col_ts : Column = { name : "created_at", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : timestamp_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "created_at", unsigned : false, array_dims : 0 }
+  let col_tstz : Column = { name : "updated_at", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : timestamptz_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "updated_at", unsigned : false, array_dims : 0 }
+  let col_jsonb : Column = { name : "metadata", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : jsonb_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "metadata", unsigned : false, array_dims : 0 }
+  let col_numeric : Column = { name : "price", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : numeric_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "price", unsigned : false, array_dims : 0 }
+  let col_uuid : Column = { name : "uid", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : uuid_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "uid", unsigned : false, array_dims : 0 }
+  let col_inet : Column = { name : "device_ip", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : inet_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "device_ip", unsigned : false, array_dims : 0 }
+  let col_int2 : Column = { name : "small_num", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int2_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "small_num", unsigned : false, array_dims : 0 }
+  let col_float4 : Column = { name : "real_num", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : float4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "real_num", unsigned : false, array_dims : 0 }
+  let col_varchar : Column = { name : "label", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : varchar_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "label", unsigned : false, array_dims : 0 }
+  let col_time : Column = { name : "event_time", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : time_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "event_time", unsigned : false, array_dims : 0 }
+  let col_interval : Column = { name : "duration", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : interval_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "duration", unsigned : false, array_dims : 0 }
+  let col_tags : Column = { name : "tags", not_null : false, is_array : true, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "tags", unsigned : false, array_dims : 0 }
+  let all_cols : Array[Column] = [col_id, col_bool, col_float8, col_bytea, col_date, col_ts, col_tstz, col_jsonb, col_numeric, col_uuid, col_inet, col_int2, col_float4, col_varchar, col_time, col_interval, col_tags]
+  let tbl : Table = { rel : tbl_rel, columns : all_cols, comment : "all types table" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, is_active, score, data, created_date, created_at, updated_at, metadata, price, uid, device_ip, small_num, real_num, label, event_time, duration, tags FROM all_types", name : "list_all_types", cmd : ":many", columns : all_cols, params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all types"], filename : "all_types.sql", insert_into_table : empty_id }
+  let param_bool : Column = { name : "is_active", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : bool_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "is_active", unsigned : false, array_dims : 0 }
+  let param_int4 : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let param_float8 : Column = { name : "score", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : float8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "score", unsigned : false, array_dims : 0 }
+  let param_text : Column = { name : "label", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : varchar_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "label", unsigned : false, array_dims : 0 }
+  let q_get : Query = { text : "SELECT * FROM all_types WHERE id = $1 AND is_active = $2 AND score = $3 AND label = $4", name : "get_all_types", cmd : ":one", columns : all_cols, params : [{ number : 1, column : param_int4 }, { number : 2, column : param_bool }, { number : 3, column : param_float8 }, { number : 4, column : param_text }], comments : ["Get all types by params"], filename : "all_types.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list, q_get], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}

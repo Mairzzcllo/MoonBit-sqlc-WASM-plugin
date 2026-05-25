@@ -2,7 +2,7 @@ id: S-003
 title: Golden 测试扩展：全 PG 类型覆盖验证
 priority: P1
 type: test
-state: todo
+state: completed
 description: >
   在 plugin/golden.mbt 中新增测试函数，使用包含所有 PG 类型（bool、float8、bytea、date、
   timestamp、timestamptz、jsonb、numeric、uuid、inet 等）的 GenerateRequest 验证每个类型
@@ -15,9 +15,10 @@ dependencies:
   - id: P0-011
     type: hard
 lock:
-  owner: null
-  timestamp: null
+  owner: orchestrator
+  timestamp: 2026-05-25
   expires_at: null
+completed_at: 2026-05-25
 retry:
   count: 0
   max: 3

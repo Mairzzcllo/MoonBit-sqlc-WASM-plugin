@@ -47,3 +47,55 @@ test "golden: deterministic output" {
   let result2 = generate_source(req, { package_name: "testdb" })
   inspect(result1, content=result2)
 }
+
+test "golden: all PG types — struct field types" {
+  let req = make_all_types_request()
+  let result = generate_source(req, { package_name: "testdb" })
+  inspect(result.contains("is_active: Bool"), content="true")
+  inspect(result.contains("score: Double"), content="true")
+  inspect(result.contains("data: Option[Bytes]"), content="true")
+  inspect(result.contains("created_date: Date"), content="true")
+  inspect(result.contains("created_at: DateTime"), content="true")
+  inspect(result.contains("updated_at: Option[DateTime]"), content="true")
+  inspect(result.contains("metadata: Option[JsonValue]"), content="true")
+  inspect(result.contains("price: String"), content="true")
+  inspect(result.contains("uid: String"), content="true")
+  inspect(result.contains("device_ip: Option[String]"), content="true")
+  inspect(result.contains("small_num: Int"), content="true")
+  inspect(result.contains("real_num: Double"), content="true")
+  inspect(result.contains("label: String"), content="true")
+  inspect(result.contains("event_time: Option[String]"), content="true")
+  inspect(result.contains("duration: Option[String]"), content="true")
+  inspect(result.contains("tags: Option[Array[String]]"), content="true")
+}
+
+test "golden: all PG types — decode getters" {
+  let req = make_all_types_request()
+  let result = generate_source(req, { package_name: "testdb" })
+  inspect(result.contains("row.get_int64(0)"), content="true")
+  inspect(result.contains("row.get_bool(1)"), content="true")
+  inspect(result.contains("row.get_double(2)"), content="true")
+  inspect(result.contains("row.get_nullable_bytes(3)"), content="true")
+  inspect(result.contains("row.get_date(4)"), content="true")
+  inspect(result.contains("row.get_datetime(5)"), content="true")
+  inspect(result.contains("row.get_nullable_datetime(6)"), content="true")
+  inspect(result.contains("row.get_nullable_json(7)"), content="true")
+  inspect(result.contains("row.get_string(8)"), content="true")
+  inspect(result.contains("row.get_string(9)"), content="true")
+  inspect(result.contains("row.get_nullable_string(10)"), content="true")
+  inspect(result.contains("row.get_int64(11)"), content="true")
+  inspect(result.contains("row.get_double(12)"), content="true")
+  inspect(result.contains("row.get_string(13)"), content="true")
+  inspect(result.contains("row.get_nullable_string(14)"), content="true")
+  inspect(result.contains("row.get_nullable_string(15)"), content="true")
+  inspect(result.contains("row.get_nullable_string(16)"), content="true")
+}
+
+test "golden: all PG types — Value constructors in params" {
+  let req = make_all_types_request()
+  let result = generate_source(req, { package_name: "testdb" })
+  inspect(result.contains("Int64(id)"), content="true")
+  inspect(result.contains("Bool(is_active)"), content="true")
+  inspect(result.contains("Double(score)"), content="true")
+  inspect(result.contains("String(label)"), content="true")
+}
