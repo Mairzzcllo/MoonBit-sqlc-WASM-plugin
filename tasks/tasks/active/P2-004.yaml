@@ -1,0 +1,25 @@
+id: P2-004
+title: emit_json / emit_db_tags 支持 — 结构体标签生成
+priority: P2
+type: feature
+state: todo
+description: >
+  在生成的 struct 字段上添加 JSON 序列化标签（@json.tag）和数据库列标签（@db.tag）。
+  可选配置 emit_json 和 emit_db_tags 控制是否生成，类似 Go 插件的 emit_json 和 emit_db_tags。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-25
+updated_at: 2026-05-25
+related: []
+execution_notes: >
+  AST StructField 新增 json_tag/db_tag 可选字段。
+  emitter.mbt 输出 struct 时根据选项打印 @json.tag 和 @db.tag 注解。
+  MoonBit 标签语法: @json.tag("snake_case_name")

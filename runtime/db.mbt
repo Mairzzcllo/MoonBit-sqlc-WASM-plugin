@@ -26,6 +26,9 @@ pub struct DB {
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
   begin_fn : () -> Result[Transaction, DBError]
+  copyfrom_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  batch_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execlastid_fn : (String, Array[Value]) -> Result[Int64, DBError]
 }
 
 pub fn DB::new(
@@ -34,6 +37,9 @@ pub fn DB::new(
   query_fn: (String, Array[Value]) -> Result[RowIter, DBError],
   query_row_fn: (String, Array[Value]) -> Result[Row, DBError],
   begin_fn: () -> Result[Transaction, DBError],
+  copyfrom_fn: (String, Array[Value]) -> Result[Int64, DBError],
+  batch_fn: (String, Array[Value]) -> Result[Int64, DBError],
+  execlastid_fn: (String, Array[Value]) -> Result[Int64, DBError],
 ) -> DB {
   {
     exec_fn: exec_fn,
@@ -41,6 +47,9 @@ pub fn DB::new(
     query_fn: query_fn,
     query_row_fn: query_row_fn,
     begin_fn: begin_fn,
+    copyfrom_fn: copyfrom_fn,
+    batch_fn: batch_fn,
+    execlastid_fn: execlastid_fn,
   }
 }
 
@@ -70,6 +79,21 @@ pub fn DB::begin(self: DB) -> Result[Transaction, DBError] {
   (self.begin_fn)()
 }
 
+/// Execute a COPY FROM statement, returning the number of affected rows.
+pub fn DB::copyfrom(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] {
+  (self.copyfrom_fn)(sql, params)
+}
+
+/// Execute a batch statement, returning the number of affected rows.
+pub fn DB::batch(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] {
+  (self.batch_fn)(sql, params)
+}
+
+/// Execute a statement returning the last inserted row ID.
+pub fn DB::execlastid(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] {
+  (self.execlastid_fn)(sql, params)
+}
+
 test "DB::new and exec returns Ok" {
   let db = DB::new(
     fn(_sql, _params) { Ok(1L) },
@@ -77,6 +101,9 @@ test "DB::new and exec returns Ok" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.exec("DELETE FROM t", [])
   let val = match result { Ok(n) => n; Err(_) => 0L }
@@ -90,6 +117,9 @@ test "DB::execrows returns Ok with count" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.execrows("UPDATE t SET x = 1", [])
   let val = match result { Ok(n) => n; Err(_) => 0L }
@@ -103,6 +133,9 @@ test "DB::query returns RowIter" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.query("SELECT 1", [])
   let empty = match result { Ok(iter) => { match iter.collect() { Ok(rows) => rows.length(); _ => -1 } }; _ => -1 }
@@ -116,6 +149,9 @@ test "DB::query_row returns Row" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.query_row("SELECT 42", [])
   let val = match result { Ok(row) => row.get(0); Err(_) => "" }
@@ -129,6 +165,9 @@ test "DB::exec returns Err on failure" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.exec("DROP TABLE t", [])
   let is_err = match result { Err(_) => true; _ => false }
@@ -151,6 +190,9 @@ test "DB::begin returns Ok with Transaction" {
         fn() { Ok(()) },
       ))
     },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.begin()
   let ok = match result { Ok(_) => true; Err(_) => false }
@@ -164,8 +206,59 @@ test "DB::begin returns Err on failure" {
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
     fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
     fn() { Err(QueryError("begin failed")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
   )
   let result = db.begin()
   let is_err = match result { Err(QueryError(_)) => true; _ => false }
   inspect(is_err, content="true")
+}
+
+test "DB::copyfrom returns Ok with count" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(42L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+  )
+  let result = db.copyfrom("COPY users FROM stdin", [])
+  let val = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(val, content="42")
+}
+
+test "DB::batch returns Ok with count" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(7L) },
+    fn(_sql, _params) { Ok(1L) },
+  )
+  let result = db.batch("INSERT INTO t VALUES (1), (2)", [])
+  let val = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(val, content="7")
+}
+
+test "DB::execlastid returns Ok with last insert id" {
+  let db = DB::new(
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(1L) },
+    fn(_sql, _params) { Ok(99L) },
+  )
+  let result = db.execlastid("INSERT INTO users (name) VALUES ($1)", [String("Alice")])
+  let val = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(val, content="99")
 }

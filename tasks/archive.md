@@ -1,8 +1,35 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-20
+> 归档时间: 2026-05-25
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
+
+### [P0-048] 事务集成 — 生成函数支持 Transaction
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: build_body 参数化 conn_name；generate_query_fn 接受 conn_name+conn_ty；generate_query_fns 为每个查询生成两个重载（db: DB 和 tx: Transaction）。GOLDEN_USERS 更新。
+- 架构: moon check 0 errors, moon test 326/326 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-25
+
+### [P0-047] :exec/:execrows + RETURNING * 语义修复
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: build_return_ty 和 build_body 检查 query.result_shape。ExecResult+Rows→Result[T,DBError]+db.query_row+decode；ExecCount+Rows→Result[Array[T],DBError]+db.query+collect。无结果行时保持 Int64 原行为。
+- 架构: moon check 0 errors, moon test 326/326 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-25
+
+### [P0-046] 查询注解补全 — :copyfrom / :batch / :execlastid
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 全链路支持三个新注解：adapter(QueryCmd 变体)→IR(cmd_to_cardinality+raw_cmd)→codegen(build_body 分发)→runtime(新增 3 DB 方法)→mock(同步扩展)
+- 架构: moon check 0 errors, moon test 326/326 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-25
 
 ### [P1-021] 修复验证脚本假阴性
 - 优先级: P1

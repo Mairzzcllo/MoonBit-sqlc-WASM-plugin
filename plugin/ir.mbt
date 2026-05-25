@@ -79,6 +79,7 @@ pub struct InternalQuery {
   name : String
   text : String
   cmd : QueryCardinality
+  raw_cmd : QueryCmd
   params : Array[InternalParameter]
   result_shape : InternalResultShape
   comments : Array[String]
@@ -93,6 +94,9 @@ fn cmd_to_cardinality(cmd: QueryCmd) -> QueryCardinality {
     Many => ManyRows
     Exec => ExecResult
     ExecRows => ExecCount
+    CopyFrom => ExecResult
+    Batch => ExecResult
+    ExecLastId => ExecResult
   }
 }
 
@@ -130,6 +134,7 @@ fn build_query(q: AdaptQuery) -> InternalQuery {
     name: q.name,
     text: q.text,
     cmd: card,
+    raw_cmd: q.cmd,
     params: q.params.map(adapt_parameter_to_ir),
     result_shape: build_result_shape(card, fields),
     comments: q.comments,
@@ -162,6 +167,21 @@ test "cmd_to_cardinality: Exec → ExecResult" {
 test "cmd_to_cardinality: ExecRows → ExecCount" {
   let c = cmd_to_cardinality(ExecRows)
   inspect(c, content="ExecCount")
+}
+
+test "cmd_to_cardinality: CopyFrom → ExecResult" {
+  let c = cmd_to_cardinality(CopyFrom)
+  inspect(c, content="ExecResult")
+}
+
+test "cmd_to_cardinality: Batch → ExecResult" {
+  let c = cmd_to_cardinality(Batch)
+  inspect(c, content="ExecResult")
+}
+
+test "cmd_to_cardinality: ExecLastId → ExecResult" {
+  let c = cmd_to_cardinality(ExecLastId)
+  inspect(c, content="ExecResult")
 }
 
 test "build_ir: empty queries" {
@@ -481,6 +501,66 @@ test "build_ir: :execrows with RETURNING * produces Rows when columns non-empty"
     None => false
   }
   inspect(has_rows, content="true")
+}
+
+test "build_ir: :copyfrom produces ExecResult with None result shape" {
+  let q: AdaptQuery = {
+    text: "COPY users FROM stdin", name: "load_users", cmd: CopyFrom,
+    columns: [], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  inspect(ir[0].cmd, content="ExecResult")
+  let is_none = match ir[0].result_shape {
+    None => true
+    Rows(_) => false
+  }
+  inspect(is_none, content="true")
+}
+
+test "build_ir: :batch produces ExecResult with None result shape" {
+  let q: AdaptQuery = {
+    text: "INSERT INTO t VALUES (1), (2)", name: "batch_insert", cmd: Batch,
+    columns: [], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  inspect(ir[0].cmd, content="ExecResult")
+  let is_none = match ir[0].result_shape {
+    None => true
+    Rows(_) => false
+  }
+  inspect(is_none, content="true")
+}
+
+test "build_ir: :execlastid produces ExecResult with None result shape" {
+  let q: AdaptQuery = {
+    text: "INSERT INTO users (name) VALUES ($1)", name: "create_user", cmd: ExecLastId,
+    columns: [], params: [], comments: [], filename: "q.sql",
+  }
+  let req: AdaptRequest = {
+    settings: { version: "", engine: "" },
+    catalog: { name: "", default_schema: "", schemas: [] },
+    queries: [q],
+    sqlc_version: "",
+  }
+  let ir = build_ir(req)
+  inspect(ir[0].cmd, content="ExecResult")
+  let is_none = match ir[0].result_shape {
+    None => true
+    Rows(_) => false
+  }
+  inspect(is_none, content="true")
 }
 
 test "build_ir: :exec with empty columns still produces None" {

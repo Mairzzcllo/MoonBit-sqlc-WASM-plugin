@@ -1,0 +1,27 @@
+id: P2-005
+title: 多文件输出支持 — 按表或查询拆分生成文件
+priority: P2
+type: feature
+state: todo
+description: >
+  当前所有生成代码输出到单个 lib.mbt。大型项目需要按表或查询拆分到多个文件。
+  实现多文件输出：每个 type/query 生成独立文件，或按配置的 out 模板生成。
+  需要修改 process_request 产出多个 GenerateResponse.File。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-25
+updated_at: 2026-05-25
+related: []
+execution_notes: >
+  修改 main.mbt 的 process_request 函数：
+  当前产出单个 File { name: filename, content: content }。
+  改为可产出多个 File，内容按类型拆分（types.mbt, queries/ 等）。
+  配置选项控制拆分策略。

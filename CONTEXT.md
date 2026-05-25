@@ -4,11 +4,11 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅
-- **最新事件**: 2026-05-25 — S-003 Golden 测试扩展完成 + S-004 构建验证
-- P0: 45/45 completed ✅
+- **最新事件**: 2026-05-25 — Phase A 全部完成（P0-046/P0-047/P0-048）
+- P0: 48/48 completed ✅ (+3: P0-046/P0-047/P0-048)
 - P1: 21/21 completed ✅
-- P2: 0/1 completed (P2-001 MySQL 推迟至 S-1 之后)
-- 活跃 Sprint: **S-1** — 4 个子任务
+- P2: 0/6 completed (P2-001~P2-006 待启动)
+- 活跃 Phase: **Phase A** — 3 个子任务全部完成 ✅
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -21,6 +21,34 @@
 
 并行性: S-001 ↔ S-002 已并行完成；S-003 依赖 S-001；S-004 依赖 S-001+S-002+S-003。
 Sprint S-1 全部完成，S-004 构建已验证可发布。
+
+## Phase A — 核心缺失功能 (2026-05-25)
+
+| ID | 标题 | 优先级 | 状态 |
+|----|------|--------|------|
+| P0-046 | 查询注解补全 — :copyfrom / :batch / :execlastid | P0 | ✅ done |
+| P0-047 | :exec/:execrows + RETURNING * 语义修复 | P0 | ✅ done |
+| P0-048 | 事务集成 — 生成函数支持 Transaction | P0 | ✅ done |
+
+并行性: P0-046 ↔ P0-047 ↔ P0-048 无依赖并行完成。测试: 326/326 pass (原 296)。
+
+### P0-046 交付内容
+- `adapter.mbt`: QueryCmd 新增 CopyFrom/Batch/ExecLastId 变体
+- `ir.mbt`: cmd_to_cardinality 映射 + raw_cmd 字段跟踪原始命令
+- `query_codegen.mbt`: build_body 分支分发到 db.copyfrom/db.batch/db.execlastid
+- `runtime/db.mbt`: 新增 3 个 DB 方法 + 闭包字段
+- `runtime/mock.mbt`: MockDB 同步扩展
+
+### P0-047 交付内容
+- `query_codegen.mbt`: build_return_ty 和 build_body 检查 result_shape
+  - ExecResult + Rows → Result[T, DBError] + db.query_row + T::decode
+  - ExecResult + None → Result[Int64, DBError] + db.exec (不变)
+  - ExecCount + Rows → Result[Array[T], DBError] + db.query + collect
+  - ExecCount + None → Result[Int64, DBError] + db.execrows (不变)
+
+### P0-048 交付内容
+- `query_codegen.mbt`: build_body 参数化 conn_name；generate_query_fn 接受 conn_name+conn_ty；generate_query_fns 为每个查询生成两个重载（db: DB 和 tx: Transaction）
+- `golden.mbt`: GOLDEN_USERS 扩展包含 Transaction 重载
 
 ## 关键勘误记录（2026-05-22 代码评审）
 
@@ -54,6 +82,12 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 13. **P1-001 ✅** — 文档与示例: README 同步、quickstart.md、runtime-api.md、examples/README
 14. **P1-002 ✅** — GitHub Actions CI/CD: check→test→build→validate + release workflow
 15. **P1-021 ✅** — 修复验证脚本假阴性: wasm2wat 2>$null + -join
+
+## Phase A 完成工作 (2026-05-25)
+
+1. **P0-046 ✅** — 查询注解补全：`adapter.mbt` QueryCmd 新增 CopyFrom/Batch/ExecLastId 三个变体；`parse_query_cmd` 识别 `:copyfrom`/`:batch`/`:execlastid`；`ir.mbt` `cmd_to_cardinality` 映射到 ExecResult 并新增 `raw_cmd` 跟踪；`query_codegen.mbt` `build_body` 分发到 `db.copyfrom`/`db.batch`/`db.execlastid`；`runtime/db.mbt` 新增 3 个方法 + 闭包字段；`runtime/mock.mbt` 同步扩展。新增 36 个测试。
+2. **P0-047 ✅** — `:exec`/`:execrows` + RETURNING * 语义修复：`build_return_ty` 和 `build_body` 检查 `query.result_shape`，当有结果行时像 OneRow/ManyRows 一样返回类型化解码结果，无结果行时保持 Int64 行为。
+3. **P0-048 ✅** — 事务集成：`build_body` 参数化 `conn_name`；`generate_query_fn` 接受 `conn_name+conn_ty`；`generate_query_fns` 为每个查询生成 `fn query_xxx(db: DB, ...)` 和 `fn query_xxx(tx: Transaction, ...)` 两个重载。GOLDEN_USERS 更新。
 
 ## Sprint S-1 完成工作 (2026-05-22)
 

@@ -1,7 +1,7 @@
 # Active Tasks — UI Projection
 
 > 生成时间: 2026-05-25
-> 项目: MoonBit sqlc WASM Plugin — 修正路线图 Sprint S-1
+> 项目: MoonBit sqlc WASM Plugin — Phase B/C 路线图
 > 运行时状态来源: `tasks/tasks/active/{id}.yaml`
 
 ## Sprint S-1 — Value enum + package_name + Release
@@ -13,10 +13,26 @@
 | **S-003** | Golden 测试扩展：全 PG 类型覆盖 | P1 | test | done | S-001(hard), P0-011 |
 | **S-004** | Release v0.1.0 初始版本标记 | P1 | infra | todo | S-001, S-002, S-003(soft) |
 
-所有 Sprint S-1 子任务已完成，S-004 可执行。
+## Phase B (P1) — 类型映射精度
 
-## Phase 1 待启动
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P1-024** | 修复 time/timetz 映射不一致 | P1 | fix | todo | — (独立高优) |
+| **P1-022** | Runtime wrapper 类型定义 | P1 | feature | todo | — |
+| **P1-023** | Row getter / Value 扩展 + 映射更新 | P1 | feature | todo | P1-022(hard) |
+| **P1-025** | 数组解码增强 | P1 | feature | todo | — |
 
-| ID | 标题 | 优先级 | 前置条件 |
-|----|------|--------|----------|
-| P2-001 | MySQL 数据库支持 | P2 | S-001, S-002 |
+并行性: P1-024 ↔ P1-022 (并行)；P1-023 → P1-022
+
+## Phase C (P2) — Codegen 可配置性
+
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P2-001** | MySQL 数据库支持 | P2 | feature | 待办 | S-001, S-002 |
+| **P2-002** | type_override 支持 | P2 | feature | todo | — |
+| **P2-003** | rename 重命名映射 | P2 | feature | todo | — |
+| **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | todo | — |
+| **P2-005** | 多文件输出支持 | P2 | feature | todo | — |
+| **P2-006** | emit_interface 支持 (探索) | P2 | feature | todo | MoonBit trait 更新 |
+
+串行建议: P2-002 → P2-003 → P2-004 → P2-005 (独立可并行，按复杂度递增)

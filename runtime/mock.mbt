@@ -23,6 +23,9 @@ pub struct MockDB {
   execrows_ok: Result[Int64, DBError]
   query_ok: Result[RowIter, DBError]
   query_row_ok: Result[Row, DBError]
+  copyfrom_ok: Result[Int64, DBError]
+  batch_ok: Result[Int64, DBError]
+  execlastid_ok: Result[Int64, DBError]
 }
 
 pub fn MockDB::new(
@@ -30,12 +33,18 @@ pub fn MockDB::new(
   execrows_ok: Result[Int64, DBError],
   query_ok: Result[RowIter, DBError],
   query_row_ok: Result[Row, DBError],
+  copyfrom_ok: Result[Int64, DBError],
+  batch_ok: Result[Int64, DBError],
+  execlastid_ok: Result[Int64, DBError],
 ) -> MockDB {
   {
     exec_ok: exec_ok,
     execrows_ok: execrows_ok,
     query_ok: query_ok,
     query_row_ok: query_row_ok,
+    copyfrom_ok: copyfrom_ok,
+    batch_ok: batch_ok,
+    execlastid_ok: execlastid_ok,
   }
 }
 
@@ -48,6 +57,9 @@ pub fn MockDB::build(self: MockDB) -> DB {
     fn(_sql, _params) { self.query_ok },
     fn(_sql, _params) { self.query_row_ok },
     fn() { Err(QueryError("transactions not supported")) },
+    fn(_sql, _params) { self.copyfrom_ok },
+    fn(_sql, _params) { self.batch_ok },
+    fn(_sql, _params) { self.execlastid_ok },
   )
 }
 
@@ -72,6 +84,9 @@ test "mock: :many — query returns row iter with results" {
     Ok(1L),
     Ok(iter),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.query("SELECT id, name FROM users", [])
@@ -97,6 +112,9 @@ test "mock: :one — query_row returns single row" {
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Ok(row),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.query_row("SELECT id, name FROM users WHERE id = $1", [Int64(42L)])
@@ -113,6 +131,9 @@ test "mock: :exec — exec returns affected row count" {
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.exec("DELETE FROM users WHERE id = $1", [Int64(42L)])
@@ -126,6 +147,9 @@ test "mock: :execrows — execrows returns affected row count" {
     Ok(5L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.execrows("UPDATE users SET name = $1 WHERE id = $2", [String("Bob"), Int64(1L)])
@@ -139,6 +163,9 @@ test "mock: error propagation — exec returns Err" {
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.exec("DROP TABLE t", [])
@@ -152,6 +179,9 @@ test "mock: error propagation — query_row returns Err" {
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Err(QueryError("no rows")),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.query_row("SELECT 1", [])
@@ -165,6 +195,9 @@ test "mock: query with empty results" {
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let result = db.query("SELECT 1 WHERE false", [])
@@ -190,6 +223,9 @@ test "mock: :many — decode each row through typed getters" {
       }
     })),
     Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
   )
   let db = mock.build()
   let iter = match db.query("SELECT id, name, email FROM users", []) {
@@ -207,4 +243,100 @@ test "mock: :many — decode each row through typed getters" {
   inspect(id, content="1")
   inspect(name, content="Alice")
   inspect(email, content="alice@test.com")
+}
+
+test "mock: :copyfrom — copyfrom returns affected row count" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(10L),
+    Ok(1L),
+    Ok(1L),
+  )
+  let db = mock.build()
+  let result = db.copyfrom("COPY users FROM stdin", [])
+  let n = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(n, content="10")
+}
+
+test "mock: :batch — batch returns affected row count" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(3L),
+    Ok(1L),
+  )
+  let db = mock.build()
+  let result = db.batch("INSERT INTO t VALUES (1), (2), (3)", [])
+  let n = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(n, content="3")
+}
+
+test "mock: :execlastid — execlastid returns last insert id" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(100L),
+  )
+  let db = mock.build()
+  let result = db.execlastid("INSERT INTO users (name) VALUES ($1)", [String("Bob")])
+  let n = match result { Ok(n) => n; Err(_) => 0L }
+  inspect(n, content="100")
+}
+
+test "mock: :copyfrom error propagation" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Err(QueryError("copy failed")),
+    Ok(1L),
+    Ok(1L),
+  )
+  let db = mock.build()
+  let result = db.copyfrom("COPY bad", [])
+  let is_err = match result { Err(QueryError(_)) => true; _ => false }
+  inspect(is_err, content="true")
+}
+
+test "mock: :batch error propagation" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Err(QueryError("batch failed")),
+    Ok(1L),
+  )
+  let db = mock.build()
+  let result = db.batch("BAD SQL", [])
+  let is_err = match result { Err(QueryError(_)) => true; _ => false }
+  inspect(is_err, content="true")
+}
+
+test "mock: :execlastid error propagation" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Err(QueryError("insert failed")),
+  )
+  let db = mock.build()
+  let result = db.execlastid("INSERT INTO t VALUES (1)", [])
+  let is_err = match result { Err(QueryError(_)) => true; _ => false }
+  inspect(is_err, content="true")
 }

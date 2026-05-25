@@ -18,12 +18,15 @@
 // limitations under the License.
 //
 
-/// Parsed query command kind from sqlc's `:one`, `:many`, `:exec`, `:execrows`.
+/// Parsed query command kind from sqlc's `:one`, `:many`, `:exec`, `:execrows`, `:copyfrom`, `:batch`, `:execlastid`.
 pub enum QueryCmd {
   One
   Many
   Exec
   ExecRows
+  CopyFrom
+  Batch
+  ExecLastId
 }
 
 impl Show for QueryCmd with to_string(self) -> String {
@@ -32,6 +35,9 @@ impl Show for QueryCmd with to_string(self) -> String {
     Many => "Many"
     Exec => "Exec"
     ExecRows => "ExecRows"
+    CopyFrom => "CopyFrom"
+    Batch => "Batch"
+    ExecLastId => "ExecLastId"
   }
 }
 
@@ -42,6 +48,9 @@ pub fn parse_query_cmd(cmd: String) -> QueryCmd {
     ":many" => Many
     ":exec" => Exec
     ":execrows" => ExecRows
+    ":copyfrom" => CopyFrom
+    ":batch" => Batch
+    ":execlastid" => ExecLastId
     _ => Exec
   }
 }
@@ -250,6 +259,18 @@ test "parse_query_cmd: empty string falls back to Exec" {
 
 test "parse_query_cmd: unknown cmd falls back to Exec" {
   inspect(parse_query_cmd(":unknown"), content="Exec")
+}
+
+test "parse_query_cmd: :copyfrom" {
+  inspect(parse_query_cmd(":copyfrom"), content="CopyFrom")
+}
+
+test "parse_query_cmd: :batch" {
+  inspect(parse_query_cmd(":batch"), content="Batch")
+}
+
+test "parse_query_cmd: :execlastid" {
+  inspect(parse_query_cmd(":execlastid"), content="ExecLastId")
 }
 
 test "convert_request: minimal empty request" {

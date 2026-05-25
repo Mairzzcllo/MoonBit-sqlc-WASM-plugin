@@ -1,0 +1,35 @@
+id: P1-022
+title: Runtime wrapper 类型定义 — Decimal/Uuid/Duration/Time/IpAddr
+priority: P1
+type: feature
+state: todo
+description: >
+  为 5 个当前 String fallback 的 PG 类型创建专用的 MoonBit wrapper struct：
+  Decimal (numeric/decimal)、Uuid (uuid)、Duration (interval)、Time (time/timetz)、
+  IpAddr (inet/cidr)。每个类型定义在 runtime/value.mbt 中，
+  并注册对应的 Value 枚举变体。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-25
+updated_at: 2026-05-25
+related:
+  - ADR-005
+execution_notes: >
+  新增 struct:
+  - Decimal { val: String }       — 精度字面保留
+  - Uuid { val: String }          — MVP: 字符串封装
+  - Duration { microseconds: Int64 } — 微秒精度
+  - Time { hour: Int, min: Int, sec: Int, micros: Int }
+  - IpAddr { val: String }        — MVP: 字符串封装
+  Value 枚举新增变体: Decimal(Decimal), Uuid(Uuid), Duration(Duration),
+  Time(Time), IpAddr(IpAddr)
+  注意 JsonValue 变体使用 @json.Json 类型，新类型用自身 struct。
+  新增对应的内联 test {} 块验证构造和解构。

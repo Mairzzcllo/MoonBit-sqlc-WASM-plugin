@@ -1,0 +1,31 @@
+id: P1-023
+title: Row getter / Value 扩展 + 映射函数更新
+priority: P1
+type: feature
+state: todo
+description: >
+  在 P1-022 定义新 wrapper 类型后，更新全链路映射：
+  1. runtime/row.mbt: 新增 5 对 typed getter (get_decimal/get_nullable_decimal 等)
+  2. type_map.mbt: map_pg_name 中 numeric/decimal→Decimal, uuid→Uuid 等
+  3. query_codegen.mbt: type_to_value_constructor 同步更新
+  4. type_codegen.mbt: type_to_getter_suffix 新增分支
+dependencies:
+  hard:
+    - P1-022
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-25
+updated_at: 2026-05-25
+related:
+  - ADR-005
+execution_notes: >
+  Row getter 实现模式与现有 get_int64 一致：DB 驱动通过 JSON 字符串传递值，
+  getter 使用 @json.parse 解析。
+  现有 decoder.mbt 是约定文档，无需修改。
+  GOLDEN_ALL_TYPES 需要更新以反映新类型名。
