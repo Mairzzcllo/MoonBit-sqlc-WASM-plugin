@@ -38,8 +38,8 @@ fn map_pg_name(name: String) -> TypeExpr {
     "int8" | "bigint" | "bigserial" => Named("Int64")
     // Floats — float4/real map to Double (runtime has get_double, not get_float)
     "float4" | "real" | "float8" | "double" | "double precision" => Named("Double")
-    // numeric/decimal → String (preserve full precision).
-    "numeric" | "decimal" => Named("String")
+    // numeric/decimal → Decimal (preserve full precision).
+    "numeric" | "decimal" => Named("Decimal")
     // Boolean
     "bool" | "boolean" => Named("Bool")
     // String types
@@ -49,16 +49,15 @@ fn map_pg_name(name: String) -> TypeExpr {
     // JSON
     "json" | "jsonb" => Named("JsonValue")
     // Network
-    "inet" | "cidr" | "macaddr" => Named("String")
+    "inet" | "cidr" | "macaddr" => Named("IpAddr")
     // UUID
-    "uuid" => Named("String")
-    // Date/Time — date→Date, timestamp→DateTime, time→String (no wrapper)
+    "uuid" => Named("Uuid")
+    // Date/Time — date→Date, timestamp→DateTime, time→Time
     "date" => Named("Date")
     "timestamp" | "timestamptz" | "timestamp with time zone" => Named("DateTime")
-    "time" | "timetz" => Named("String")
-    // Interval → String (MVP decision).
-    // MVP uses String as placeholder. Future: map to Duration or Int64 (microseconds).
-    "interval" => Named("String")
+    "time" | "timetz" => Named("Time")
+    // Interval → Duration (microseconds).
+    "interval" => Named("Duration")
     // Arrays are handled by the caller via Arr(inner)
     // Fallback for unknown types
     _ => Named("String")
@@ -138,14 +137,14 @@ test "map_pg_name: bytea maps to Bytes" {
   inspect(t, content="Named(\"Bytes\")")
 }
 
-test "map_pg_name: uuid maps to String" {
+test "map_pg_name: uuid maps to Uuid" {
   let t = map_pg_name("uuid")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"Uuid\")")
 }
 
-test "map_pg_name: inet maps to String" {
+test "map_pg_name: inet maps to IpAddr" {
   let t = map_pg_name("inet")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"IpAddr\")")
 }
 
 test "map_pg_name: date maps to Date" {
@@ -153,9 +152,9 @@ test "map_pg_name: date maps to Date" {
   inspect(t, content="Named(\"Date\")")
 }
 
-test "map_pg_name: numeric maps to String" {
+test "map_pg_name: numeric maps to Decimal" {
   let t = map_pg_name("numeric")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"Decimal\")")
 }
 
 test "map_pg_name: unknown type falls back to String" {
@@ -215,7 +214,7 @@ test "map_pg_name: real alias" {
 
 test "map_pg_name: decimal alias" {
   let t = map_pg_name("decimal")
-  inspect(t, content="Named(\"String\")")
+  inspect(t, content="Named(\"Decimal\")")
 }
 
 test "map_pg_name: serial maps to Int" {

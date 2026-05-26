@@ -139,29 +139,50 @@ fn type_to_getter_suffix(type_name: String) -> String {
     "JsonValue" => "json"
     "Date" => "date"
     "DateTime" => "datetime"
+    "Decimal" => "decimal"
+    "Uuid" => "uuid"
+    "Duration" => "duration"
+    "Time" => "time"
+    "IpAddr" => "ipaddr"
     _ => "string"
   }
 }
 
 /// Build a getter call expression for a field at a given index.
 fn field_getter_call(field: FieldDef, _index: Int) -> (String, String) {
-  let (suffix, nullable) = match field.ty {
-    Named(s) => (type_to_getter_suffix(s), false)
+  let (getter_name, suffix) = match field.ty {
+    Named(s) => {
+      let suffix = type_to_getter_suffix(s)
+      ("row.get_" + suffix, suffix)
+    }
     Option(inner) => {
+      match inner {
+        Parameterized("Array", [elem]) => {
+          let inner_suffix = match elem {
+            Named(n) => type_to_getter_suffix(n)
+            _ => "string"
+          }
+          ("row.decode_nullable_array_" + inner_suffix, inner_suffix)
+        }
+        _ => {
+          let inner_name = match inner {
+            Named(n) => n
+            _ => "String"
+          }
+          let suffix = type_to_getter_suffix(inner_name)
+          ("row.get_nullable_" + suffix, suffix)
+        }
+      }
+    }
+    Parameterized("Array", [inner]) => {
       let inner_name = match inner {
         Named(n) => n
-        Parameterized("Array", [Named(n)]) => n
         _ => "String"
       }
-      (type_to_getter_suffix(inner_name), true)
+      let suffix = type_to_getter_suffix(inner_name)
+      ("row.decode_array_" + suffix, suffix)
     }
-    Parameterized("Array", [_]) => ("string", true)
-    _ => ("string", false)
-  }
-  let getter_name = if nullable {
-    "row.get_nullable_" + suffix
-  } else {
-    "row.get_" + suffix
+    _ => ("row.get_string", "string")
   }
   (getter_name, suffix)
 }

@@ -42,6 +42,70 @@ pub fn DateTime::to_string(self: DateTime) -> String {
   self.inner
 }
 
+/// Decimal value wrapping a numeric/decimal string, preserving full precision.
+pub struct Decimal {
+  inner: String
+}
+
+pub fn Decimal::new(value: String) -> Decimal {
+  { inner: value }
+}
+
+pub fn Decimal::to_string(self: Decimal) -> String {
+  self.inner
+}
+
+/// Uuid value wrapping a UUID string.
+pub struct Uuid {
+  inner: String
+}
+
+pub fn Uuid::new(value: String) -> Uuid {
+  { inner: value }
+}
+
+pub fn Uuid::to_string(self: Uuid) -> String {
+  self.inner
+}
+
+/// Duration value representing an SQL interval in microseconds.
+pub struct Duration {
+  microseconds: Int64
+}
+
+pub fn Duration::new(microseconds: Int64) -> Duration {
+  { microseconds: microseconds }
+}
+
+pub fn Duration::to_int64(self: Duration) -> Int64 {
+  self.microseconds
+}
+
+/// Time value representing SQL time (hour, min, sec, micros).
+pub struct Time {
+  hour: Int
+  min: Int
+  sec: Int
+  micros: Int
+}
+
+pub fn Time::new(hour: Int, min: Int, sec: Int, micros: Int) -> Time {
+  { hour: hour, min: min, sec: sec, micros: micros }
+}
+
+/// IpAddr value wrapping an inet/cidr string.
+pub struct IpAddr {
+  inner: String
+}
+
+pub fn IpAddr::new(value: String) -> IpAddr {
+  { inner: value }
+}
+
+pub fn IpAddr::to_string(self: IpAddr) -> String {
+  self.inner
+}
+
 /// Runtime value type for query parameter binding.
 pub enum Value {
   Null
@@ -53,6 +117,11 @@ pub enum Value {
   Date(Date)
   DateTime(DateTime)
   JsonValue(Json)
+  Decimal(Decimal)
+  Uuid(Uuid)
+  Duration(Duration)
+  Time(Time)
+  IpAddr(IpAddr)
 }
 
 test "Date::new and to_string roundtrip" {
@@ -126,4 +195,32 @@ test "Value::JsonValue construction" {
   let v: Value = JsonValue(j)
   let is_json_val = match v { JsonValue(_) => true; _ => false }
   inspect(is_json_val, content="true")
+}
+
+test "Decimal::new and to_string roundtrip" {
+  let d = Decimal::new("12345.6789")
+  inspect(d.to_string(), content="12345.6789")
+}
+
+test "Uuid::new and to_string roundtrip" {
+  let u = Uuid::new("550e8400-e29b-41d4-a716-446655440000")
+  inspect(u.to_string(), content="550e8400-e29b-41d4-a716-446655440000")
+}
+
+test "Duration::new and to_int64 roundtrip" {
+  let d = Duration::new(3600000000L)
+  inspect(d.to_int64(), content="3600000000")
+}
+
+test "Time::new and field access" {
+  let t = Time::new(10, 30, 45, 123456)
+  inspect(t.hour, content="10")
+  inspect(t.min, content="30")
+  inspect(t.sec, content="45")
+  inspect(t.micros, content="123456")
+}
+
+test "IpAddr::new and to_string roundtrip" {
+  let ip = IpAddr::new("192.168.1.1")
+  inspect(ip.to_string(), content="192.168.1.1")
 }

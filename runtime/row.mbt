@@ -31,12 +31,96 @@ pub fn Row::get(self: Row, index: Int) -> String {
   (self.get_fn)(index)
 }
 
-/// Get an array value from a row by column index.
-/// MVP: Returns the raw string as a single-element array.
-/// Real database drivers should provide proper JSON/PSQL array parsing.
-pub fn Row::get_array(self: Row, index: Int) -> Array[String] {
-  let val = (self.get_fn)(index)
-  [val]
+// === Array decoding functions ===
+
+/// Decode a JSON array string into Array[String].
+pub fn Row::decode_array_string(self: Row, index: Int) -> Result[Array[String], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, "")) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[String] = Array::make(0, "")
+      for elem in arr {
+        if elem is String(s) {
+          result.push(s)
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected string array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[Int64].
+pub fn Row::decode_array_int64(self: Row, index: Int) -> Result[Array[Int64], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, 0L)) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Int64] = Array::make(0, 0L)
+      for elem in arr {
+        if elem is Number(n, ..) {
+          result.push(n.to_int64())
+        } else {
+          return Err(TypeError("expected number element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected int64 array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[String]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_string(self: Row, index: Int) -> Result[Option[Array[String]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[String] = Array::make(0, "")
+      for elem in arr {
+        if elem is String(s) {
+          result.push(s)
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected string array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Int64]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_int64(self: Row, index: Int) -> Result[Option[Array[Int64]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Int64] = Array::make(0, 0L)
+      for elem in arr {
+        if elem is Number(n, ..) {
+          result.push(n.to_int64())
+        } else {
+          return Err(TypeError("expected number element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected int64 array at position " + index.to_string())) }
 }
 
 // === Typed non-nullable getters ===
@@ -89,6 +173,42 @@ pub fn Row::get_datetime(self: Row, index: Int) -> Result[DateTime, DBError] {
 pub fn Row::get_json(self: Row, index: Int) -> Result[Json, DBError] {
   let raw = self.get(index)
   try { Ok(@json.parse(raw[:])) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+}
+
+/// Get a Decimal value by column index.
+pub fn Row::get_decimal(self: Row, index: Int) -> Result[Decimal, DBError] {
+  Ok(Decimal::new(self.get(index)))
+}
+
+/// Get a Uuid value by column index.
+pub fn Row::get_uuid(self: Row, index: Int) -> Result[Uuid, DBError] {
+  Ok(Uuid::new(self.get(index)))
+}
+
+/// Get a Duration value by column index.
+pub fn Row::get_duration(self: Row, index: Int) -> Result[Duration, DBError] {
+  let raw = self.get(index)
+  try { Ok(Duration::new(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected duration (micros) at position " + index.to_string())) }
+}
+
+/// Get a Time value by column index.
+pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
+  let raw = self.get(index)
+  // Expect HH:MM:SS.micros format — parse via string split
+  try {
+    let parts = raw.split(":").to_array()
+    let hour = @string.parse_int(parts[0].to_owned())
+    let min = @string.parse_int(parts[1].to_owned())
+    let sec_parts = parts[2].to_owned().split(".").to_array()
+    let sec = @string.parse_int(sec_parts[0].to_owned())
+    let micros = if sec_parts.length() > 1 { @string.parse_int(sec_parts[1].to_owned()) } else { 0 }
+    Ok(Time::new(hour, min, sec, micros))
+  } catch { _ => Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string())) }
+}
+
+/// Get an IpAddr value by column index.
+pub fn Row::get_ipaddr(self: Row, index: Int) -> Result[IpAddr, DBError] {
+  Ok(IpAddr::new(self.get(index)))
 }
 
 // === Typed nullable getters ===
@@ -162,6 +282,53 @@ pub fn Row::get_nullable_json(self: Row, index: Int) -> Result[Option[Json], DBE
   if raw == "" { Ok(None) } else {
     try { Ok(Some(@json.parse(raw[:]))) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
   }
+}
+
+/// Get a nullable Decimal value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_decimal(self: Row, index: Int) -> Result[Option[Decimal], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(Decimal::new(raw))) }
+}
+
+/// Get a nullable Uuid value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_uuid(self: Row, index: Int) -> Result[Option[Uuid], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(Uuid::new(raw))) }
+}
+
+/// Get a nullable Duration value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Duration], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try { Ok(Some(Duration::new(@string.parse_int64(raw)))) } catch { _ => Err(TypeError("expected duration at position " + index.to_string())) }
+  }
+}
+
+/// Get a nullable Time value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else {
+    try {
+      let parts = raw.split(":").to_array()
+      let hour = @string.parse_int(parts[0].to_owned())
+      let min = @string.parse_int(parts[1].to_owned())
+      let sec_parts = parts[2].to_owned().split(".").to_array()
+      let sec = @string.parse_int(sec_parts[0].to_owned())
+      let micros = if sec_parts.length() > 1 { @string.parse_int(sec_parts[1].to_owned()) } else { 0 }
+      Ok(Some(Time::new(hour, min, sec, micros)))
+    } catch { _ => Err(TypeError("expected time at position " + index.to_string())) }
+  }
+}
+
+/// Get a nullable IpAddr value by column index.
+/// Empty string is treated as NULL (None).
+pub fn Row::get_nullable_ipaddr(self: Row, index: Int) -> Result[Option[IpAddr], DBError] {
+  let raw = self.get(index)
+  if raw == "" { Ok(None) } else { Ok(Some(IpAddr::new(raw))) }
 }
 
 // === Tests ===

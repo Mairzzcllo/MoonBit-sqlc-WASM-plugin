@@ -38,12 +38,16 @@ fn type_to_value_constructor(ir_type: InternalType) -> String {
   match name {
     "int4" | "int8" | "int2" | "integer" | "bigint" | "smallint" | "serial" | "bigserial" | "smallserial" | "int" => "Int64"
     "float4" | "float8" | "real" | "double" => "Double"
-    "numeric" | "decimal" => "String"
+    "numeric" | "decimal" => "Decimal"
     "bool" | "boolean" => "Bool"
     "bytea" => "Bytes"
     "json" | "jsonb" => "JsonValue"
     "date" => "Date"
-    "timestamp" | "timestamptz" | "time" | "timetz" => "DateTime"
+    "timestamp" | "timestamptz" => "DateTime"
+    "time" | "timetz" => "Time"
+    "uuid" => "Uuid"
+    "interval" => "Duration"
+    "inet" | "cidr" => "IpAddr"
     _ => "String"
   }
 }
