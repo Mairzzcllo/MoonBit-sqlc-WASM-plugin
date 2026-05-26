@@ -1,6 +1,6 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-25
+> 归档时间: 2026-05-26
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
@@ -542,3 +542,39 @@
 - 架构: moon check 0 errors, moon test 210/210 passed (15 new boundary tests)
 - 创建: 2026-05-18
 - 完成: 2026-05-18
+
+### [P1-024] 修复 time/timetz 映射不一致
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: type_to_value_constructor (query_codegen.mbt:46) 中 time/timetz 从 "DateTime" 改为 "String"，与 map_pg_name 一致。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-26
+
+### [P1-022] Runtime wrapper 类型定义 — Decimal/Uuid/Duration/Time/IpAddr
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: 新增 5 个 wrapper struct（Decimal/Uuid/Duration/Time/IpAddr）+ 5 个 Value 枚举变体 + 5 个内联测试。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-26
+
+### [P1-025] 数组解码增强
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: get_array stub 替换为 decode_array_string/int64 类型化解码（基于 @json.parse）。field_getter_call 对 Array[T] 生成 decode_array_<suffix>，对 Option[Array[T]] 先判空再解码。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-26
+
+### [P1-023] Row getter / Value 扩展 + 映射更新
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: 新增 5 对 typed getter（Decimal/Uuid/Duration/Time/IpAddr）；type_map.mbt numeric→Decimal, uuid→Uuid, interval→Duration, time→Time, inet→IpAddr；type_codegen.mbt type_to_getter_suffix 新增 5 个分支；golden 测试同步更新。依赖 P1-022(hard)。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-26

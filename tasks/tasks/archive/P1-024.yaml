@@ -1,0 +1,30 @@
+id: P1-024
+title: '修复 time/timetz 类型映射不一致 — type_to_value_constructor vs map_pg_name'
+priority: P1
+type: fix
+state: done
+description: >
+  当前 type_to_value_constructor (query_codegen.mbt:46) 将 time/timetz
+  映射为 "DateTime"，但 map_pg_name (type_map.mbt:58) 映射为 "String"。
+  这会导致参数构造器与 struct 字段类型不匹配，生成类型错误的代码。
+  修复：将 type_to_value_constructor 中 "time"|"timetz" 改为 "String"，
+  与 map_pg_name 一致。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-25
+updated_at: 2026-05-25
+related: []
+execution_notes: >
+  修复位置: query_codegen.mbt:46 — 将 "time" | "timetz" => "DateTime" 改为
+  "time" | "timetz" => "String"
+  这是高优 bug 修复，独立于 P1-022/P1-023。在 Time wrapper 类型完成前，
+  先统一为 String，避免生成的代码在编译时报类型错误。
+  可在 Phase A 期间提前修复。

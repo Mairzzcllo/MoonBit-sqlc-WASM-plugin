@@ -3,12 +3,12 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅
-- **最新事件**: 2026-05-25 — Phase A 全部完成（P0-046/P0-047/P0-048）
-- P0: 48/48 completed ✅ (+3: P0-046/P0-047/P0-048)
-- P1: 21/21 completed ✅
+- **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅ — Phase B 全部完成 ✅
+- **最新事件**: 2026-05-26 — Phase B 全部完成（P1-024/P1-022/P1-025/P1-023）
+- P0: 48/48 completed ✅
+- P1: 25/25 completed ✅ (+4: P1-022~P1-025)
 - P2: 0/6 completed (P2-001~P2-006 待启动)
-- 活跃 Phase: **Phase A** — 3 个子任务全部完成 ✅
+- 活跃 Phase: **Phase C (P2)** — Codegen 可配置性
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -50,6 +50,18 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 - `query_codegen.mbt`: build_body 参数化 conn_name；generate_query_fn 接受 conn_name+conn_ty；generate_query_fns 为每个查询生成两个重载（db: DB 和 tx: Transaction）
 - `golden.mbt`: GOLDEN_USERS 扩展包含 Transaction 重载
 
+## Phase B — 类型映射精度 (2026-05-26)
+
+1. **P1-024 ✅** — 修复 time/timetz 映射不一致：`query_codegen.mbt:46` `type_to_value_constructor` 中 `"time"|"timetz"` 从 `"DateTime"` 改为 `"String"`，与 `map_pg_name` 一致。
+2. **P1-022 ✅** — Runtime wrapper 类型定义：新增 5 个 struct（`Decimal{String}`, `Uuid{String}`, `Duration{Int64}`, `Time{Int,Int,Int,Int}`, `IpAddr{String}`）+ 5 个 Value 变体 + 5 个内联测试。
+3. **P1-025 ✅** — 数组解码增强：`get_array` stub 替换为 `decode_array_string`/`decode_array_int64`（基于 `@json.parse` 数组解析）。`field_getter_call` 对 `Array[T]` 生成 `decode_array_<suffix>`，对 `Option[Array[T]]` 先判空再解码。
+4. **P1-023 ✅** — Row getter / Value 扩展 + 全链路映射更新：5 对 typed getter（require P1-022）、`type_map.mbt` 映射更新（numeric→Decimal, uuid→Uuid, interval→Duration, time→Time, inet→IpAddr）、`type_to_getter_suffix` 新增 5 个分支、golden 测试同步更新。
+- **迁移**: numeric/decimal→Decimal, uuid→Uuid, interval→Duration, time/timetz→Time, inet/cidr→IpAddr（原均为 String fallback）
+- **Value 枚举**: 9→14 变体
+- **Row getter**: +10 个（5 不可空 + 5 可空）
+- **测试**: 331/331 pass (原 326), moon check 0 errors
+- **Commit**: `6b62ecd` feat: Phase B — type mapping precision
+
 ## 关键勘误记录（2026-05-22 代码评审）
 
 1. **`:execresult` IR 已实现** — `ExecResult` 和 `ExecCount` 在 ir.mbt 中对应 `:exec` 和 `:execrows`，此前规划误判为缺失
@@ -60,7 +72,7 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 6. **Value enum 9 变体确认** — `JsonValue(Json)` 复用 `@json.Json` 类型；Date/DateTime 复用 runtime 内建 struct
 7. **`type_to_value_constructor()` 完整** — 无需修改，已有全部映射
 8. **`param_to_value_expr()` nullable 分支正确** — `Some(x) => Ctor(x)` 类型推导正确
-9. **`emit_empty_slices` 推迟至 Phase 2** — 与 ADR-003 冲突
+9. **`emit_empty_slices` 推迟至 Phase C** — 与 ADR-003 冲突
 
 ## Phase 0 — 解阻塞 ✅ 全部完成
 
