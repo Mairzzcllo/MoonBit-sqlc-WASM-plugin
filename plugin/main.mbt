@@ -47,6 +47,7 @@ pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
   let types = generate_types(adapted.catalog, ir)
   let query_fns = generate_query_fns(ir)
   let ast: SourceFile = { items: [] }
+  ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
   for t in types { ast.items.push(t) }
   for f in query_fns { ast.items.push(f) }
   emit_package_declaration(opts.package_name) + emit_source_file(ast)

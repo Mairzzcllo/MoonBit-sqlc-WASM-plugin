@@ -124,6 +124,46 @@ pub enum Value {
   IpAddr(IpAddr)
 }
 
+test "Value::Decimal construction" {
+  let d = Decimal::new("12345.6789")
+  let v: Value = Decimal(d)
+  let val = match v { Decimal(dv) => dv.to_string(); _ => "" }
+  inspect(val, content="12345.6789")
+}
+
+test "Value::Uuid construction" {
+  let u = Uuid::new("550e8400-e29b-41d4-a716-446655440000")
+  let v: Value = Uuid(u)
+  let val = match v { Uuid(uv) => uv.to_string(); _ => "" }
+  inspect(val, content="550e8400-e29b-41d4-a716-446655440000")
+}
+
+test "Value::Duration construction" {
+  let d = Duration::new(3600000000L)
+  let v: Value = Duration(d)
+  let val = match v { Duration(dv) => dv.to_int64(); _ => 0L }
+  inspect(val, content="3600000000")
+}
+
+test "Value::Time construction" {
+  let t = Time::new(10, 30, 45, 123456)
+  let v: Value = Time(t)
+  let is_time_val = match v { Time(_) => true; _ => false }
+  inspect(is_time_val, content="true")
+  let tv = match v { Time(tv) => tv; _ => Time::new(0, 0, 0, 0) }
+  inspect(tv.hour, content="10")
+  inspect(tv.min, content="30")
+  inspect(tv.sec, content="45")
+  inspect(tv.micros, content="123456")
+}
+
+test "Value::IpAddr construction" {
+  let ip = IpAddr::new("192.168.1.1")
+  let v: Value = IpAddr(ip)
+  let val = match v { IpAddr(ipv) => ipv.to_string(); _ => "" }
+  inspect(val, content="192.168.1.1")
+}
+
 test "Date::new and to_string roundtrip" {
   let d = Date::new("2026-01-15")
   inspect(d.to_string(), content="2026-01-15")

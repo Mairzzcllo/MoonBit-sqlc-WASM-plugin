@@ -192,16 +192,29 @@ pub fn Row::get_duration(self: Row, index: Int) -> Result[Duration, DBError] {
 }
 
 /// Get a Time value by column index.
+/// Expects HH:MM:SS[.fraction] format with variable-precision fractional seconds.
+/// The fractional part is right-padded or truncated to 6 digits (microseconds).
 pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
   let raw = self.get(index)
-  // Expect HH:MM:SS.micros format — parse via string split
   try {
     let parts = raw.split(":").to_array()
     let hour = @string.parse_int(parts[0].to_owned())
     let min = @string.parse_int(parts[1].to_owned())
     let sec_parts = parts[2].to_owned().split(".").to_array()
     let sec = @string.parse_int(sec_parts[0].to_owned())
-    let micros = if sec_parts.length() > 1 { @string.parse_int(sec_parts[1].to_owned()) } else { 0 }
+    let micros = if sec_parts.length() > 1 {
+      let frac = sec_parts[1].to_owned()
+      if frac.length() >= 6 {
+        @string.parse_int(frac[:6].to_owned())
+      } else {
+        // Pad right with zeros to 6 digits
+        let mut padded = frac
+        for _i = frac.length(); _i < 6; _i = _i + 1 {
+          padded = padded + "0"
+        }
+        @string.parse_int(padded)
+      }
+    } else { 0 }
     Ok(Time::new(hour, min, sec, micros))
   } catch { _ => Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string())) }
 }
@@ -309,6 +322,7 @@ pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Durati
 
 /// Get a nullable Time value by column index.
 /// Empty string is treated as NULL (None).
+/// Expects HH:MM:SS[.fraction] format with variable-precision fractional seconds.
 pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBError] {
   let raw = self.get(index)
   if raw == "" { Ok(None) } else {
@@ -318,7 +332,19 @@ pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBE
       let min = @string.parse_int(parts[1].to_owned())
       let sec_parts = parts[2].to_owned().split(".").to_array()
       let sec = @string.parse_int(sec_parts[0].to_owned())
-      let micros = if sec_parts.length() > 1 { @string.parse_int(sec_parts[1].to_owned()) } else { 0 }
+      let micros = if sec_parts.length() > 1 {
+        let frac = sec_parts[1].to_owned()
+        if frac.length() >= 6 {
+          @string.parse_int(frac[:6].to_owned())
+        } else {
+          // Pad right with zeros to 6 digits
+          let mut padded = frac
+          for _i = frac.length(); _i < 6; _i = _i + 1 {
+            padded = padded + "0"
+          }
+          @string.parse_int(padded)
+        }
+      } else { 0 }
       Ok(Some(Time::new(hour, min, sec, micros)))
     } catch { _ => Err(TypeError("expected time at position " + index.to_string())) }
   }
@@ -444,4 +470,61 @@ test "Row::get_nullable_json: empty returns None" {
     Ok(None) => inspect("null", content="null")
     _ => inspect("not_null", content="null")
   }
+}
+
+test "Row::get_time: HH:MM:SS (no fraction)" {
+  let row = Row::new(fn(_i) { "10:30:45" })
+  let val = row.get_time(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="0")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_time: HH:MM:SS.f (1-digit fraction pads to 100000 micros)" {
+  let row = Row::new(fn(_i) { "10:30:45.1" })
+  let val = row.get_time(0)
+  match val {
+    Ok(t) => inspect(t.micros, content="100000")
+    Err(_) => inspect(0, content="100000")
+  }
+}
+
+test "Row::get_time: HH:MM:SS.123456 (6-digit fraction exact)" {
+  let row = Row::new(fn(_i) { "10:30:45.123456" })
+  let val = row.get_time(0)
+  match val {
+    Ok(t) => inspect(t.micros, content="123456")
+    Err(_) => inspect(0, content="123456")
+  }
+}
+
+test "Row::get_time: HH:MM:SS.1234567 (7-digit fraction truncates to 123456)" {
+  let row = Row::new(fn(_i) { "10:30:45.1234567" })
+  let val = row.get_time(0)
+  match val {
+    Ok(t) => inspect(t.micros, content="123456")
+    Err(_) => inspect(0, content="123456")
+  }
+}
+
+test "Row::get_time: HH:MM:SS.12 (2-digit fraction pads to 120000)" {
+  let row = Row::new(fn(_i) { "10:30:45.12" })
+  let val = row.get_time(0)
+  match val {
+    Ok(t) => inspect(t.micros, content="120000")
+    Err(_) => inspect(0, content="120000")
+  }
+}
+
+test "Row::get_time: invalid format returns TypeError" {
+  let row = Row::new(fn(_i) { "not_a_time" })
+  let val = row.get_time(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
 }

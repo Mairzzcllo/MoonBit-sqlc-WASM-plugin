@@ -12,4 +12,4 @@ sql:
       - out: "."
         plugin: "moonbit"
         options:
-          package: users
+          package_name: users

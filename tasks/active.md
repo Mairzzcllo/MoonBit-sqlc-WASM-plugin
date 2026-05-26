@@ -13,7 +13,17 @@
 | **S-003** | Golden 测试扩展：全 PG 类型覆盖 | P1 | test | done | S-001(hard), P0-011 |
 | **S-004** | Release v0.1.0 初始版本标记 | P1 | infra | todo | S-001, S-002, S-003(soft) |
 
-## Phase C (P2) — Codegen 可配置性
+## Phase C-1 (P1 Hotfixes) — 核心语义修复 ✅
+
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P1-026** | RETURNING * codegen 检测 result_shape | P1 | fix | ✅ done | — |
+| **P1-027** | sqlc.yaml "package:" vs "package_name=" 配置不匹配 | P1 | fix | ✅ done | — |
+| **P1-028** | 生成代码缺少 import runtime 语句 | P1 | fix | ✅ done | — |
+| **P1-029** | copyfrom/batch/execlastid raw_cmd 分发 | P1 | feature | ✅ done | P1-026(soft) |
+| **P1-030** | Row::get_time 解析格式容错 | P1 | fix | ✅ done | — |
+
+## Phase C-2 (P2) — Codegen 可配置性 + 清理
 
 | ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
 |----|------|--------|------|------|------|
@@ -23,5 +33,5 @@
 | **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | todo | — |
 | **P2-005** | 多文件输出支持 | P2 | feature | todo | — |
 | **P2-006** | emit_interface 支持 (探索) | P2 | feature | todo | MoonBit trait 更新 |
-
-串行建议: P2-002 → P2-003 → P2-004 → P2-005 (独立可并行，按复杂度递增)
+| **P2-007** | Value enum unused warnings 处理 | P2 | fix | ✅ done | — |
+| **P2-008** | Transaction codegen 精确分发 | P2 | refactor | ✅ done | P1-029(hard) |

@@ -1,0 +1,36 @@
+id: P2-008
+title: Transaction codegen 精确分发 — 只生成 Transaction 支持的方法
+priority: P2
+type: refactor
+state: done
+description: >
+  当前 generate_query_fns 对每个查询生成 db: DB 和 tx: Transaction
+  两个重载（代码翻倍），但 Transaction 只有 4 个方法
+  (exec/execrows/query/query_row)，不支持 copyfrom/batch/execlastid。
+  需要按 raw_cmd 精确分发。
+dependencies:
+  hard:
+    - id: P1-029
+      type: hard
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-26
+updated_at: 2026-05-26
+related: []
+references:
+  - plugin/query_codegen.mbt
+  - runtime/transaction.mbt
+execution_notes: >
+  修改 generate_query_fns:
+  1. 定义 raw_cmd → Transaction 支持集:
+     [One, Many, Exec, ExecRows] → 生成 tx 重载
+     [CopyFrom, Batch, ExecLastId] → 跳过 tx 重载
+  2. 对支持的方法: 生成 tx 重载 (conn_name="tx", conn_ty=Named("Transaction"))
+  3. 对不支持的方法: 仅生成 db 重载
+  4. 测试: 验证 CopyFrom/Batch/ExecLastId 只生成 1 个 fn (而非 2 个)

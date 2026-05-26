@@ -4,10 +4,10 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅ — Phase B 全部完成 ✅
-- **最新事件**: 2026-05-26 — Phase B 全部完成（P1-024/P1-022/P1-025/P1-023）
+- **最新事件**: 2026-05-26 — Phase C 核心语义修复完成（7 tasks: P1-026~P1-030, P2-007, P2-008）
 - P0: 48/48 completed ✅
-- P1: 25/25 completed ✅ (+4: P1-022~P1-025)
-- P2: 0/6 completed (P2-001~P2-006 待启动)
+- P1: 30/30 completed ✅ (+5: P1-026~P1-030)
+- P2: 2/8 completed ✅ (+2: P2-007, P2-008); 6 remaining (P2-001~P2-006)
 - 活跃 Phase: **Phase C (P2)** — Codegen 可配置性
 
 ## Sprint S-1 — Value enum + package_name + Release
@@ -61,6 +61,36 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 - **Row getter**: +10 个（5 不可空 + 5 可空）
 - **测试**: 331/331 pass (原 326), moon check 0 errors
 - **Commit**: `6b62ecd` feat: Phase B — type mapping precision
+
+## Phase C — Codegen 可配置性 + 核心语义修复 (2026-05-26)
+
+### Phase C-1: P1 Bugfixes (P1-026~P1-030)
+
+| ID | 标题 | 优先级 | 状态 |
+|----|------|--------|------|
+| **P1-026** | RETURNING * codegen 检测 result_shape | P1 | ✅ done |
+| **P1-027** | sqlc.yaml "package:" vs "package_name=" 配置不匹配 | P1 | ✅ done |
+| **P1-028** | 生成代码缺少 import runtime 语句 | P1 | ✅ done |
+| **P1-029** | copyfrom/batch/execlastid raw_cmd 分发 | P1 | ✅ done |
+| **P1-030** | Row::get_time 解析格式容错 | P1 | ✅ done |
+
+### Phase C-2: P2 (P2-007, P2-008)
+
+| ID | 标题 | 优先级 | 状态 |
+|----|------|--------|------|
+| **P2-007** | Value enum unused warnings 处理 | P2 | ✅ done |
+| **P2-008** | Transaction codegen 精确分发 | P2 | ✅ done |
+
+### 交付细节
+
+1. **P1-026 ✅** — `build_return_ty` 和 `build_body` 新增 `result_shape: InternalResultShape` 参数。ExecResult+Rows(fields) → decode 路径；ExecCount+Rows(fields) → 多行 decode。Rows 优先于 raw_cmd。
+2. **P1-027 ✅** — `parse_plugin_options` 同时匹配 `package=`（8 字符前缀）和 `package_name=`（13 字符前缀）。`examples/users/sqlc.yaml` 统一为 `package_name:`。
+3. **P1-028 ✅** — `generate_source` 在 AST items 首位置插入 `Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None })`。验证 Golden 输出以 import 开头。
+4. **P1-029 ✅** — `build_body` 对 ExecResult+None(result_shape) 根据 `query.raw_cmd` 分发：CopyFrom→`.copyfrom()`、Batch→`.batch()`、ExecLastId→`.execlastid()`、Exec→`.exec()`。
+5. **P1-030 ✅** — `Row::get_time` 变精度小数容错：<6 位右补零、>6 位截断、无小数→0。7 个测试覆盖 5 种格式。
+6. **P2-007 ✅** — Value enum 5 个 unused 变体通过 5 个显式构造测试块消除警告（MoonBit 0.1 不支持 `@suppress` 在 enum variant 上）。新增额外 roundtrip 测试。
+7. **P2-008 ✅** — `supports_transaction(cmd: QueryCmd)` 辅助函数：One/Many/Exec/ExecRows→true，CopyFrom/Batch/ExecLastId→false。`generate_query_fns` 对不支持的方法仅生成 db 版本，消除不必要的双倍代码。15 个测试。
+- **测试**: 366/366 pass (原 296), moon check 0 errors
 
 ## 关键勘误记录（2026-05-22 代码评审）
 

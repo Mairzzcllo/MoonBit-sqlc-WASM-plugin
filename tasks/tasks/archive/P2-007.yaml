@@ -1,0 +1,31 @@
+id: P2-007
+title: Value enum 新变体 unused warnings 处理
+priority: P2
+type: fix
+state: done
+description: >
+  runtime/value.mbt:120-124 的 Decimal/Uuid/Duration/Time/IpAddr 变体
+  由 codegen 侧构造（query_codegen.mbt type_to_value_constructor 返回），
+  runtime 自身无内部使用导致 moon check 报 5 个 unused_constructor 警告。
+dependencies:
+  hard: []
+  soft: []
+lock:
+  owner: null
+  timestamp: null
+  expires_at: null
+retry:
+  count: 0
+  max: 3
+created_at: 2026-05-26
+updated_at: 2026-05-26
+related: []
+references:
+  - runtime/value.mbt
+execution_notes: >
+  方案 (a): 在 Decimal/Uuid/Duration/Time/IpAddr 变体前加
+  #[suppress(unused)] 注解，抑制 false positive 警告。
+  方案 (b): runtime 内增加显式构造路径（如 Mock 场景使用），
+  使编译器认为变体被引用。优先方案 (a) 因方案 (b) 增加无意义代码。
+  MoonBit 注解语法: /// @suppress(unused_constructor) 或类似。
+  需先验证 MoonBit 0.1 支持的 suppress 语法格式。

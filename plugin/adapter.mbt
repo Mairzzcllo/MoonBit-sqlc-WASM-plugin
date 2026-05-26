@@ -152,6 +152,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
       package_name = s[13:].trim().to_owned()
     } else if s.has_prefix("package_name =") {
       package_name = s[14:].trim().to_owned()
+    } else if s.has_prefix("package=") {
+      package_name = s[8:].trim().to_owned()
+    } else if s.has_prefix("package =") {
+      package_name = s[9:].trim().to_owned()
     }
   }
   { package_name: package_name }
