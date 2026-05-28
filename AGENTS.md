@@ -3,7 +3,7 @@
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
-- `moon test` — 运行测试（296 测试）
+- `moon test` — 运行测试（415 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
 - `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）
@@ -36,7 +36,7 @@
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
     - WASI FFI: 使用内联 WAT ABI bridge 方案。MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构体（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。
     - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
-    - `moon test` 在 moonrun 下运行所有 366 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - `moon test` 在 moonrun 下运行所有 415 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
     - AST Expr 新增变体：`If(cond, then, else)`、`Index(target, idx)`、`IntLit(n)`、`BinOp(op, left, right)` — 用于生成 if/else、索引访问、数字字面量和比较表达式
     - Plugin options 解析：`parse_plugin_options(bytes)` → `PluginOptions { package_name }` — 从 `plugin_options` Bytes 中提取 key=value 配置。支持 `package_name=` 和 `package=` 双前缀（兼容 sqlc yaml 中 `package:` 和 `package_name:` 两种写法）
     - 输出文件名从 `req.settings.codegen.out` 获取，空值时默认 `"lib.mbt"`（process_request）

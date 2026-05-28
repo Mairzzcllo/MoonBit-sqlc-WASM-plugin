@@ -3,12 +3,12 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: P0+P1 全部完成 ✅ — Sprint S-1 全部完成 ✅ — Phase B 全部完成 ✅
-- **最新事件**: 2026-05-26 — Phase C 核心语义修复完成（7 tasks: P1-026~P1-030, P2-007, P2-008）
-- P0: 48/48 completed ✅
-- P1: 30/30 completed ✅ (+5: P1-026~P1-030)
-- P2: 2/8 completed ✅ (+2: P2-007, P2-008); 6 remaining (P2-001~P2-006)
-- 活跃 Phase: **Phase C (P2)** — Codegen 可配置性
+- **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
+- **最新事件**: 2026-05-28 — Phase 0 (P0-049~P0-054) 6 个严重 Bug 全部修复，415 测试通过
+- P0: 54/54 completed ✅ (48 + 6 hotfix: P0-049~P0-054)
+- P1: 30/30 completed ✅ (+ P1-032~P1-034)
+- P2: 2/10 completed ✅ (+ P2-007, P2-008); 10 remaining (P2-001~P2-006, P2-009~P2-012)
+- 活跃 Phase: **Phase C (P1/P2)** — Codegen 可配置性 + 重构
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -74,12 +74,14 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 | **P1-029** | copyfrom/batch/execlastid raw_cmd 分发 | P1 | ✅ done |
 | **P1-030** | Row::get_time 解析格式容错 | P1 | ✅ done |
 
-### Phase C-2: P2 (P2-007, P2-008)
+### Phase C-2: P2 (P2-007, P2-008) + 新增 P2-009, P1-032
 
 | ID | 标题 | 优先级 | 状态 |
 |----|------|--------|------|
 | **P2-007** | Value enum unused warnings 处理 | P2 | ✅ done |
 | **P2-008** | Transaction codegen 精确分发 | P2 | ✅ done |
+| **P1-032** | 压缩 16 个重复数组解码器 (M4) | P1 | todo |
+| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | todo |
 
 ### 交付细节
 
@@ -91,6 +93,33 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 6. **P2-007 ✅** — Value enum 5 个 unused 变体通过 5 个显式构造测试块消除警告（MoonBit 0.1 不支持 `@suppress` 在 enum variant 上）。新增额外 roundtrip 测试。
 7. **P2-008 ✅** — `supports_transaction(cmd: QueryCmd)` 辅助函数：One/Many/Exec/ExecRows→true，CopyFrom/Batch/ExecLastId→false。`generate_query_fns` 对不支持的方法仅生成 db 版本，消除不必要的双倍代码。15 个测试。
 - **测试**: 366/366 pass (原 296), moon check 0 errors
+
+## Phase 0 — P0 Hotfix Sprint (2026-05-28)
+
+> 🔴 数据正确性/运行时崩溃 Bug，优先于新功能修复
+
+| ID | 标题 | 文件 | 状态 |
+|----|------|------|------|
+| **P0-049** | C1: get_bytes 非 ASCII 损坏 — `(raw[i].to_int() & 0xFF).to_byte()` 修复 4 处 | runtime/row.mbt | ✅ done |
+| **P0-050** | C2: NULL 静默无效对象 — 6 个 getter 空字符串→Err(TypeError) | runtime/row.mbt | ✅ done |
+| **P0-051** | C3: Time 字段加 pub — hour/min/sec/micros | runtime/value.mbt | ✅ done |
+| **P0-052** | C4: memory_grow 返回值检查 — `if result < 0 { break }` | plugin/wasi_io.mbt | ✅ done |
+| **P0-053** | C5: get_time 越界 panic — parts 长度 ≤3 检查 | runtime/row.mbt | ✅ done |
+| **P0-054** | C6: read_varint 越界 — read_byte 加 pos≥end 检查 | plugin/codec.mbt | ✅ done |
+
+并行性: 全部并行完成。`moon test` 415/415 pass ✅, `moon check` 0 errors ✅。
+
+## Phase C-3 — 新增清理任务 (2026-05-28)
+
+| ID | 标题 | 优先级 | 类型 | 状态 |
+|----|------|--------|------|------|
+| **P1-033** | M3: 合并重复类型映射 (type_to_value_constructor + map_pg_name) | P1 | refactor | todo |
+| **P1-034** | M5: MockDB 事务可配置 | P1 | feature | todo |
+| **P2-010** | M6: 清理空文件 decoder.mbt | P2 | refactor | todo |
+| **P2-011** | M8: 补全 protobuf codec wire type 1/5 | P2 | fix | todo |
+| **P2-012** | 小问题批量: JsonValue→Json 命名 + NoRows 上下文 + Show/Eq | P2 | refactor | todo |
+
+并行性: 全部独立，可并行。
 
 ## 关键勘误记录（2026-05-22 代码评审）
 

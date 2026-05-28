@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P2-009
+state: todo
+deterministic: true
+title: "inspect→debug_inspect全库迁移 (M7)"
+type: refactor
+priority: P2
+description: >
+  AGENTS.md 明确指出 inspect 已弃用，应迁移为 debug_inspect。全代码库约 753 处
+  使用旧 API。MoonBit 将来移除 inspect 时所有测试会断裂。这是一个纯机械替换，
+  但需注意 inspect 有自动 .to_string() 转换而 debug_inspect 需显式调用。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+artifacts:
+  - type: refactor
+    path: ""
+    hash: null
+references:
+  - AGENTS.md
+execution_notes: >
+  搜索所有 `inspect(` 调用，替换为 `debug_inspect(`。注意 inspect 和 debug_inspect
+  的 API 签名是否完全兼容（参数名 content= 是否一致）。
+  MoonBit prelude 直接提供 debug_inspect，无需额外 import。
+  约 550 处 match in plugin/ 和 203 处 match in runtime/。

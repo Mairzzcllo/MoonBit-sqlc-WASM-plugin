@@ -100,7 +100,8 @@ fn read_all(fd : Int) -> Bytes {
   while true {
     let remaining = current_end - scratch - total
     if remaining < 4096 {
-      let _ = memory_grow(1)
+      let result = memory_grow(1)
+      if result < 0 { break }
       current_end = current_end + GROW_STEP
     }
     store_i32(IOV_BUF, scratch + total)

@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: P0-049
+state: done
+deterministic: true
+title: "修复 get_bytes 非 ASCII 字节损坏 (C1)"
+type: fix
+priority: P0
+description: >
+  Row 内部改用 Array[Byte] 存储原始字节数据，避免 MoonBit String UTF-16LE
+  存储导致 raw[i].to_byte() 对 >=0x80 字节高位丢失。3 处修复：get_bytes
+  (line 436-443)、decode_array_bytes (250-252)、decode_nullable_array_bytes (394-396)。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+archived_at: "2026-05-28"
+artifacts:
+  - type: implementation
+    path: runtime/row.mbt
+    hash: null
+references:
+  - runtime/row.mbt
+execution_notes: >
+  Row 内部 raw 字段从 String 改为 Array[Byte]。影响：Row::new() 输入调整为
+  Array[Byte]，get_bytes 直接返回 raw（转为 Array[Byte]），decode_array_bytes
+  和 decode_nullable_array_bytes 直接索引 raw[i] 避免 UTF-16 转换。
+  get_string 等文本 getter 需 raw → String 转换（从 UTF-16LE 字节构建）。

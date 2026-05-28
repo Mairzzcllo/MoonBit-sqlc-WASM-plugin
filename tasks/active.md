@@ -1,8 +1,21 @@
 # Active Tasks — UI Projection
 
-> 生成时间: 2026-05-26
-> 项目: MoonBit sqlc WASM Plugin — Phase C 路线图
+> 生成时间: 2026-05-28
+> 项目: MoonBit sqlc WASM Plugin — Phase C 路线图 + P0 Hotfix Sprint
 > 运行时状态来源: `tasks/tasks/active/{id}.yaml`
+
+## Phase 0 — P0 Hotfix Sprint (数据正确性/运行时崩溃)
+
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P0-049** | 修复 get_bytes 非 ASCII 字节损坏 (C1) | P0 | fix | ✅ done | — |
+| **P0-050** | 修复 NULL 时静默构造无效对象 (C2) | P0 | fix | ✅ done | — |
+| **P0-051** | 修复 Time 字段 file-private 不可访问 (C3) | P0 | fix | ✅ done | — |
+| **P0-052** | 修复 memory_grow 返回值未检查 (C4) | P0 | fix | ✅ done | — |
+| **P0-053** | 修复 get_time 越界 panic (C5) | P0 | fix | ✅ done | — |
+| **P0-054** | 修复 read_varint 无限循环与越界 (C6) | P0 | fix | ✅ done | — |
+
+并行性: P0-049~P0-054 全部并行完成。415/415 tests pass ✅, moon check 0 errors ✅
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -13,7 +26,17 @@
 | **S-003** | Golden 测试扩展：全 PG 类型覆盖 | P1 | test | done | S-001(hard), P0-011 |
 | **S-004** | Release v0.1.0 初始版本标记 | P1 | infra | todo | S-001, S-002, S-003(soft) |
 
-## Phase C-2 (P2) — Codegen 可配置性 + 清理
+## Phase C — Codegen 可配置性 + 重构 + 补全
+
+### P1 任务
+
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P1-032** | 压缩 16 个重复数组解码器 (M4) | P1 | refactor | todo | — |
+| **P1-033** | 合并重复类型映射 (M3) | P1 | refactor | todo | — |
+| **P1-034** | MockDB 事务可配置 (M5) | P1 | feature | todo | — |
+
+### P2 任务
 
 | ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
 |----|------|--------|------|------|------|
@@ -23,5 +46,7 @@
 | **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | todo | — |
 | **P2-005** | 多文件输出支持 | P2 | feature | todo | — |
 | **P2-006** | emit_interface 支持 (探索) | P2 | feature | todo | MoonBit trait 更新 |
-
-
+| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | refactor | todo | — |
+| **P2-010** | 清理空文件 decoder.mbt (M6) | P2 | refactor | todo | — |
+| **P2-011** | 补全 protobuf codec wire type 1/5 (M8) | P2 | fix | todo | — |
+| **P2-012** | 小问题批量修复 (四) | P2 | refactor | todo | — |

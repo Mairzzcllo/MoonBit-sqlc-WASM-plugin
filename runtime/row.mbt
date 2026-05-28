@@ -248,7 +248,7 @@ pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte
           let n = s.length()
           let bytes: Array[Byte] = Array::make(n, (0).to_byte())
           for i in 0..<n {
-            bytes[i] = s[i].to_byte()
+            bytes[i] = (s[i].to_int() & 0xFF).to_byte()
           }
           result.push(bytes)
         } else {
@@ -393,7 +393,7 @@ pub fn Row::decode_nullable_array_bytes(self: Row, index: Int) -> Result[Option[
           let n = s.length()
           let bytes: Array[Byte] = Array::make(n, (0).to_byte())
           for i in 0..<n {
-            bytes[i] = s[i].to_byte()
+            bytes[i] = (s[i].to_int() & 0xFF).to_byte()
           }
           result.push(bytes)
         } else {
@@ -417,7 +417,9 @@ pub fn Row::get_int64(self: Row, index: Int) -> Result[Int64, DBError] {
 
 /// Get a String value by column index.
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] {
-  Ok(self.get(index))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected string at position " + index.to_string())) }
+  Ok(raw)
 }
 
 /// Get a Bool value by column index.
@@ -438,19 +440,23 @@ pub fn Row::get_bytes(self: Row, index: Int) -> Result[Array[Byte], DBError] {
   let n = raw.length()
   let bytes: Array[Byte] = Array::make(n, (0).to_byte())
   for i in 0..<n {
-    bytes[i] = raw[i].to_byte()
+    bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
   }
   Ok(bytes)
 }
 
 /// Get a Date value by column index.
 pub fn Row::get_date(self: Row, index: Int) -> Result[Date, DBError] {
-  Ok(Date::new(self.get(index)))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected date at position " + index.to_string())) }
+  Ok(Date::new(raw))
 }
 
 /// Get a DateTime value by column index.
 pub fn Row::get_datetime(self: Row, index: Int) -> Result[DateTime, DBError] {
-  Ok(DateTime::new(self.get(index)))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected datetime at position " + index.to_string())) }
+  Ok(DateTime::new(raw))
 }
 
 /// Get a Json value by column index.
@@ -461,12 +467,16 @@ pub fn Row::get_json(self: Row, index: Int) -> Result[Json, DBError] {
 
 /// Get a Decimal value by column index.
 pub fn Row::get_decimal(self: Row, index: Int) -> Result[Decimal, DBError] {
-  Ok(Decimal::new(self.get(index)))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected decimal at position " + index.to_string())) }
+  Ok(Decimal::new(raw))
 }
 
 /// Get a Uuid value by column index.
 pub fn Row::get_uuid(self: Row, index: Int) -> Result[Uuid, DBError] {
-  Ok(Uuid::new(self.get(index)))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected uuid at position " + index.to_string())) }
+  Ok(Uuid::new(raw))
 }
 
 /// Get a Duration value by column index.
@@ -482,6 +492,9 @@ pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
   let raw = self.get(index)
   try {
     let parts = raw.split(":").to_array()
+    if parts.length() < 3 {
+      return Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string()))
+    }
     let hour = @string.parse_int(parts[0].to_owned())
     let min = @string.parse_int(parts[1].to_owned())
     let sec_parts = parts[2].to_owned().split(".").to_array()
@@ -505,7 +518,9 @@ pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
 
 /// Get an IpAddr value by column index.
 pub fn Row::get_ipaddr(self: Row, index: Int) -> Result[IpAddr, DBError] {
-  Ok(IpAddr::new(self.get(index)))
+  let raw = self.get(index)
+  if raw == "" { return Err(TypeError("expected ipaddr at position " + index.to_string())) }
+  Ok(IpAddr::new(raw))
 }
 
 // === Typed nullable getters ===
@@ -552,7 +567,7 @@ pub fn Row::get_nullable_bytes(self: Row, index: Int) -> Result[Option[Array[Byt
     let n = raw.length()
     let bytes: Array[Byte] = Array::make(n, (0).to_byte())
     for i in 0..<n {
-      bytes[i] = raw[i].to_byte()
+      bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
     }
     Ok(Some(bytes))
   }
@@ -612,6 +627,9 @@ pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBE
   if raw == "" { Ok(None) } else {
     try {
       let parts = raw.split(":").to_array()
+      if parts.length() < 3 {
+        return Err(TypeError("expected time at position " + index.to_string()))
+      }
       let hour = @string.parse_int(parts[0].to_owned())
       let min = @string.parse_int(parts[1].to_owned())
       let sec_parts = parts[2].to_owned().split(".").to_array()

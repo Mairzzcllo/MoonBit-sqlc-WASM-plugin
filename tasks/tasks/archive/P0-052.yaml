@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P0-052
+state: done
+deterministic: true
+title: "修复 memory_grow 返回值未检查 (C4)"
+type: fix
+priority: P0
+description: >
+  plugin/wasi_io.mbt:100 中 memory_grow(1) 的返回值被 let _ = 丢弃。
+  当 WASM 内存达到上限时返回 -1，后续 fd_read 写入未分配内存导致静默
+  数据损坏。需检查返回值并在失败时返回 Err。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+archived_at: "2026-05-28"
+artifacts:
+  - type: implementation
+    path: plugin/wasi_io.mbt
+    hash: null
+references:
+  - plugin/wasi_io.mbt
+execution_notes: >
+  检查 memory_grow 返回值，若为 -1 则从 scratch buffer 区域分配应急空间
+  或返回 I/O 错误。同时验证 [1024,1035] 保留区域和 scratch buffer 大小
+  是否足够常见读场景。

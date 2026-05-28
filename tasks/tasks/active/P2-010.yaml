@@ -1,0 +1,28 @@
+schema_version: "1.0"
+id: P2-010
+state: todo
+deterministic: true
+title: "清理空文件 decoder.mbt (M6)"
+type: refactor
+priority: P2
+description: >
+  runtime/decoder.mbt 仅包含文档注释无实际代码。需决定：移除该文件
+  并清理 moon.pkg 引用，或提供实际 Decoder 工具方法供生成代码使用。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+artifacts:
+  - type: refactor
+    path: runtime/decoder.mbt
+    hash: null
+references:
+  - runtime/decoder.mbt
+  - runtime/moon.pkg
+execution_notes: >
+  检查 runtime/moon.pkg 是否引用 decoder.mbt。若已引用则需同步移除。
+  若保留文件则提供实用 decode 辅助函数供生成代码 import 使用。

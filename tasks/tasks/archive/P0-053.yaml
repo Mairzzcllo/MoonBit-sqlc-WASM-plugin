@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: P0-053
+state: done
+deterministic: true
+title: "修复 get_time 越界 panic (C5)"
+type: fix
+priority: P0
+description: >
+  runtime/row.mbt:485-487 get_time 方法在输入格式不足 2 个 ":" 时对
+  parts[1]/parts[2] 越界索引导致 panic。需要增加输入格式验证和防御性编程。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+archived_at: "2026-05-28"
+artifacts:
+  - type: implementation
+    path: runtime/row.mbt
+    hash: null
+references:
+  - runtime/row.mbt
+execution_notes: >
+  parts 数组长度检查 + 防御性编程。若 parts 长度 < 3 则返回
+  Err(TypeError("invalid time format"))。seconds 部分无小数点时
+  默认 ".0"。利用外层 try/catch 兜底但不再依赖它作为唯一保护。

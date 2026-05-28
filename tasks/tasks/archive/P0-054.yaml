@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P0-054
+state: done
+deterministic: true
+title: "修复 read_varint 无限循环与越界 (C6)"
+type: fix
+priority: P0
+description: >
+  plugin/codec.mbt:108-121 read_varint 在输入每字节高位为 1 时循环限制
+  5 次后直接返回当前 result 无错误信号。若剩余字节全为 0x80 时 read_byte
+  在读取 self.end 后越界。需增加长度检查和错误返回。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+archived_at: "2026-05-28"
+artifacts:
+  - type: implementation
+    path: plugin/codec.mbt
+    hash: null
+references:
+  - plugin/codec.mbt
+execution_notes: >
+  在 read_byte 内部增加 pos >= end 检查并返回错误标记。read_varint
+  限制 5 次迭代后若仍有高位 1 则返回 Err。考虑在整个 Reader 层面
+  增加错误状态避免类型为 Ok 但数据已损坏。

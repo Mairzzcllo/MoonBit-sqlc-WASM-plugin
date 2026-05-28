@@ -83,10 +83,10 @@ pub fn Duration::to_int64(self: Duration) -> Int64 {
 
 /// Time value representing SQL time (hour, min, sec, micros).
 pub struct Time {
-  hour: Int
-  min: Int
-  sec: Int
-  micros: Int
+  pub hour: Int
+  pub min: Int
+  pub sec: Int
+  pub micros: Int
 }
 
 pub fn Time::new(hour: Int, min: Int, sec: Int, micros: Int) -> Time {

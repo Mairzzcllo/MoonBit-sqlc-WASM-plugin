@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P1-033
+state: todo
+deterministic: true
+title: "合并重复类型映射 (M3)"
+type: refactor
+priority: P1
+description: >
+  type_to_value_constructor (query_codegen.mbt:33) 和 map_pg_name
+  (type_map.mbt:24) 各自维护一份 PG->MoonBit 类型映射表，新增 PG 类型
+  需在两处添加。将映射抽取为共享模块，消除重复维护风险。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+artifacts:
+  - type: refactor
+    path: plugin/type_map.mbt
+    hash: null
+references:
+  - plugin/type_map.mbt
+  - plugin/query_codegen.mbt
+execution_notes: >
+  方案：在 type_map.mbt 中扩展 TypeMapping 结构体，增加 value_constructor
+  字段，存储对应 Value 变体名。query_codegen.mbt 从此映射读取而不用
+  自己的 match 语句。需验证无回归（golden tests）。

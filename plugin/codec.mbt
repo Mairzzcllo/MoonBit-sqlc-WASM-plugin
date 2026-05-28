@@ -96,6 +96,7 @@ fn Decoder::remaining(self: Decoder) -> Int {
 }
 
 fn Decoder::read_byte(self: Decoder) -> Byte {
+  if self.pos >= self.end { return (0).to_byte() }
   let b = self.buf[self.pos]
   self.pos = self.pos + 1
   b
