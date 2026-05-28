@@ -24,7 +24,7 @@
 | **S-001** | Value enum 补全：新增 6 个变体 | P0 | feature | done | P0-008, P0-010(soft) |
 | **S-002** | package_name 接入 codegen 管道 | P0 | feature | done | P0-006, P0-011, P0-026(soft) |
 | **S-003** | Golden 测试扩展：全 PG 类型覆盖 | P1 | test | done | S-001(hard), P0-011 |
-| **S-004** | Release v0.1.0 初始版本标记 | P1 | infra | todo | S-001, S-002, S-003(soft) |
+| **S-004** | Release v0.1.0 初始版本标记 | P1 | infra | ✅ done | S-001, S-002, S-003(soft) |
 
 ## Phase C — Codegen 可配置性 + 重构 + 补全
 

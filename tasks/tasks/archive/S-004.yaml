@@ -2,7 +2,7 @@ id: S-004
 title: Release v0.1.0 初始版本标记
 priority: P1
 type: infra
-state: todo
+state: done
 description: >
   为当前代码库创建 v0.1.0 语义化版本标签并推送，触发 .github/workflows/release.yml
   自动发布流程。版本号与 moon.mod.json 中一致（0.1.0）。首次正式发布，包合完整的

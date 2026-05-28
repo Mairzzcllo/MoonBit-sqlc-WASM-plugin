@@ -4,7 +4,7 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
-- **最新事件**: 2026-05-28 — Phase 0 (P0-049~P0-054) 6 个严重 Bug 全部修复，415 测试通过
+- **最新事件**: 2026-05-28 — v0.1.0 发布 🎉 P0 hotfix 全部修复 (415 测试通过)
 - P0: 54/54 completed ✅ (48 + 6 hotfix: P0-049~P0-054)
 - P1: 30/30 completed ✅ (+ P1-032~P1-034)
 - P2: 2/10 completed ✅ (+ P2-007, P2-008); 10 remaining (P2-001~P2-006, P2-009~P2-012)
@@ -17,10 +17,10 @@
 | S-001 | Value enum 补全：新增 6 个变体 | P0 | ✅ done |
 | S-002 | package_name 接入 codegen 管道 | P0 | ✅ done |
 | S-003 | Golden 测试扩展：全 PG 类型覆盖 | P1 | ✅ done |
-| S-004 | Release v0.1.0 初始版本标记 | P1 | 🟡 build verified |
+| S-004 | Release v0.1.0 初始版本标记 | P1 | ✅ done |
 
 并行性: S-001 ↔ S-002 已并行完成；S-003 依赖 S-001；S-004 依赖 S-001+S-002+S-003。
-Sprint S-1 全部完成，S-004 构建已验证可发布。
+Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 
 ## Phase A — 核心缺失功能 (2026-05-25)
 
@@ -166,4 +166,4 @@ Sprint S-1 全部完成，S-004 构建已验证可发布。
 2. **S-002 ✅** — package_name 接入 codegen 管道：`generate_source` 接受 `PluginOptions` 参数；`emit_source_file` 新增 `emit_package_declaration()` 前置输出 `"package <name>\n\n"`；GOLDEN_USERS 更新包含 package 声明行；`make_users_request` 设置 `plugin_options: b"package_name=testdb"`。
    - **Bug 修复**: `parse_plugin_options` 中 `s[14:]` 应为 `s[13:]`（`"package_name="` 为 13 字符非 14），导致包名首字符被静默丢弃（`"testdb"` → `"estdb"`）
 3. **S-003 ✅** — Golden 测试扩展：全 PG 类型覆盖。新增 `make_all_types_request()` 构建含 17 个 PG 类型（bool, float8, bytea, date, timestamp, timestamptz, jsonb, numeric, uuid, inet, int2, float4, varchar, time, interval, text[], int4）的 GenerateRequest。新增 3 个 golden 测试验证 struct 字段类型、decode getter、Value constructor。moon test 305/305 pass (原 302)。
-4. **S-004 🟡** — Release v0.1.0 构建验证：`moon build --target wasm --release` ✅, WASM 91KB, SHA256 确认。未推送 tag（用户选择仅验证）。
+4. **S-004 ✅** — Release v0.1.0: `git tag v0.1.0 && git push origin v0.1.0` ✅。Release workflow 在 GitHub Actions 中自动运行。AGENTS.md 测试计数同步更新 (296→415)。
