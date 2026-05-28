@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-032
-state: todo
+state: done
 deterministic: true
 title: "压缩16个重复数组解码器 (M4)"
 type: refactor

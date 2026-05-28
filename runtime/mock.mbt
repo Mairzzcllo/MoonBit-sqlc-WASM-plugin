@@ -26,6 +26,7 @@ pub struct MockDB {
   copyfrom_ok: Result[Int64, DBError]
   batch_ok: Result[Int64, DBError]
   execlastid_ok: Result[Int64, DBError]
+  tx_fn: Option[() -> Result[Transaction, DBError]]
 }
 
 pub fn MockDB::new(
@@ -36,6 +37,7 @@ pub fn MockDB::new(
   copyfrom_ok: Result[Int64, DBError],
   batch_ok: Result[Int64, DBError],
   execlastid_ok: Result[Int64, DBError],
+  tx_fn: Option[() -> Result[Transaction, DBError]],
 ) -> MockDB {
   {
     exec_ok: exec_ok,
@@ -45,18 +47,24 @@ pub fn MockDB::new(
     copyfrom_ok: copyfrom_ok,
     batch_ok: batch_ok,
     execlastid_ok: execlastid_ok,
+    tx_fn: tx_fn,
   }
 }
 
 /// Build a DB instance from MockDB preset results.
 /// The returned closures return the preset values for each operation.
+/// If tx_fn is Some(f), begin uses f; otherwise begin returns Err.
 pub fn MockDB::build(self: MockDB) -> DB {
+  let begin_fn = match self.tx_fn {
+    Some(f) => f
+    None => fn() { Err(QueryError("transactions not supported")) }
+  }
   DB::new(
     fn(_sql, _params) { self.exec_ok },
     fn(_sql, _params) { self.execrows_ok },
     fn(_sql, _params) { self.query_ok },
     fn(_sql, _params) { self.query_row_ok },
-    fn() { Err(QueryError("transactions not supported")) },
+    begin_fn,
     fn(_sql, _params) { self.copyfrom_ok },
     fn(_sql, _params) { self.batch_ok },
     fn(_sql, _params) { self.execlastid_ok },
@@ -87,6 +95,7 @@ test "mock: :many — query returns row iter with results" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.query("SELECT id, name FROM users", [])
@@ -115,6 +124,7 @@ test "mock: :one — query_row returns single row" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.query_row("SELECT id, name FROM users WHERE id = $1", [Int64(42L)])
@@ -134,6 +144,7 @@ test "mock: :exec — exec returns affected row count" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.exec("DELETE FROM users WHERE id = $1", [Int64(42L)])
@@ -150,6 +161,7 @@ test "mock: :execrows — execrows returns affected row count" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.execrows("UPDATE users SET name = $1 WHERE id = $2", [String("Bob"), Int64(1L)])
@@ -166,6 +178,7 @@ test "mock: error propagation — exec returns Err" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.exec("DROP TABLE t", [])
@@ -182,6 +195,7 @@ test "mock: error propagation — query_row returns Err" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.query_row("SELECT 1", [])
@@ -198,6 +212,7 @@ test "mock: query with empty results" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.query("SELECT 1 WHERE false", [])
@@ -226,6 +241,7 @@ test "mock: :many — decode each row through typed getters" {
     Ok(1L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let iter = match db.query("SELECT id, name, email FROM users", []) {
@@ -254,6 +270,7 @@ test "mock: :copyfrom — copyfrom returns affected row count" {
     Ok(10L),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.copyfrom("COPY users FROM stdin", [])
@@ -270,6 +287,7 @@ test "mock: :batch — batch returns affected row count" {
     Ok(1L),
     Ok(3L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.batch("INSERT INTO t VALUES (1), (2), (3)", [])
@@ -286,6 +304,7 @@ test "mock: :execlastid — execlastid returns last insert id" {
     Ok(1L),
     Ok(1L),
     Ok(100L),
+    None,
   )
   let db = mock.build()
   let result = db.execlastid("INSERT INTO users (name) VALUES ($1)", [String("Bob")])
@@ -302,6 +321,7 @@ test "mock: :copyfrom error propagation" {
     Err(QueryError("copy failed")),
     Ok(1L),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.copyfrom("COPY bad", [])
@@ -318,6 +338,7 @@ test "mock: :batch error propagation" {
     Ok(1L),
     Err(QueryError("batch failed")),
     Ok(1L),
+    None,
   )
   let db = mock.build()
   let result = db.batch("BAD SQL", [])
@@ -334,9 +355,76 @@ test "mock: :execlastid error propagation" {
     Ok(1L),
     Ok(1L),
     Err(QueryError("insert failed")),
+    None,
   )
   let db = mock.build()
   let result = db.execlastid("INSERT INTO t VALUES (1)", [])
+  let is_err = match result { Err(QueryError(_)) => true; _ => false }
+  inspect(is_err, content="true")
+}
+
+test "mock: transaction — begin returns Ok with configurable tx" {
+  let tx = Transaction::new(
+    fn(_sql, _params) { Ok(3L) },
+    fn(_sql, _params) { Ok(7L) },
+    fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
+    fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
+    fn() { Ok(()) },
+    fn() { Ok(()) },
+  )
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
+    Some(fn() { Ok(tx) }),
+  )
+  let db = mock.build()
+  let result = db.begin()
+  let tx_got = match result {
+    Ok(t) => t
+    Err(_) => { inspect("no tx", content="fail"); return }
+  }
+  // Verify tx methods work
+  let exec_result = tx_got.exec("DELETE FROM t", [])
+  let exec_val = match exec_result { Ok(n) => n; Err(_) => 0L }
+  inspect(exec_val, content="3")
+
+  let execrows_result = tx_got.execrows("UPDATE t SET x = 1", [])
+  let execrows_val = match execrows_result { Ok(n) => n; Err(_) => 0L }
+  inspect(execrows_val, content="7")
+
+  let query_result = tx_got.query("SELECT 1", [])
+  let query_ok = match query_result { Ok(_) => true; Err(_) => false }
+  inspect(query_ok, content="true")
+
+  let query_row_result = tx_got.query_row("SELECT 42", [])
+  let query_row_val = match query_row_result { Ok(row) => row.get(0); Err(_) => "" }
+  inspect(query_row_val, content="42")
+
+  let commit_ok = match tx_got.commit() { Ok(_) => true; Err(_) => false }
+  inspect(commit_ok, content="true")
+
+  let rollback_ok = match tx_got.rollback() { Ok(_) => true; Err(_) => false }
+  inspect(rollback_ok, content="true")
+}
+
+test "mock: transaction — begin returns Err when tx_fn is None" {
+  let mock = MockDB::new(
+    Ok(1L),
+    Ok(1L),
+    Ok(RowIter::new(fn() { Ok(None) })),
+    Ok(Row::new(fn(_i) { "" })),
+    Ok(1L),
+    Ok(1L),
+    Ok(1L),
+    None,
+  )
+  let db = mock.build()
+  let result = db.begin()
   let is_err = match result { Err(QueryError(_)) => true; _ => false }
   inspect(is_err, content="true")
 }

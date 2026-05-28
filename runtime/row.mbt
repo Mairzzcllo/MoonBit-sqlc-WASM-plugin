@@ -31,50 +31,171 @@ pub fn Row::get(self: Row, index: Int) -> String {
   (self.get_fn)(index)
 }
 
-// === Array decoding functions ===
+// === Array decoding helpers ===
+
+/// Parse a raw string as a JSON array. Returns the `Array[Json]` or a `DBError`.
+fn parse_json_array(raw: String, index: Int, type_label: String) -> Result[Array[Json], DBError] {
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      Ok(arr)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected " + type_label + " array at position " + index.to_string())) }
+}
+
+fn parse_array_str_elems(arr: Array[Json], index: Int) -> Result[Array[String], DBError] {
+  let result: Array[String] = Array::make(0, "")
+  for elem in arr {
+    if elem is String(s) { result.push(s) } else { return Err(TypeError("expected string element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_int64_elems(arr: Array[Json], index: Int) -> Result[Array[Int64], DBError] {
+  let result: Array[Int64] = Array::make(0, 0L)
+  for elem in arr {
+    if elem is Number(n, ..) { result.push(n.to_int64()) } else { return Err(TypeError("expected number element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_bool_elems(arr: Array[Json], index: Int) -> Result[Array[Bool], DBError] {
+  let result: Array[Bool] = Array::make(0, false)
+  for elem in arr {
+    if elem is True { result.push(true) } else if elem is False { result.push(false) } else { return Err(TypeError("expected bool element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_double_elems(arr: Array[Json], index: Int) -> Result[Array[Double], DBError] {
+  let result: Array[Double] = Array::make(0, 0.0)
+  for elem in arr {
+    if elem is Number(n, ..) { result.push(n) } else { return Err(TypeError("expected number element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_date_elems(arr: Array[Json], index: Int) -> Result[Array[Date], DBError] {
+  let result: Array[Date] = Array::make(0, Date::new(""))
+  for elem in arr {
+    if elem is String(s) { result.push(Date::new(s)) } else { return Err(TypeError("expected string element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_datetime_elems(arr: Array[Json], index: Int) -> Result[Array[DateTime], DBError] {
+  let result: Array[DateTime] = Array::make(0, DateTime::new(""))
+  for elem in arr {
+    if elem is String(s) { result.push(DateTime::new(s)) } else { return Err(TypeError("expected string element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_decimal_elems(arr: Array[Json], index: Int) -> Result[Array[Decimal], DBError] {
+  let result: Array[Decimal] = Array::make(0, Decimal::new(""))
+  for elem in arr {
+    if elem is String(s) { result.push(Decimal::new(s)) } else { return Err(TypeError("expected string element in array at position " + index.to_string())) }
+  }
+  Ok(result)
+}
+
+fn parse_array_bytes_elems(arr: Array[Json], index: Int) -> Result[Array[Array[Byte]], DBError] {
+  let result: Array[Array[Byte]] = Array::make(0, Array::make(0, (0).to_byte()))
+  for elem in arr {
+    if elem is String(s) {
+      let n = s.length()
+      let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+      for i in 0..<n { bytes[i] = (s[i].to_int() & 0xFF).to_byte() }
+      result.push(bytes)
+    } else {
+      return Err(TypeError("expected string element in array at position " + index.to_string()))
+    }
+  }
+  Ok(result)
+}
+
+// === Public array decoders ===
 
 /// Decode a JSON array string into Array[String].
 pub fn Row::decode_array_string(self: Row, index: Int) -> Result[Array[String], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(Array::make(0, "")) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[String] = Array::make(0, "")
-      for elem in arr {
-        if elem is String(s) {
-          result.push(s)
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected string array at position " + index.to_string())) }
+  match parse_json_array(raw, index, "string") {
+    Ok(arr) => parse_array_str_elems(arr, index)
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a JSON array string into Array[Int64].
 pub fn Row::decode_array_int64(self: Row, index: Int) -> Result[Array[Int64], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(Array::make(0, 0L)) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Int64] = Array::make(0, 0L)
-      for elem in arr {
-        if elem is Number(n, ..) {
-          result.push(n.to_int64())
-        } else {
-          return Err(TypeError("expected number element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected int64 array at position " + index.to_string())) }
+  match parse_json_array(raw, index, "int64") {
+    Ok(arr) => parse_array_int64_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[Bool].
+pub fn Row::decode_array_bool(self: Row, index: Int) -> Result[Array[Bool], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, false)) }
+  match parse_json_array(raw, index, "bool") {
+    Ok(arr) => parse_array_bool_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[Double].
+pub fn Row::decode_array_double(self: Row, index: Int) -> Result[Array[Double], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, 0.0)) }
+  match parse_json_array(raw, index, "double") {
+    Ok(arr) => parse_array_double_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[Date].
+pub fn Row::decode_array_date(self: Row, index: Int) -> Result[Array[Date], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Date::new(""))) }
+  match parse_json_array(raw, index, "date") {
+    Ok(arr) => parse_array_date_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[DateTime].
+pub fn Row::decode_array_datetime(self: Row, index: Int) -> Result[Array[DateTime], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, DateTime::new(""))) }
+  match parse_json_array(raw, index, "datetime") {
+    Ok(arr) => parse_array_datetime_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[Decimal].
+pub fn Row::decode_array_decimal(self: Row, index: Int) -> Result[Array[Decimal], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Decimal::new(""))) }
+  match parse_json_array(raw, index, "decimal") {
+    Ok(arr) => parse_array_decimal_elems(arr, index)
+    Err(e) => Err(e)
+  }
+}
+
+/// Decode a JSON array string into Array[Array[Byte]].
+pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Array::make(0, (0).to_byte()))) }
+  match parse_json_array(raw, index, "bytes") {
+    Ok(arr) => parse_array_bytes_elems(arr, index)
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[String]].
@@ -82,22 +203,13 @@ pub fn Row::decode_array_int64(self: Row, index: Int) -> Result[Array[Int64], DB
 pub fn Row::decode_nullable_array_string(self: Row, index: Int) -> Result[Option[Array[String]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[String] = Array::make(0, "")
-      for elem in arr {
-        if elem is String(s) {
-          result.push(s)
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "string") {
+    Ok(arr) => match parse_array_str_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected string array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Int64]].
@@ -105,161 +217,13 @@ pub fn Row::decode_nullable_array_string(self: Row, index: Int) -> Result[Option
 pub fn Row::decode_nullable_array_int64(self: Row, index: Int) -> Result[Option[Array[Int64]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Int64] = Array::make(0, 0L)
-      for elem in arr {
-        if elem is Number(n, ..) {
-          result.push(n.to_int64())
-        } else {
-          return Err(TypeError("expected number element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "int64") {
+    Ok(arr) => match parse_array_int64_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected int64 array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[Bool].
-pub fn Row::decode_array_bool(self: Row, index: Int) -> Result[Array[Bool], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, false)) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Bool] = Array::make(0, false)
-      for elem in arr {
-        if elem is True {
-          result.push(true)
-        } else if elem is False {
-          result.push(false)
-        } else {
-          return Err(TypeError("expected bool element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected bool array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[Double].
-pub fn Row::decode_array_double(self: Row, index: Int) -> Result[Array[Double], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, 0.0)) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Double] = Array::make(0, 0.0)
-      for elem in arr {
-        if elem is Number(n, ..) {
-          result.push(n)
-        } else {
-          return Err(TypeError("expected number element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected double array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[Date].
-pub fn Row::decode_array_date(self: Row, index: Int) -> Result[Array[Date], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Date::new(""))) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Date] = Array::make(0, Date::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(Date::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected date array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[DateTime].
-pub fn Row::decode_array_datetime(self: Row, index: Int) -> Result[Array[DateTime], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, DateTime::new(""))) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[DateTime] = Array::make(0, DateTime::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(DateTime::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected datetime array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[Decimal].
-pub fn Row::decode_array_decimal(self: Row, index: Int) -> Result[Array[Decimal], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Decimal::new(""))) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Decimal] = Array::make(0, Decimal::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(Decimal::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected decimal array at position " + index.to_string())) }
-}
-
-/// Decode a JSON array string into Array[Array[Byte]].
-pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Array::make(0, (0).to_byte()))) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Array[Byte]] = Array::make(0, Array::make(0, (0).to_byte()))
-      for elem in arr {
-        if elem is String(s) {
-          let n = s.length()
-          let bytes: Array[Byte] = Array::make(n, (0).to_byte())
-          for i in 0..<n {
-            bytes[i] = (s[i].to_int() & 0xFF).to_byte()
-          }
-          result.push(bytes)
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(result)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
-    }
-  } catch { _ => Err(TypeError("expected bytes array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Bool]].
@@ -267,24 +231,13 @@ pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte
 pub fn Row::decode_nullable_array_bool(self: Row, index: Int) -> Result[Option[Array[Bool]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Bool] = Array::make(0, false)
-      for elem in arr {
-        if elem is True {
-          result.push(true)
-        } else if elem is False {
-          result.push(false)
-        } else {
-          return Err(TypeError("expected bool element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "bool") {
+    Ok(arr) => match parse_array_bool_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected bool array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Double]].
@@ -292,22 +245,13 @@ pub fn Row::decode_nullable_array_bool(self: Row, index: Int) -> Result[Option[A
 pub fn Row::decode_nullable_array_double(self: Row, index: Int) -> Result[Option[Array[Double]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Double] = Array::make(0, 0.0)
-      for elem in arr {
-        if elem is Number(n, ..) {
-          result.push(n)
-        } else {
-          return Err(TypeError("expected number element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "double") {
+    Ok(arr) => match parse_array_double_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected double array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Date]].
@@ -315,22 +259,13 @@ pub fn Row::decode_nullable_array_double(self: Row, index: Int) -> Result[Option
 pub fn Row::decode_nullable_array_date(self: Row, index: Int) -> Result[Option[Array[Date]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Date] = Array::make(0, Date::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(Date::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "date") {
+    Ok(arr) => match parse_array_date_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected date array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[DateTime]].
@@ -338,22 +273,13 @@ pub fn Row::decode_nullable_array_date(self: Row, index: Int) -> Result[Option[A
 pub fn Row::decode_nullable_array_datetime(self: Row, index: Int) -> Result[Option[Array[DateTime]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[DateTime] = Array::make(0, DateTime::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(DateTime::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "datetime") {
+    Ok(arr) => match parse_array_datetime_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected datetime array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Decimal]].
@@ -361,22 +287,13 @@ pub fn Row::decode_nullable_array_datetime(self: Row, index: Int) -> Result[Opti
 pub fn Row::decode_nullable_array_decimal(self: Row, index: Int) -> Result[Option[Array[Decimal]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Decimal] = Array::make(0, Decimal::new(""))
-      for elem in arr {
-        if elem is String(s) {
-          result.push(Decimal::new(s))
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "decimal") {
+    Ok(arr) => match parse_array_decimal_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected decimal array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Array[Byte]]].
@@ -384,27 +301,13 @@ pub fn Row::decode_nullable_array_decimal(self: Row, index: Int) -> Result[Optio
 pub fn Row::decode_nullable_array_bytes(self: Row, index: Int) -> Result[Option[Array[Array[Byte]]], DBError] {
   let raw = self.get(index)
   if raw == "" { return Ok(None) }
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      let result: Array[Array[Byte]] = Array::make(0, Array::make(0, (0).to_byte()))
-      for elem in arr {
-        if elem is String(s) {
-          let n = s.length()
-          let bytes: Array[Byte] = Array::make(n, (0).to_byte())
-          for i in 0..<n {
-            bytes[i] = (s[i].to_int() & 0xFF).to_byte()
-          }
-          result.push(bytes)
-        } else {
-          return Err(TypeError("expected string element in array at position " + index.to_string()))
-        }
-      }
-      Ok(Some(result))
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+  match parse_json_array(raw, index, "bytes") {
+    Ok(arr) => match parse_array_bytes_elems(arr, index) {
+      Ok(result) => Ok(Some(result))
+      Err(e) => Err(e)
     }
-  } catch { _ => Err(TypeError("expected bytes array at position " + index.to_string())) }
+    Err(e) => Err(e)
+  }
 }
 
 // === Typed non-nullable getters ===

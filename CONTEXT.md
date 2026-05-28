@@ -4,7 +4,7 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
-- **最新事件**: 2026-05-28 — v0.1.0 发布 🎉 P0 hotfix 全部修复 (415 测试通过)
+- **最新事件**: 2026-05-28 — P1-032/033/034 全部完成 (449 测试通过)
 - P0: 54/54 completed ✅ (48 + 6 hotfix: P0-049~P0-054)
 - P1: 30/30 completed ✅ (+ P1-032~P1-034)
 - P2: 2/10 completed ✅ (+ P2-007, P2-008); 10 remaining (P2-001~P2-006, P2-009~P2-012)
@@ -74,13 +74,12 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 | **P1-029** | copyfrom/batch/execlastid raw_cmd 分发 | P1 | ✅ done |
 | **P1-030** | Row::get_time 解析格式容错 | P1 | ✅ done |
 
-### Phase C-2: P2 (P2-007, P2-008) + 新增 P2-009, P1-032
+### Phase C-2: P2 (P2-007, P2-008) + P2-009
 
 | ID | 标题 | 优先级 | 状态 |
 |----|------|--------|------|
 | **P2-007** | Value enum unused warnings 处理 | P2 | ✅ done |
 | **P2-008** | Transaction codegen 精确分发 | P2 | ✅ done |
-| **P1-032** | 压缩 16 个重复数组解码器 (M4) | P1 | todo |
 | **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | todo |
 
 ### 交付细节
@@ -93,6 +92,16 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 6. **P2-007 ✅** — Value enum 5 个 unused 变体通过 5 个显式构造测试块消除警告（MoonBit 0.1 不支持 `@suppress` 在 enum variant 上）。新增额外 roundtrip 测试。
 7. **P2-008 ✅** — `supports_transaction(cmd: QueryCmd)` 辅助函数：One/Many/Exec/ExecRows→true，CopyFrom/Batch/ExecLastId→false。`generate_query_fns` 对不支持的方法仅生成 db 版本，消除不必要的双倍代码。15 个测试。
 - **测试**: 366/366 pass (原 296), moon check 0 errors
+
+## Phase C-3: P1 重构 (P1-032~P1-034) — 2026-05-28
+
+| ID | 标题 | 优先级 | 类型 | 状态 |
+|----|------|--------|------|------|
+| **P1-032** | 压缩 16 个重复数组解码器 (M4) | P1 | refactor | ✅ done |
+| **P1-033** | 合并重复类型映射 (M3) | P1 | refactor | ✅ done |
+| **P1-034** | MockDB 事务可配置 (M5) | P1 | feature | ✅ done |
+
+并行性: 全部独立并行完成。测试: 449/449 pass (+34 from P1-034 tx tests), moon check 0 errors。
 
 ## Phase 0 — P0 Hotfix Sprint (2026-05-28)
 
@@ -113,8 +122,6 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 
 | ID | 标题 | 优先级 | 类型 | 状态 |
 |----|------|--------|------|------|
-| **P1-033** | M3: 合并重复类型映射 (type_to_value_constructor + map_pg_name) | P1 | refactor | todo |
-| **P1-034** | M5: MockDB 事务可配置 | P1 | feature | todo |
 | **P2-010** | M6: 清理空文件 decoder.mbt | P2 | refactor | todo |
 | **P2-011** | M8: 补全 protobuf codec wire type 1/5 | P2 | fix | todo |
 | **P2-012** | 小问题批量: JsonValue→Json 命名 + NoRows 上下文 + Show/Eq | P2 | refactor | todo |

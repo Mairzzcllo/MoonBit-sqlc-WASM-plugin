@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-033
-state: todo
+state: done
 deterministic: true
 title: "合并重复类型映射 (M3)"
 type: refactor

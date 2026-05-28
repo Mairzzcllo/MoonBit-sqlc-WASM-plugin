@@ -30,25 +30,12 @@ fn param_to_param_def(p: InternalParameter) -> ParamDef {
 }
 
 /// Map an internal type to a Value constructor name.
+/// Delegates to `map_pg_to_value_constructor_str` for the canonical mapping.
+/// Arrays are passed as JSON strings, so Arr returns "String".
 fn type_to_value_constructor(ir_type: InternalType) -> String {
-  let name = match ir_type {
-    Named(s) => s
-    Arr(_) => return "String"
-  }
-  match name {
-    "int4" | "int8" | "int2" | "integer" | "bigint" | "smallint" | "serial" | "bigserial" | "smallserial" | "int" => "Int64"
-    "float4" | "float8" | "real" | "double" => "Double"
-    "numeric" | "decimal" => "Decimal"
-    "bool" | "boolean" => "Bool"
-    "bytea" => "Bytes"
-    "json" | "jsonb" => "JsonValue"
-    "date" => "Date"
-    "timestamp" | "timestamptz" => "DateTime"
-    "time" | "timetz" => "Time"
-    "uuid" => "Uuid"
-    "interval" => "Duration"
-    "inet" | "cidr" => "IpAddr"
-    _ => "String"
+  match ir_type {
+    Named(name) => map_pg_to_value_constructor_str(name)
+    Arr(_) => "String"
   }
 }
 

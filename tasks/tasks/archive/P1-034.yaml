@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-034
-state: todo
+state: done
 deterministic: true
 title: "MockDB 事务可配置 (M5)"
 type: feature

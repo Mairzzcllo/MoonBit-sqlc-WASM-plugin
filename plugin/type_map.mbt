@@ -18,10 +18,11 @@
 // limitations under the License.
 //
 
-/// PostgreSQL canonical/common aliases → MoonBit type mapping.
-/// Returns the MoonBit TypeExpr for the given PG type name.
+/// Map a PG type name to the corresponding Value constructor name string.
+/// Returns the string name of the Value variant (e.g., "Int64", "Double", "String", etc.).
+/// This is the SINGLE source of truth for PG type → MoonBit Value constructor mapping.
 /// Normalizes input: case-insensitive (via to_lower), strips schema prefix.
-fn map_pg_name(name: String) -> TypeExpr {
+pub fn map_pg_to_value_constructor_str(name: String) -> String {
   // Normalize: lowercase for case-insensitive matching, strip schema prefix
   let normalized = {
     let lower = name.to_lower()
@@ -33,35 +34,42 @@ fn map_pg_name(name: String) -> TypeExpr {
   }
   match normalized {
     // Small/medium ints → Int64 (64-bit required, matches Value::Int64)
-    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" => Named("Int64")
+    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" => "Int64"
     // Large ints → Int64 (64-bit required)
-    "int8" | "bigint" | "bigserial" => Named("Int64")
+    "int8" | "bigint" | "bigserial" => "Int64"
     // Floats — float4/real map to Double (runtime has get_double, not get_float)
-    "float4" | "real" | "float8" | "double" | "double precision" => Named("Double")
+    "float4" | "real" | "float8" | "double" | "double precision" => "Double"
     // numeric/decimal → Decimal (preserve full precision).
-    "numeric" | "decimal" => Named("Decimal")
+    "numeric" | "decimal" => "Decimal"
     // Boolean
-    "bool" | "boolean" => Named("Bool")
+    "bool" | "boolean" => "Bool"
     // String types
-    "text" | "varchar" | "char" | "bpchar" | "name" | "character varying" => Named("String")
+    "text" | "varchar" | "char" | "bpchar" | "name" | "character varying" => "String"
     // Binary
-    "bytea" => Named("Bytes")
+    "bytea" => "Bytes"
     // JSON
-    "json" | "jsonb" => Named("JsonValue")
+    "json" | "jsonb" => "JsonValue"
     // Network
-    "inet" | "cidr" | "macaddr" => Named("IpAddr")
+    "inet" | "cidr" | "macaddr" => "IpAddr"
     // UUID
-    "uuid" => Named("Uuid")
+    "uuid" => "Uuid"
     // Date/Time — date→Date, timestamp→DateTime, time→Time
-    "date" => Named("Date")
-    "timestamp" | "timestamptz" | "timestamp with time zone" => Named("DateTime")
-    "time" | "timetz" => Named("Time")
+    "date" => "Date"
+    "timestamp" | "timestamptz" | "timestamp with time zone" => "DateTime"
+    "time" | "timetz" => "Time"
     // Interval → Duration (microseconds).
-    "interval" => Named("Duration")
+    "interval" => "Duration"
     // Arrays are handled by the caller via Arr(inner)
     // Fallback for unknown types
-    _ => Named("String")
+    _ => "String"
   }
+}
+
+/// PostgreSQL canonical/common aliases → MoonBit type mapping.
+/// Returns the MoonBit TypeExpr for the given PG type name.
+/// Delegates to map_pg_to_value_constructor_str for the canonical mapping.
+fn map_pg_name(name: String) -> TypeExpr {
+  Named(map_pg_to_value_constructor_str(name))
 }
 
 /// Map an IR InternalType to a MoonBit TypeExpr.
@@ -295,4 +303,166 @@ test "map_pg_name: pg_catalog.float8 strips schema prefix" {
 test "map_pg_name: serial type pg_catalog.SERIAL strips prefix" {
   let t = map_pg_name("pg_catalog.SERIAL")
   inspect(t, content="Named(\"Int64\")")
+}
+
+// === map_pg_to_value_constructor_str tests ===
+
+test "map_pg_to_value_constructor_str: int4 maps to Int64" {
+  let s = map_pg_to_value_constructor_str("int4")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: int8 maps to Int64" {
+  let s = map_pg_to_value_constructor_str("int8")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: text maps to String" {
+  let s = map_pg_to_value_constructor_str("text")
+  inspect(s, content="String")
+}
+
+test "map_pg_to_value_constructor_str: bool maps to Bool" {
+  let s = map_pg_to_value_constructor_str("bool")
+  inspect(s, content="Bool")
+}
+
+test "map_pg_to_value_constructor_str: float8 maps to Double" {
+  let s = map_pg_to_value_constructor_str("float8")
+  inspect(s, content="Double")
+}
+
+test "map_pg_to_value_constructor_str: jsonb maps to JsonValue" {
+  let s = map_pg_to_value_constructor_str("jsonb")
+  inspect(s, content="JsonValue")
+}
+
+test "map_pg_to_value_constructor_str: bytea maps to Bytes" {
+  let s = map_pg_to_value_constructor_str("bytea")
+  inspect(s, content="Bytes")
+}
+
+test "map_pg_to_value_constructor_str: uuid maps to Uuid" {
+  let s = map_pg_to_value_constructor_str("uuid")
+  inspect(s, content="Uuid")
+}
+
+test "map_pg_to_value_constructor_str: inet maps to IpAddr" {
+  let s = map_pg_to_value_constructor_str("inet")
+  inspect(s, content="IpAddr")
+}
+
+test "map_pg_to_value_constructor_str: date maps to Date" {
+  let s = map_pg_to_value_constructor_str("date")
+  inspect(s, content="Date")
+}
+
+test "map_pg_to_value_constructor_str: numeric maps to Decimal" {
+  let s = map_pg_to_value_constructor_str("numeric")
+  inspect(s, content="Decimal")
+}
+
+test "map_pg_to_value_constructor_str: unknown falls back to String" {
+  let s = map_pg_to_value_constructor_str("some_unknown")
+  inspect(s, content="String")
+}
+
+test "map_pg_to_value_constructor_str: INT4 uppercase maps to Int64" {
+  let s = map_pg_to_value_constructor_str("INT4")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: pg_catalog.int4 strips schema prefix" {
+  let s = map_pg_to_value_constructor_str("pg_catalog.int4")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: timestamp with time zone maps to DateTime" {
+  let s = map_pg_to_value_constructor_str("timestamp with time zone")
+  inspect(s, content="DateTime")
+}
+
+test "map_pg_to_value_constructor_str: double precision maps to Double" {
+  let s = map_pg_to_value_constructor_str("double precision")
+  inspect(s, content="Double")
+}
+
+test "map_pg_to_value_constructor_str: time maps to Time" {
+  let s = map_pg_to_value_constructor_str("time")
+  inspect(s, content="Time")
+}
+
+test "map_pg_to_value_constructor_str: interval maps to Duration" {
+  let s = map_pg_to_value_constructor_str("interval")
+  inspect(s, content="Duration")
+}
+
+test "map_pg_to_value_constructor_str: macaddr maps to IpAddr" {
+  let s = map_pg_to_value_constructor_str("macaddr")
+  inspect(s, content="IpAddr")
+}
+
+test "map_pg_to_value_constructor_str: char maps to String" {
+  let s = map_pg_to_value_constructor_str("char")
+  inspect(s, content="String")
+}
+
+test "map_pg_to_value_constructor_str: bpchar maps to String" {
+  let s = map_pg_to_value_constructor_str("bpchar")
+  inspect(s, content="String")
+}
+
+test "map_pg_to_value_constructor_str: smallint maps to Int64" {
+  let s = map_pg_to_value_constructor_str("smallint")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: bigint maps to Int64" {
+  let s = map_pg_to_value_constructor_str("bigint")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: real maps to Double" {
+  let s = map_pg_to_value_constructor_str("real")
+  inspect(s, content="Double")
+}
+
+test "map_pg_to_value_constructor_str: varchar maps to String" {
+  let s = map_pg_to_value_constructor_str("varchar")
+  inspect(s, content="String")
+}
+
+test "map_pg_to_value_constructor_str: timestamptz maps to DateTime" {
+  let s = map_pg_to_value_constructor_str("timestamptz")
+  inspect(s, content="DateTime")
+}
+
+test "map_pg_to_value_constructor_str: cidr maps to IpAddr" {
+  let s = map_pg_to_value_constructor_str("cidr")
+  inspect(s, content="IpAddr")
+}
+
+test "map_pg_to_value_constructor_str: serial maps to Int64" {
+  let s = map_pg_to_value_constructor_str("serial")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: bigserial maps to Int64" {
+  let s = map_pg_to_value_constructor_str("bigserial")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: smallserial maps to Int64" {
+  let s = map_pg_to_value_constructor_str("smallserial")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: pg_catalog.int8 strips schema prefix" {
+  let s = map_pg_to_value_constructor_str("pg_catalog.int8")
+  inspect(s, content="Int64")
+}
+
+test "map_pg_to_value_constructor_str: pg_catalog.text strips schema prefix" {
+  let s = map_pg_to_value_constructor_str("pg_catalog.text")
+  inspect(s, content="String")
 }
