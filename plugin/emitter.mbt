@@ -215,6 +215,8 @@ fn escape_string(s: String) -> String {
       result = result + "\\r"
     } else if ch == '\\' {
       result = result + "\\\\"
+    } else if ch == '$' {
+      result = result + "\\$"
     } else {
       result = result + s[i : i + 1].to_owned()
     }
@@ -715,6 +717,21 @@ test "emit: empty array literal expr" {
   inspect(result, content="[]\n")
 }
 
+test "escape_string: dollar sign alone is escaped" {
+  let result = escape_string("$")
+  inspect(result, content="\\$")
+}
+
+test "escape_string: multiple dollar signs are escaped" {
+  let result = escape_string("$$x$y$")
+  inspect(result, content="\\$\\$x\\$y\\$")
+}
+
+test "escape_string: dollar sign at start is escaped" {
+  let result = escape_string("$hello")
+  inspect(result, content="\\$hello")
+}
+
 test "escape_string: double quotes are escaped" {
   let result = escape_string("hello\"world")
   inspect(result, content="hello\\\"world")
@@ -725,9 +742,9 @@ test "escape_string: newline and tab are escaped" {
   inspect(result, content="line1\\nline2\\tcol")
 }
 
-test "escape_string: backslash is escaped, dollar is not escaped" {
+test "escape_string: backslash is escaped, dollar is escaped" {
   let result = escape_string("a\\b$c")
-  inspect(result, content="a\\\\b$c")
+  inspect(result, content="a\\\\b\\$c")
 }
 
 test "emit: strlit with double quotes emits escaped" {

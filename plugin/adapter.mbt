@@ -142,20 +142,37 @@ pub struct PluginOptions {
 
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Silently returns defaults on empty data or parse failure.
-pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
+pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   if data.length() == 0 { return { package_name: "" } }
   let text = @utf8.decode_lossy(data[:])
   let mut package_name = ""
+  let mut has_package_name = false
   for line in text.split("\n") {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
+      if has_package_name {
+        debug_inspect("duplicate package_name option: keeping last value")
+      }
       package_name = s[13:].trim().to_owned()
+      has_package_name = true
     } else if s.has_prefix("package_name =") {
+      if has_package_name {
+        debug_inspect("duplicate package_name option: keeping last value")
+      }
       package_name = s[14:].trim().to_owned()
+      has_package_name = true
     } else if s.has_prefix("package=") {
+      if has_package_name {
+        debug_inspect("duplicate package_name option: keeping last value")
+      }
       package_name = s[8:].trim().to_owned()
+      has_package_name = true
     } else if s.has_prefix("package =") {
+      if has_package_name {
+        debug_inspect("duplicate package_name option: keeping last value")
+      }
       package_name = s[9:].trim().to_owned()
+      has_package_name = true
     }
   }
   { package_name: package_name }
@@ -371,6 +388,41 @@ test "convert_request: query with parameter" {
   inspect(adapted.queries[0].params[0].number, content="1")
   inspect(adapted.queries[0].params[0].column.name, content="min_age")
   inspect(adapted.queries[0].params[0].column.ty.name, content="int4")
+}
+
+test "parse_plugin_options: empty bytes returns empty package_name" {
+  let opts = parse_plugin_options(b"")
+  inspect(opts.package_name, content="")
+}
+
+test "parse_plugin_options: package_name= prefix parsed" {
+  let opts = parse_plugin_options(b"package_name=myapp")
+  inspect(opts.package_name, content="myapp")
+}
+
+test "parse_plugin_options: package= prefix (short form) parsed" {
+  let opts = parse_plugin_options(b"package=myapp")
+  inspect(opts.package_name, content="myapp")
+}
+
+test "parse_plugin_options: package_name = with spaces parsed" {
+  let opts = parse_plugin_options(b"package_name = spaced_name")
+  inspect(opts.package_name, content="spaced_name")
+}
+
+test "parse_plugin_options: package = with spaces parsed" {
+  let opts = parse_plugin_options(b"package = spaced_name")
+  inspect(opts.package_name, content="spaced_name")
+}
+
+test "parse_plugin_options: unknown keys are ignored" {
+  let opts = parse_plugin_options(b"unknown=val\npackage_name=myapp")
+  inspect(opts.package_name, content="myapp")
+}
+
+test "parse_plugin_options: multiline with trailing newline" {
+  let opts = parse_plugin_options(b"package_name=myapp\n")
+  inspect(opts.package_name, content="myapp")
 }
 
 test "convert_request: column with type info preserved" {

@@ -50,7 +50,7 @@ pub fn decode_u32_le(b: Bytes) -> Int {
 
 /// Process a raw protobuf GenerateRequest and return raw GenerateResponse bytes.
 /// This is the ONLY entry point the shim needs. No I/O, no FFI — pure transform.
-pub fn process_message(data: Bytes) -> Bytes {
+pub fn process_message(data: Bytes) -> Bytes raise {
   let req = decode_request(data)
   let resp = process_request(req)
   encode_response(resp)

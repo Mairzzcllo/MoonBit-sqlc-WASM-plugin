@@ -1,31 +1,39 @@
+schema_version: "1.0"
+
 id: P2-007
-title: Value enum 新变体 unused warnings 处理
-priority: P2
-type: fix
 state: done
+deterministic: true
+
+title: "generate_types: 重构为不可变返回风格"
+type: refactor
+priority: P2
 description: >
-  runtime/value.mbt:120-124 的 Decimal/Uuid/Duration/Time/IpAddr 变体
-  由 codegen 侧构造（query_codegen.mbt type_to_value_constructor 返回），
-  runtime 自身无内部使用导致 moon check 报 5 个 unused_constructor 警告。
-dependencies:
-  hard: []
-  soft: []
-lock:
-  owner: null
-  timestamp: null
-  expires_at: null
-retry:
-  count: 0
-  max: 3
-created_at: 2026-05-26
-updated_at: 2026-05-26
-related: []
+  generate_types_from_catalog、generate_types_from_queries、generate_types
+  均通过 items.push() 在可变数组上累积结果，且 generate_types 依赖前两者
+  返回的数组不被外部修改。重构为纯函数风格，每步返回不可变数组，消除
+  基于约定的隐式不变性假设。
+
+dependencies: []
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+
+artifacts:
+  - type: implementation
+    path: plugin/type_codegen.mbt
+    hash: null
+
 references:
-  - runtime/value.mbt
+  - plugin/type_codegen.mbt:83
+
 execution_notes: >
-  方案 (a): 在 Decimal/Uuid/Duration/Time/IpAddr 变体前加
-  #[suppress(unused)] 注解，抑制 false positive 警告。
-  方案 (b): runtime 内增加显式构造路径（如 Mock 场景使用），
-  使编译器认为变体被引用。优先方案 (a) 因方案 (b) 增加无意义代码。
-  MoonBit 注解语法: /// @suppress(unused_constructor) 或类似。
-  需先验证 MoonBit 0.1 支持的 suppress 语法格式。
+  重构不影响外部行为，golden 测试不应变化。可用 Array::concat 或
+  Array::append 替代 push 链。MoonBit 的 ImmutableArray 非必需，
+  返回新分配的 Array 即可满足要求。

@@ -1,20 +1,42 @@
+schema_version: "1.0"
+
 id: P1-001
-title: 文档与示例
+state: done
+deterministic: true
+
+title: "encode_string: 修复 $ 转义与 AGENTS.md 约定一致"
+type: fix
 priority: P1
-type: docs
-status: 已完成
-description: 项目 README、使用示例、API 文档、快速开始指南
-dependencies:
-  hard:
-    - P0-002
-    - P0-009
-  soft: []
-lock:
-  owner: "opencode"
-  timestamp: 2026-05-21
-  expires_at: 2026-05-22
-retry:
-  count: 0
-  max: 3
-created_at: 2026-05-14
-related: []
+description: >
+  AGENTS.md 要求 '$'→'\\$'（MoonBit $ 是标识符前缀），但 escape_string 未转义
+  $，且测试断言 $ 不应转义。需修复 escape_string 加入 $ 转义逻辑，更新测试断言。
+  影响：列名/表名含 $ 时生成代码编译失败。
+
+dependencies: []
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+
+artifacts:
+  - type: implementation
+    path: plugin/emitter.mbt
+    hash: null
+  - type: test
+    path: plugin/emitter_test.mbt
+    hash: null
+
+references:
+  - plugin/emitter.mbt:203
+  - AGENTS.md:31
+
+execution_notes: >
+  在 escape_string 的转义表中加入 '$'→'\\$'。同时更新 escape_string 测试中
+  断言 $ 不转义的用例改为断言 $ 被转义。此变更影响所有字符串字面量输出，
+  需触发 golden 测试更新。

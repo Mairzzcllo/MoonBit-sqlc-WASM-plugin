@@ -33,6 +33,8 @@ const IOV_BUF    : Int = IOV_BASE
 const IOV_LEN    : Int = IOV_BASE + 4
 const ROF_LEN    : Int = 1032
 const SCRATCH    : Int = 1036
+const SCRATCH_END : Int = 65536
+const GROW_STEP  : Int = 65536
 
 // === Inline WAT helpers ====================================================
 
@@ -41,6 +43,21 @@ const SCRATCH    : Int = 1036
 #borrow(b)
 fn bytes_data_ptr(b : Bytes) -> Int =
   "(func (param $0 i32) (result i32) (i32.add (local.get $0) (i32.const 8)))"
+
+/// Verify that the hardcoded +8 offset in `bytes_data_ptr` still matches
+/// the actual MoonBit Bytes memory layout. Runs once at first I/O call.
+fn check_bytes_data_ptr() -> Unit {
+  let b = Bytes::make(4, 0xDE)
+  let ptr = bytes_data_ptr(b)
+  let mut i = 0
+  while i < 4 {
+    let val = load_u8(ptr + i)
+    if val != 0xDE {
+      panic()
+    }
+    i = i + 1
+  }
+}
 
 fn store_i32(addr : Int, val : Int) -> Unit =
   "(func (param $0 i32) (param $1 i32) (i32.store (local.get $0) (local.get $1)))"
@@ -53,6 +70,15 @@ fn store_u8(addr : Int, val : Int) -> Unit =
 
 fn load_u8(addr : Int) -> Int =
   "(func (param $0 i32) (result i32) (i32.load8_u (local.get $0)))"
+
+/// Grow WASM linear memory by `pages` (65536 bytes each).
+/// Returns previous page count or -1 on failure.
+fn memory_grow(pages : Int) -> Int =
+  "(func (param $0 i32) (result i32) (memory.grow (local.get $0)))"
+
+/// Copy `len` bytes from `src` to `dst` (like memcpy).
+fn memory_copy(dst : Int, src : Int, len : Int) -> Unit =
+  "(func (param $0 i32) (param $1 i32) (param $2 i32) (memory.copy (local.get $0) (local.get $1) (local.get $2)))"
 
 // === WASI FFI ==============================================================
 
@@ -70,26 +96,26 @@ fn fd_write(fd : Int, iovs : Int, iovs_len : Int, ret : Int) -> Int =
 fn read_all(fd : Int) -> Bytes {
   let scratch = SCRATCH
   let mut total = 0
+  let mut current_end = SCRATCH_END
   while true {
+    let remaining = current_end - scratch - total
+    if remaining < 4096 {
+      let _ = memory_grow(1)
+      current_end = current_end + GROW_STEP
+    }
     store_i32(IOV_BUF, scratch + total)
-    store_i32(IOV_LEN, 60000 - total)
+    store_i32(IOV_LEN, current_end - scratch - total)
     let err = fd_read(fd, IOV_BASE, 1, ROF_LEN)
     if err != 0 { break }
     let nread = load_i32(ROF_LEN)
     if nread <= 0 { break }
     total = total + nread
-    if total >= 60000 { break }
   }
   if total == 0 { return Bytes::make(0, 0) }
   let buf = Bytes::new(total)
   let dst = bytes_data_ptr(buf)
   let src = scratch
-  let mut i = 0
-  while i < total {
-    let byte_val = load_u8(src + i)
-    store_u8(dst + i, byte_val)
-    i = i + 1
-  }
+  memory_copy(dst, src, total)
   buf
 }
 
@@ -114,9 +140,14 @@ fn write_all(fd : Int, data : Bytes) -> Unit {
 
 /// Main protocol loop: read raw stdin → process → write raw stdout.
 /// sqlc WASM plugin uses unframed protobuf (no 4-byte LE header).
-fn run_io_loop() -> Unit {
+fn run_io_loop() -> Unit raise {
+  check_bytes_data_ptr()
   let body = read_all(0)
   if body.length() == 0 { return () }
   let resp = process_message(body)
   write_all(1, resp)
 }
+
+
+
+

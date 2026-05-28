@@ -1,21 +1,48 @@
+schema_version: "1.0"
+
 id: P1-002
-title: GitHub Actions CI/CD
+state: done
+deterministic: true
+
+title: "row.mbt: 补全数组类型 getter 覆盖"
+type: fix
 priority: P1
-type: infra
-status: 已完成
-description: GitHub Actions CI/CD 流水线: check → test → build → validate + release
-dependencies:
-  hard:
-    - P0-001
-    - P0-010
-    - P0-011
-  soft: []
-lock:
-  owner: "opencode"
-  timestamp: 2026-05-21
-  expires_at: 2026-05-22
-retry:
-  count: 0
-  max: 3
-created_at: 2026-05-14
-related: []
+description: >
+  runtime/row.mbt 只实现了 decode_array_string、decode_array_int64 及对应的
+  nullable 变体，缺少 decode_array_bool/decode_array_double/decode_array_date/
+  decode_array_datetime/decode_array_decimal/decode_array_bytes 共 6 个函数及
+  各自的 nullable 版本。当用户查询返回 Bool[]、Double[] 等数组列时生成代码
+  引用不存在的函数导致编译失败。
+
+dependencies: []
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+
+artifacts:
+  - type: implementation
+    path: runtime/row.mbt
+    hash: null
+  - type: test
+    path: runtime/row_test.mbt
+    hash: null
+
+references:
+  - runtime/row.mbt:37
+
+execution_notes: >
+  按现有 decode_array_string 模式扩展 6 种类型：
+  bool→decode_array_bool/decode_nullable_array_bool，
+  double→decode_array_double/decode_nullable_array_double，
+  date→decode_array_date/decode_nullable_array_date，
+  datetime→decode_array_datetime/decode_nullable_array_datetime，
+  decimal→decode_array_decimal/decode_nullable_array_decimal，
+  bytes→decode_array_bytes/decode_nullable_array_bytes。
+  需对应更新 type_codegen.mbt:177 中 field_getter_call 的数组类型分发。

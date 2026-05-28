@@ -81,50 +81,39 @@ pub fn generate_enum_from_enum(name: String, vals: Array[String], comment: Strin
 /// Generate all type definitions from an AdaptCatalog.
 /// Produces StructDef for each table (with decode method) and EnumDef for every enum.
 pub fn generate_types_from_catalog(catalog: AdaptCatalog) -> Array[TopLevel] {
-  let items: Array[TopLevel] = []
-  for schema in catalog.schemas {
-    for table in schema.tables {
+  catalog.schemas.map(fn(schema) {
+    let table_items = schema.tables.map(fn(table) {
       let sd = generate_struct_from_table(table.name, table.columns, table.comment)
-      items.push(Struct(sd))
-      items.push(Fn(generate_decode_fn(sd)))
-    }
-    for e in schema.enums {
-      let ed = generate_enum_from_enum(e.name, e.vals, e.comment)
-      items.push(Enum(ed))
-    }
-  }
-  items
+      [Struct(sd), Fn(generate_decode_fn(sd))]
+    }).flatten()
+    let enum_items = schema.enums.map(fn(e) {
+      Enum(generate_enum_from_enum(e.name, e.vals, e.comment))
+    })
+    table_items + enum_items
+  }).flatten()
 }
 
 /// Generate struct definitions for query result types.
 /// Produces a StructDef (with decode method) for each query that has a Rows result shape.
 /// The struct is named `<QueryName>Row` in PascalCase.
 pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLevel] {
-  let items: Array[TopLevel] = []
-  for q in queries {
+  queries.map(fn(q) {
     match q.result_shape {
       Rows(fields) => {
         let type_name = snake_to_pascal(q.name) + "Row"
         let doc: Option[String] = if q.comments.length() > 0 { Some(q.comments[0]) } else { None }
         let sd = generate_struct_from_fields(type_name, fields, doc, true)
-        items.push(Struct(sd))
-        items.push(Fn(generate_decode_fn(sd)))
+        [Struct(sd), Fn(generate_decode_fn(sd))]
       }
-      None => ()
+      None => []
     }
-  }
-  items
+  }).flatten()
 }
 
 /// Generate all type definitions from both catalog and queries.
 /// Each struct is followed by its decode method.
 pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> Array[TopLevel] {
-  let items = generate_types_from_catalog(catalog)
-  let query_items = generate_types_from_queries(queries)
-  for item in query_items {
-    items.push(item)
-  }
-  items
+  generate_types_from_catalog(catalog) + generate_types_from_queries(queries)
 }
 
 /// Map a MoonBit struct type name to the corresponding typed getter suffix.
@@ -262,7 +251,7 @@ test "generate_struct_from_fields: basic struct" {
   inspect(sd.name, content="User")
   inspect(sd.fields.length(), content="2")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
   inspect(sd.fields[1].name, content="email")
   inspect(sd.fields[1].ty, content="Option(Named(\"String\"))")
 }
@@ -283,7 +272,7 @@ test "generate_struct_from_table: snake_case table name to PascalCase" {
   inspect(sd.name, content="UserProfiles")
   debug_inspect(sd.doc, content="Some(\"User profiles table\")")
   inspect(sd.fields[0].name, content="id")
-  inspect(sd.fields[0].ty, content="Named(\"Int\")")
+  inspect(sd.fields[0].ty, content="Named(\"Int64\")")
 }
 
 test "generate_struct_from_table: nullable column becomes Option" {

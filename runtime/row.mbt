@@ -123,6 +123,290 @@ pub fn Row::decode_nullable_array_int64(self: Row, index: Int) -> Result[Option[
   } catch { _ => Err(TypeError("expected int64 array at position " + index.to_string())) }
 }
 
+/// Decode a JSON array string into Array[Bool].
+pub fn Row::decode_array_bool(self: Row, index: Int) -> Result[Array[Bool], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, false)) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Bool] = Array::make(0, false)
+      for elem in arr {
+        if elem is True {
+          result.push(true)
+        } else if elem is False {
+          result.push(false)
+        } else {
+          return Err(TypeError("expected bool element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected bool array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[Double].
+pub fn Row::decode_array_double(self: Row, index: Int) -> Result[Array[Double], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, 0.0)) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Double] = Array::make(0, 0.0)
+      for elem in arr {
+        if elem is Number(n, ..) {
+          result.push(n)
+        } else {
+          return Err(TypeError("expected number element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected double array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[Date].
+pub fn Row::decode_array_date(self: Row, index: Int) -> Result[Array[Date], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Date::new(""))) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Date] = Array::make(0, Date::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(Date::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected date array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[DateTime].
+pub fn Row::decode_array_datetime(self: Row, index: Int) -> Result[Array[DateTime], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, DateTime::new(""))) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[DateTime] = Array::make(0, DateTime::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(DateTime::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected datetime array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[Decimal].
+pub fn Row::decode_array_decimal(self: Row, index: Int) -> Result[Array[Decimal], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Decimal::new(""))) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Decimal] = Array::make(0, Decimal::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(Decimal::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected decimal array at position " + index.to_string())) }
+}
+
+/// Decode a JSON array string into Array[Array[Byte]].
+pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(Array::make(0, Array::make(0, (0).to_byte()))) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Array[Byte]] = Array::make(0, Array::make(0, (0).to_byte()))
+      for elem in arr {
+        if elem is String(s) {
+          let n = s.length()
+          let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+          for i in 0..<n {
+            bytes[i] = s[i].to_byte()
+          }
+          result.push(bytes)
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(result)
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected bytes array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Bool]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_bool(self: Row, index: Int) -> Result[Option[Array[Bool]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Bool] = Array::make(0, false)
+      for elem in arr {
+        if elem is True {
+          result.push(true)
+        } else if elem is False {
+          result.push(false)
+        } else {
+          return Err(TypeError("expected bool element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected bool array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Double]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_double(self: Row, index: Int) -> Result[Option[Array[Double]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Double] = Array::make(0, 0.0)
+      for elem in arr {
+        if elem is Number(n, ..) {
+          result.push(n)
+        } else {
+          return Err(TypeError("expected number element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected double array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Date]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_date(self: Row, index: Int) -> Result[Option[Array[Date]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Date] = Array::make(0, Date::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(Date::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected date array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[DateTime]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_datetime(self: Row, index: Int) -> Result[Option[Array[DateTime]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[DateTime] = Array::make(0, DateTime::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(DateTime::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected datetime array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Decimal]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_decimal(self: Row, index: Int) -> Result[Option[Array[Decimal]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Decimal] = Array::make(0, Decimal::new(""))
+      for elem in arr {
+        if elem is String(s) {
+          result.push(Decimal::new(s))
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected decimal array at position " + index.to_string())) }
+}
+
+/// Decode a nullable JSON array string into Option[Array[Array[Byte]]].
+/// Empty string is treated as NULL (None).
+pub fn Row::decode_nullable_array_bytes(self: Row, index: Int) -> Result[Option[Array[Array[Byte]]], DBError] {
+  let raw = self.get(index)
+  if raw == "" { return Ok(None) }
+  try {
+    let j = @json.parse(raw[:])
+    if j is Array(arr) {
+      let result: Array[Array[Byte]] = Array::make(0, Array::make(0, (0).to_byte()))
+      for elem in arr {
+        if elem is String(s) {
+          let n = s.length()
+          let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+          for i in 0..<n {
+            bytes[i] = s[i].to_byte()
+          }
+          result.push(bytes)
+        } else {
+          return Err(TypeError("expected string element in array at position " + index.to_string()))
+        }
+      }
+      Ok(Some(result))
+    } else {
+      Err(TypeError("expected JSON array at position " + index.to_string()))
+    }
+  } catch { _ => Err(TypeError("expected bytes array at position " + index.to_string())) }
+}
+
 // === Typed non-nullable getters ===
 
 /// Get an Int64 value by column index.
@@ -525,6 +809,360 @@ test "Row::get_time: HH:MM:SS.12 (2-digit fraction pads to 120000)" {
 test "Row::get_time: invalid format returns TypeError" {
   let row = Row::new(fn(_i) { "not_a_time" })
   let val = row.get_time(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::decode_array_string: valid JSON array" {
+  let row = Row::new(fn(_i) { "[\"a\",\"b\",\"c\"]" })
+  let val = row.decode_array_string(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[0], content="a")
+      inspect(arr[2], content="c")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_string: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_string(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_array_int64: valid JSON array" {
+  let row = Row::new(fn(_i) { "[1,2,3]" })
+  let val = row.decode_array_int64(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[0], content="1")
+      inspect(arr[2], content="3")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_int64: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_int64(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_nullable_array_string: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[\"x\",\"y\"]" })
+  let val = row.decode_nullable_array_string(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="2")
+    _ => inspect(-1, content="2")
+  }
+}
+
+test "Row::decode_nullable_array_string: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_string(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_nullable_array_int64: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[10,20]" })
+  let val = row.decode_nullable_array_int64(0)
+  match val {
+    Ok(Some(arr)) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0], content="10")
+    }
+    _ => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_nullable_array_int64: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_int64(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_bool: valid JSON array" {
+  let row = Row::new(fn(_i) { "[true,false,true]" })
+  let val = row.decode_array_bool(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[0], content="true")
+      inspect(arr[1], content="false")
+      inspect(arr[2], content="true")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_bool: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_bool(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_array_bool: invalid element returns TypeError" {
+  let row = Row::new(fn(_i) { "[\"not_bool\"]" })
+  let val = row.decode_array_bool(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::decode_nullable_array_bool: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[false,true]" })
+  let val = row.decode_nullable_array_bool(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="2")
+    _ => inspect(-1, content="2")
+  }
+}
+
+test "Row::decode_nullable_array_bool: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_bool(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_double: valid JSON array" {
+  let row = Row::new(fn(_i) { "[1.5,2.5,3.5]" })
+  let val = row.decode_array_double(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[0], content="1.5")
+      inspect(arr[1], content="2.5")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_double: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_double(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_array_double: invalid element returns TypeError" {
+  let row = Row::new(fn(_i) { "[\"not_a_number\"]" })
+  let val = row.decode_array_double(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::decode_nullable_array_double: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[3.14,2.71]" })
+  let val = row.decode_nullable_array_double(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="2")
+    _ => inspect(-1, content="2")
+  }
+}
+
+test "Row::decode_nullable_array_double: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_double(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_date: valid JSON array" {
+  let row = Row::new(fn(_i) { "[\"2026-01-15\",\"2026-06-15\"]" })
+  let val = row.decode_array_date(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0].to_string(), content="2026-01-15")
+      inspect(arr[1].to_string(), content="2026-06-15")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_date: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_date(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_nullable_array_date: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[\"2026-01-15\"]" })
+  let val = row.decode_nullable_array_date(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="1")
+    _ => inspect(-1, content="1")
+  }
+}
+
+test "Row::decode_nullable_array_date: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_date(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_datetime: valid JSON array" {
+  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\",\"2026-06-15T12:00:00Z\"]" })
+  let val = row.decode_array_datetime(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0].to_string(), content="2026-01-15T10:30:00Z")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_datetime: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_datetime(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_nullable_array_datetime: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\"]" })
+  let val = row.decode_nullable_array_datetime(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="1")
+    _ => inspect(-1, content="1")
+  }
+}
+
+test "Row::decode_nullable_array_datetime: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_datetime(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_decimal: valid JSON array" {
+  let row = Row::new(fn(_i) { "[\"123.45\",\"678.90\"]" })
+  let val = row.decode_array_decimal(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0].to_string(), content="123.45")
+      inspect(arr[1].to_string(), content="678.90")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_decimal: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_decimal(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_nullable_array_decimal: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[\"999.99\"]" })
+  let val = row.decode_nullable_array_decimal(0)
+  match val {
+    Ok(Some(arr)) => inspect(arr.length(), content="1")
+    _ => inspect(-1, content="1")
+  }
+}
+
+test "Row::decode_nullable_array_decimal: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_decimal(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_bytes: valid JSON array" {
+  let row = Row::new(fn(_i) { "[\"abc\",\"de\"]" })
+  let val = row.decode_array_bytes(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0].length(), content="3")
+      inspect(arr[1].length(), content="2")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_array_bytes: empty string returns empty array" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_array_bytes(0)
+  match val {
+    Ok(arr) => inspect(arr.length(), content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::decode_nullable_array_bytes: valid JSON returns Some" {
+  let row = Row::new(fn(_i) { "[\"hello\"]" })
+  let val = row.decode_nullable_array_bytes(0)
+  match val {
+    Ok(Some(arr)) => {
+      inspect(arr.length(), content="1")
+      inspect(arr[0].length(), content="5")
+    }
+    _ => inspect("fail", content="pass")
+  }
+}
+
+test "Row::decode_nullable_array_bytes: empty string returns None" {
+  let row = Row::new(fn(_i) { "" })
+  let val = row.decode_nullable_array_bytes(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::decode_array_decimal: not a JSON array returns TypeError" {
+  let row = Row::new(fn(_i) { "\"not_an_array\"" })
+  let val = row.decode_array_decimal(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::decode_array_datetime: not a JSON array returns TypeError" {
+  let row = Row::new(fn(_i) { "42" })
+  let val = row.decode_array_datetime(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }

@@ -1,36 +1,39 @@
+schema_version: "1.0"
+
 id: P2-008
-title: Transaction codegen 精确分发 — 只生成 Transaction 支持的方法
-priority: P2
-type: refactor
 state: done
+deterministic: true
+
+title: "byte_data_ptr: 添加 Bytes 布局运行时断言"
+type: fix
+priority: P2
 description: >
-  当前 generate_query_fns 对每个查询生成 db: DB 和 tx: Transaction
-  两个重载（代码翻倍），但 Transaction 只有 4 个方法
-  (exec/execrows/query/query_row)，不支持 copyfrom/batch/execlastid。
-  需要按 raw_cmd 精确分发。
-dependencies:
-  hard:
-    - id: P1-029
-      type: hard
-  soft: []
-lock:
-  owner: null
-  timestamp: null
-  expires_at: null
-retry:
-  count: 0
-  max: 3
-created_at: 2026-05-26
-updated_at: 2026-05-26
-related: []
+  byte_data_ptr 硬编码假设 Bytes 内存布局为 [refcount:4][array_header:4][data...]，
+  此布局未文档化，未来 MoonBit 工具链更新可能静默变化。需加运行时断言验证
+  Bytes 对象 header 字节符合预期模式，不匹配时 panic 提示工具链不兼容。
+
+dependencies: []
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+
+artifacts:
+  - type: implementation
+    path: plugin/wasi_io.mbt
+    hash: null
+
 references:
-  - plugin/query_codegen.mbt
-  - runtime/transaction.mbt
+  - plugin/wasi_io.mbt:42
+
 execution_notes: >
-  修改 generate_query_fns:
-  1. 定义 raw_cmd → Transaction 支持集:
-     [One, Many, Exec, ExecRows] → 生成 tx 重载
-     [CopyFrom, Batch, ExecLastId] → 跳过 tx 重载
-  2. 对支持的方法: 生成 tx 重载 (conn_name="tx", conn_ty=Named("Transaction"))
-  3. 对不支持的方法: 仅生成 db 重载
-  4. 测试: 验证 CopyFrom/Batch/ExecLastId 只生成 1 个 fn (而非 2 个)
+  在 byte_data_ptr 被首次调用时，分配一个已知模式的 Bytes（如 0xDEAD），读取
+  header 字节验证 refcount 和 array_header 字段的预期偏移。验证通过后缓存结果；
+  不通过则 panic 并提示更新 byte_data_ptr 偏移量。此验证只产生 ~20 字节运行时
+  开销。

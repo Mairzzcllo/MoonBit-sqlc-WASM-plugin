@@ -1,24 +1,42 @@
+schema_version: "1.0"
+
 id: P0-002
-title: sqlc WASM 插件协议实现
+state: done
+deterministic: true
+
+title: "WASM I/O：memory.grow 动态缓冲区 + memory.copy"
+type: fix
 priority: P0
-type: feature
-status: 完成
-description: 实现 sqlc 的 WASM 插件接口规范（umbrella task）。拆分为：P0-018 类型定义 → P0-019 protobuf 编解码 → P0-020 WASI framing → P0-021 入口集成 → P0-022 单元测试
-dependencies:
-  hard:
-    - P0-001
-  soft: []
-lock:
-  owner: null
-  timestamp: null
-  expires_at: null
-retry:
-  count: 0
-  max: 3
-created_at: 2026-05-14
-related:
-  - P0-018
-  - P0-019
-  - P0-020
-  - P0-021
-  - P0-022
+description: >
+  read_all 硬限制 60KB 缓冲区，大请求被静默截断；且逐字节拷贝性能差。
+  修复方案：(a) 检测请求 > 60KB 时用 memory.grow 动态扩展 scratch 区；
+  (b) 用 WAT memory.copy 指令替代逐字节循环拷贝。
+  涉及 wasi_io.mbt 中 read_all/write_all 和 WAT 内联块。
+
+dependencies: []
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-05-28"
+updated_at: "2026-05-28"
+
+artifacts:
+  - type: implementation
+    path: plugin/wasi_io.mbt
+    hash: null
+
+references:
+  - plugin/wasi_io.mbt:70
+  - plugin/wasi_io.mbt:86
+
+execution_notes: >
+  关键约束：(1) MoonBit .data 在 10000+，TLSF 在 13136+，memory.grow 新增页
+  从 65536+ 开始无冲突；(2) 需动态跟踪 current_scratch_end；(3) memory.copy
+  用 WAT 内联 "(memory.copy)" 指令；(4) retry read_all 循环中检测 total 接
+  近 current_scratch_end - SCRATCH 时触发 grow；(5) 考虑初始 60KB + 每 60KB
+  步进增长。

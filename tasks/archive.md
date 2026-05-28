@@ -578,3 +578,66 @@
 - 架构: moon check 0 errors, moon test 331/331 passed
 - 创建: 2026-05-25
 - 完成: 2026-05-26
+
+### [P1-026] RETURNING * codegen 检测 result_shape
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: build_return_ty 和 build_body 新增 result_shape 参数。ExecResult+Rows(fields) → decode 路径；ExecCount+Rows(fields) → 多行 decode。Rows 优先于 raw_cmd。
+- 架构: moon check 0 errors, moon test 347/347 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P1-027] sqlc.yaml "package:" 键与 parse_plugin_options 不匹配
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: parse_plugin_options 同时匹配 package= (8 字符前缀) 和 package_name= (13 字符前缀)。examples/users/sqlc.yaml 统一为 package_name: 格式。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P1-028] 生成代码缺少 import runtime 语句
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: generate_source 在 AST items 首位置插入 Import node 生成 import "Mairzzcllo/moonbit_sqlc_plugin/runtime" 语句，位于 package 声明之后。
+- 架构: moon check 0 errors, moon test 331/331 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P1-029] copyfrom/batch/execlastid raw_cmd 分发
+- 优先级: P1
+- 类型: feature
+- 状态: 完成
+- 描述: build_body 对 ExecResult+None(result_shape) 根据 query.raw_cmd 分发：CopyFrom→.copyfrom()、Batch→.batch()、ExecLastId→.execlastid()、Exec→.exec()。result_shape(Rows) 始终优先于 raw_cmd。
+- 架构: moon check 0 errors, moon test 352/352 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P1-030] Row::get_time 解析格式容错
+- 优先级: P1
+- 类型: fix
+- 状态: 完成
+- 描述: 变精度小数容错：<6 位右补零、>6 位截断、无小数→0。覆盖 HH:MM:SS / HH:MM:SS.f / HH:MM:SS.ffffff 等格式。
+- 架构: moon check 0 errors, moon test 366/366 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P2-007] Value enum unused warnings 处理
+- 优先级: P2
+- 类型: fix
+- 状态: 完成
+- 描述: 5 个 unused_constructor 警告（Decimal/Uuid/Duration/Time/IpAddr）通过 5 个显式构造测试块消除。MoonBit 0.1 不支持 @suppress 在 enum variant 上，故采用构造测试方案。
+- 架构: moon check 0 errors, moon test 366/366 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
+
+### [P2-008] Transaction codegen 精确分发
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: supports_transaction(cmd) 辅助函数判定 One/Many/Exec/ExecRows→true, CopyFrom/Batch/ExecLastId→false。generate_query_fns 对不支持的方法仅生成 db: DB 版本，消除不必要的 tx 重载。
+- 架构: moon check 0 errors, moon test 366/366 passed
+- 创建: 2026-05-26
+- 完成: 2026-05-26
