@@ -65,9 +65,6 @@ fn store_i32(addr : Int, val : Int) -> Unit =
 fn load_i32(addr : Int) -> Int =
   "(func (param $0 i32) (result i32) (i32.load (local.get $0)))"
 
-fn store_u8(addr : Int, val : Int) -> Unit =
-  "(func (param $0 i32) (param $1 i32) (i32.store8 (local.get $0) (local.get $1)))"
-
 fn load_u8(addr : Int) -> Int =
   "(func (param $0 i32) (result i32) (i32.load8_u (local.get $0)))"
 

@@ -4,11 +4,11 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
-- **最新事件**: 2026-05-29 — P2-002/003/004/009/010/011/012 全部完成 (497 测试通过)
-- P0: 54/54 completed ✅
+- **最新事件**: 2026-05-30 — Bug Fix Sprint: 5 bugs fixed (481 测试通过)
+- P0: 55/55 completed ✅ (+ P0-055 null_mask)
 - P1: 30/30 completed ✅
-- P2: 10/10 completed ✅ (+ 全部 P2 任务)
-- 活跃 Phase: **Phase C — 全部完成** ✅
+- P2: 12/12 completed ✅ (+ P2-013 dead code + P2-014 inspect→debug_inspect)
+- 活跃 Phase: **Bug Fix Sprint — 全部完成** ✅
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -129,6 +129,31 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 | **P2-002** | type_override 支持 | P2 | feature | ✅ done |
 | **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | ✅ done |
 | **P2-003** | rename 重命名映射 | P2 | feature | ✅ done |
+
+### Bug Fix Sprint — 2026-05-30
+
+| ID | 标题 | 优先级 | 类型 | 状态 |
+|----|------|--------|------|------|
+| **P0-055** | 修复 NULL vs 空字符串: Row 加 null_mask | P0 | fix | ✅ done |
+| **P2-013** | 清理死代码: store_u8 + encode_u32_le + redundant pub | P2 | refactor | ✅ done |
+| **P2-014** | inspect→debug_inspect 迁移 type_map.mbt (94 处) | P2 | refactor | ✅ done |
+
+### P0-055 交付内容
+- `Row` struct 新增 `null_mask: Array[Bool]`，`Row::is_null(index)` 方法
+- 所有非空 getter 改用 `is_null` 判断（空字符串不再误判为 TypeError）
+- 所有可空 getter 改用 `is_null` 判断（'' 不再误判为 None）
+- 同步更新 `runtime/db.mbt`、`runtime/transaction.mbt`、`runtime/mock.mbt` 中所有 Row 构造
+- 同步更新 `tests/integration/{basic,wasm}/generated.mbt` 中 Row stub
+- 测试: 481/481 pass
+
+### P2-013 交付内容
+- 删除 `store_u8` 死函数（wasi_io.mbt）
+- 删除 `encode_u32_le`/`decode_u32_le` 死代码 + 14 个测试（protocol.mbt）
+- 删除 Time 字段冗余 `pub`（value.mbt）
+
+### P2-014 交付内容
+- type_map.mbt 中 94 处 `inspect(` → `debug_inspect(`
+- `ast.mbt` 新增 `impl Debug for TypeExpr`
 
 ### Phase C-4 — Pending
 

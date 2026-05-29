@@ -1,8 +1,35 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-26
+> 归档时间: 2026-05-30
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
+
+### [P2-014] inspect→debug_inspect 迁移 type_map.mbt (94 处)
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: type_map.mbt 中全部 94 处 inspect 调用迁移为 debug_inspect；ast.mbt 补充 impl Debug for TypeExpr
+- 架构: moon check 0 errors, moon test 481/481 passed
+- 创建: 2026-05-29
+- 完成: 2026-05-30
+
+### [P2-013] 清理死代码: store_u8, encode_u32_le/decode_u32_le, redundant pub
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: 删除 wasi_io.mbt 中 store_u8 死函数；删除 protocol.mbt 中 encode_u32_le/decode_u32_le 死代码及 14 个测试；删除 value.mbt 中 Time 字段冗余 pub
+- 架构: moon check 0 errors, moon test 481/481 passed
+- 创建: 2026-05-29
+- 完成: 2026-05-30
+
+### [P0-055] 修复 NULL vs 空字符串: Row 加 null_mask
+- 优先级: P0
+- 类型: fix
+- 状态: 完成
+- 描述: Row 新增 null_mask: Array[Bool] + is_null()，所有 getter 改用 null_mask 判断空值，空字符串不再误判。同步更新 runtime 内联构造、integration test 副本
+- 架构: moon check 0 errors, moon test 481/481 passed
+- 创建: 2026-05-29
+- 完成: 2026-05-30
 
 ### [P0-048] 事务集成 — 生成函数支持 Transaction
 - 优先级: P0

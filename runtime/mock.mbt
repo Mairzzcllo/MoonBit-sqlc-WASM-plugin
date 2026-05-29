@@ -74,8 +74,8 @@ pub fn MockDB::build(self: MockDB) -> DB {
 // === Integration-style tests for all four query modes ===
 
 test "mock: :many — query returns row iter with results" {
-  let alice = Row::new(fn(i) { if i == 0 { "1" } else if i == 1 { "Alice" } else { "" } })
-  let bob = Row::new(fn(i) { if i == 0 { "2" } else if i == 1 { "Bob" } else { "" } })
+  let alice = Row::new(fn(i) { if i == 0 { "1" } else if i == 1 { "Alice" } else { "" } }, Array::make(3, false))
+  let bob = Row::new(fn(i) { if i == 0 { "2" } else if i == 1 { "Bob" } else { "" } }, Array::make(3, false))
   let mut idx = 0
   let rows = [alice, bob]
   let iter = RowIter::new(fn() {
@@ -91,7 +91,7 @@ test "mock: :many — query returns row iter with results" {
     Ok(1L),
     Ok(1L),
     Ok(iter),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -115,7 +115,7 @@ test "mock: :many — query returns row iter with results" {
 }
 
 test "mock: :one — query_row returns single row" {
-  let row = Row::new(fn(i) { if i == 0 { "42" } else if i == 1 { "Alice" } else { "" } })
+  let row = Row::new(fn(i) { if i == 0 { "42" } else if i == 1 { "Alice" } else { "" } }, Array::make(3, false))
   let mock = MockDB::new(
     Ok(1L),
     Ok(1L),
@@ -140,7 +140,7 @@ test "mock: :exec — exec returns affected row count" {
     Ok(3L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -157,7 +157,7 @@ test "mock: :execrows — execrows returns affected row count" {
     Ok(1L),
     Ok(5L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -174,7 +174,7 @@ test "mock: error propagation — exec returns Err" {
     Err(QueryError("table not found")),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -208,7 +208,7 @@ test "mock: query with empty results" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -224,7 +224,7 @@ test "mock: query with empty results" {
 }
 
 test "mock: :many — decode each row through typed getters" {
-  let row = Row::new(fn(i) { if i == 0 { "1" } else if i == 1 { "Alice" } else if i == 2 { "alice@test.com" } else { "" } })
+  let row = Row::new(fn(i) { if i == 0 { "1" } else if i == 1 { "Alice" } else if i == 2 { "alice@test.com" } else { "" } }, Array::make(4, false))
   let mut row_idx = 0
   let mock = MockDB::new(
     Ok(1L),
@@ -237,7 +237,7 @@ test "mock: :many — decode each row through typed getters" {
         Ok(None)
       }
     })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -266,7 +266,7 @@ test "mock: :copyfrom — copyfrom returns affected row count" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(10L),
     Ok(1L),
     Ok(1L),
@@ -283,7 +283,7 @@ test "mock: :batch — batch returns affected row count" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(3L),
     Ok(1L),
@@ -300,7 +300,7 @@ test "mock: :execlastid — execlastid returns last insert id" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(100L),
@@ -317,7 +317,7 @@ test "mock: :copyfrom error propagation" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Err(QueryError("copy failed")),
     Ok(1L),
     Ok(1L),
@@ -334,7 +334,7 @@ test "mock: :batch error propagation" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Err(QueryError("batch failed")),
     Ok(1L),
@@ -351,7 +351,7 @@ test "mock: :execlastid error propagation" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Err(QueryError("insert failed")),
@@ -368,7 +368,7 @@ test "mock: transaction — begin returns Ok with configurable tx" {
     fn(_sql, _params) { Ok(3L) },
     fn(_sql, _params) { Ok(7L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(i) { if i == 0 { "42" } else { "" } }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -376,7 +376,7 @@ test "mock: transaction — begin returns Ok with configurable tx" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),
@@ -417,7 +417,7 @@ test "mock: transaction — begin returns Err when tx_fn is None" {
     Ok(1L),
     Ok(1L),
     Ok(RowIter::new(fn() { Ok(None) })),
-    Ok(Row::new(fn(_i) { "" })),
+    Ok(Row::new(fn(_i) { "" }, Array::make(1, false))),
     Ok(1L),
     Ok(1L),
     Ok(1L),

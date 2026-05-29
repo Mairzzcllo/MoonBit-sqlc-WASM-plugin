@@ -20,15 +20,21 @@
 /// Concrete Row handle wrapping a row of results.
 pub struct Row {
   get_fn : (Int) -> String
+  null_mask : Array[Bool]
 }
 
-pub fn Row::new(get_fn: (Int) -> String) -> Row {
-  { get_fn: get_fn }
+pub fn Row::new(get_fn: (Int) -> String, null_mask: Array[Bool]) -> Row {
+  { get_fn: get_fn, null_mask: null_mask }
 }
 
 /// Get raw string value by column index.
 pub fn Row::get(self: Row, index: Int) -> String {
   (self.get_fn)(index)
+}
+
+/// Check if the column at index is NULL.
+pub fn Row::is_null(self: Row, index: Int) -> Bool {
+  index >= 0 && index < self.null_mask.length() && self.null_mask[index]
 }
 
 // === Array decoding helpers ===
@@ -321,7 +327,7 @@ pub fn Row::get_int64(self: Row, index: Int) -> Result[Int64, DBError] {
 /// Get a String value by column index.
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected string at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected string at position " + index.to_string())) }
   Ok(raw)
 }
 
@@ -351,14 +357,14 @@ pub fn Row::get_bytes(self: Row, index: Int) -> Result[Array[Byte], DBError] {
 /// Get a Date value by column index.
 pub fn Row::get_date(self: Row, index: Int) -> Result[Date, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected date at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected date at position " + index.to_string())) }
   Ok(Date::new(raw))
 }
 
 /// Get a DateTime value by column index.
 pub fn Row::get_datetime(self: Row, index: Int) -> Result[DateTime, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected datetime at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected datetime at position " + index.to_string())) }
   Ok(DateTime::new(raw))
 }
 
@@ -371,14 +377,14 @@ pub fn Row::get_json(self: Row, index: Int) -> Result[Json, DBError] {
 /// Get a Decimal value by column index.
 pub fn Row::get_decimal(self: Row, index: Int) -> Result[Decimal, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected decimal at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected decimal at position " + index.to_string())) }
   Ok(Decimal::new(raw))
 }
 
 /// Get a Uuid value by column index.
 pub fn Row::get_uuid(self: Row, index: Int) -> Result[Uuid, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected uuid at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected uuid at position " + index.to_string())) }
   Ok(Uuid::new(raw))
 }
 
@@ -422,51 +428,51 @@ pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
 /// Get an IpAddr value by column index.
 pub fn Row::get_ipaddr(self: Row, index: Int) -> Result[IpAddr, DBError] {
   let raw = self.get(index)
-  if raw == "" { return Err(TypeError("expected ipaddr at position " + index.to_string())) }
+  if self.is_null(index) { return Err(TypeError("expected ipaddr at position " + index.to_string())) }
   Ok(IpAddr::new(raw))
 }
 
 // === Typed nullable getters ===
 
 /// Get a nullable Int64 value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_int64(self: Row, index: Int) -> Result[Option[Int64], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try { Ok(Some(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
   }
 }
 
 /// Get a nullable String value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(raw)) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(raw)) }
 }
 
 /// Get a nullable Bool value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_bool(self: Row, index: Int) -> Result[Option[Bool], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try { Ok(Some(@string.parse_bool(raw))) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
   }
 }
 
 /// Get a nullable Double value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_double(self: Row, index: Int) -> Result[Option[Double], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try { Ok(Some(@string.parse_double(raw))) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
   }
 }
 
 /// Get a nullable Bytes value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_bytes(self: Row, index: Int) -> Result[Option[Array[Byte]], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     let n = raw.length()
     let bytes: Array[Byte] = Array::make(n, (0).to_byte())
     for i in 0..<n {
@@ -477,57 +483,57 @@ pub fn Row::get_nullable_bytes(self: Row, index: Int) -> Result[Option[Array[Byt
 }
 
 /// Get a nullable Date value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_date(self: Row, index: Int) -> Result[Option[Date], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(Date::new(raw))) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(Date::new(raw))) }
 }
 
 /// Get a nullable DateTime value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_datetime(self: Row, index: Int) -> Result[Option[DateTime], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(DateTime::new(raw))) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(DateTime::new(raw))) }
 }
 
 /// Get a nullable Json value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_json(self: Row, index: Int) -> Result[Option[Json], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try { Ok(Some(@json.parse(raw[:]))) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
   }
 }
 
 /// Get a nullable Decimal value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_decimal(self: Row, index: Int) -> Result[Option[Decimal], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(Decimal::new(raw))) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(Decimal::new(raw))) }
 }
 
 /// Get a nullable Uuid value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_uuid(self: Row, index: Int) -> Result[Option[Uuid], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(Uuid::new(raw))) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(Uuid::new(raw))) }
 }
 
 /// Get a nullable Duration value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Duration], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try { Ok(Some(Duration::new(@string.parse_int64(raw)))) } catch { _ => Err(TypeError("expected duration at position " + index.to_string())) }
   }
 }
 
 /// Get a nullable Time value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 /// Expects HH:MM:SS[.fraction] format with variable-precision fractional seconds.
 pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else {
+  if self.is_null(index) { Ok(None) } else {
     try {
       let parts = raw.split(":").to_array()
       if parts.length() < 3 {
@@ -556,16 +562,16 @@ pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBE
 }
 
 /// Get a nullable IpAddr value by column index.
-/// Empty string is treated as NULL (None).
+/// NULL is determined by null_mask.
 pub fn Row::get_nullable_ipaddr(self: Row, index: Int) -> Result[Option[IpAddr], DBError] {
   let raw = self.get(index)
-  if raw == "" { Ok(None) } else { Ok(Some(IpAddr::new(raw))) }
+  if self.is_null(index) { Ok(None) } else { Ok(Some(IpAddr::new(raw))) }
 }
 
 // === Tests ===
 
 test "Row::get_int64 parses valid int64" {
-  let row = Row::new(fn(i) { if i == 0 { "42" } else { "" } })
+  let row = Row::new(fn(i) { if i == 0 { "42" } else { "" } }, Array::make(1, false))
   let val = row.get_int64(0)
   match val {
     Ok(n) => inspect(n, content="42")
@@ -574,14 +580,14 @@ test "Row::get_int64 parses valid int64" {
 }
 
 test "Row::get_int64 returns TypeError on invalid" {
-  let row = Row::new(fn(_i) { "not_a_number" })
+  let row = Row::new(fn(_i) { "not_a_number" }, Array::make(1, false))
   let val = row.get_int64(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
 
 test "Row::get_string returns raw value" {
-  let row = Row::new(fn(_i) { "hello" })
+  let row = Row::new(fn(_i) { "hello" }, Array::make(1, false))
   let val = row.get_string(0)
   match val {
     Ok(s) => inspect(s, content="hello")
@@ -590,7 +596,7 @@ test "Row::get_string returns raw value" {
 }
 
 test "Row::get_bool parses valid bool" {
-  let row = Row::new(fn(_i) { "true" })
+  let row = Row::new(fn(_i) { "true" }, Array::make(1, false))
   let val = row.get_bool(0)
   match val {
     Ok(b) => inspect(b, content="true")
@@ -599,7 +605,7 @@ test "Row::get_bool parses valid bool" {
 }
 
 test "Row::get_double parses valid double" {
-  let row = Row::new(fn(_i) { "3.14" })
+  let row = Row::new(fn(_i) { "3.14" }, Array::make(1, false))
   let val = row.get_double(0)
   match val {
     Ok(d) => inspect(d, content="3.14")
@@ -608,7 +614,7 @@ test "Row::get_double parses valid double" {
 }
 
 test "Row::get_bytes returns byte array" {
-  let row = Row::new(fn(_i) { "abc" })
+  let row = Row::new(fn(_i) { "abc" }, Array::make(1, false))
   let val = row.get_bytes(0)
   match val {
     Ok(b) => inspect(b.length(), content="3")
@@ -617,7 +623,7 @@ test "Row::get_bytes returns byte array" {
 }
 
 test "Row::get_date wraps string" {
-  let row = Row::new(fn(_i) { "2026-01-15" })
+  let row = Row::new(fn(_i) { "2026-01-15" }, Array::make(1, false))
   let val = row.get_date(0)
   match val {
     Ok(d) => inspect(d.to_string(), content="2026-01-15")
@@ -626,7 +632,7 @@ test "Row::get_date wraps string" {
 }
 
 test "Row::get_datetime wraps string" {
-  let row = Row::new(fn(_i) { "2026-01-15T10:30:00Z" })
+  let row = Row::new(fn(_i) { "2026-01-15T10:30:00Z" }, Array::make(1, false))
   let val = row.get_datetime(0)
   match val {
     Ok(dt) => inspect(dt.to_string(), content="2026-01-15T10:30:00Z")
@@ -635,7 +641,7 @@ test "Row::get_datetime wraps string" {
 }
 
 test "Row::get_nullable_int64: non-empty returns Some" {
-  let row = Row::new(fn(_i) { "42" })
+  let row = Row::new(fn(_i) { "42" }, Array::make(1, false))
   let val = row.get_nullable_int64(0)
   match val {
     Ok(Some(n)) => inspect(n, content="42")
@@ -644,7 +650,7 @@ test "Row::get_nullable_int64: non-empty returns Some" {
 }
 
 test "Row::get_nullable_int64: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, true))
   let val = row.get_nullable_int64(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -653,7 +659,7 @@ test "Row::get_nullable_int64: empty string returns None" {
 }
 
 test "Row::get_nullable_string: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, true))
   let val = row.get_nullable_string(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -662,14 +668,14 @@ test "Row::get_nullable_string: empty string returns None" {
 }
 
 test "Row::get_json parses valid json" {
-  let row = Row::new(fn(_i) { "{\"key\": 42}" })
+  let row = Row::new(fn(_i) { "{\"key\": 42}" }, Array::make(1, false))
   let val = row.get_json(0)
   let is_ok = match val { Ok(_) => true; Err(_) => false }
   inspect(is_ok, content="true")
 }
 
 test "Row::get_nullable_json: empty returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, true))
   let val = row.get_nullable_json(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -678,7 +684,7 @@ test "Row::get_nullable_json: empty returns None" {
 }
 
 test "Row::get_time: HH:MM:SS (no fraction)" {
-  let row = Row::new(fn(_i) { "10:30:45" })
+  let row = Row::new(fn(_i) { "10:30:45" }, Array::make(1, false))
   let val = row.get_time(0)
   match val {
     Ok(t) => {
@@ -692,7 +698,7 @@ test "Row::get_time: HH:MM:SS (no fraction)" {
 }
 
 test "Row::get_time: HH:MM:SS.f (1-digit fraction pads to 100000 micros)" {
-  let row = Row::new(fn(_i) { "10:30:45.1" })
+  let row = Row::new(fn(_i) { "10:30:45.1" }, Array::make(1, false))
   let val = row.get_time(0)
   match val {
     Ok(t) => inspect(t.micros, content="100000")
@@ -701,7 +707,7 @@ test "Row::get_time: HH:MM:SS.f (1-digit fraction pads to 100000 micros)" {
 }
 
 test "Row::get_time: HH:MM:SS.123456 (6-digit fraction exact)" {
-  let row = Row::new(fn(_i) { "10:30:45.123456" })
+  let row = Row::new(fn(_i) { "10:30:45.123456" }, Array::make(1, false))
   let val = row.get_time(0)
   match val {
     Ok(t) => inspect(t.micros, content="123456")
@@ -710,7 +716,7 @@ test "Row::get_time: HH:MM:SS.123456 (6-digit fraction exact)" {
 }
 
 test "Row::get_time: HH:MM:SS.1234567 (7-digit fraction truncates to 123456)" {
-  let row = Row::new(fn(_i) { "10:30:45.1234567" })
+  let row = Row::new(fn(_i) { "10:30:45.1234567" }, Array::make(1, false))
   let val = row.get_time(0)
   match val {
     Ok(t) => inspect(t.micros, content="123456")
@@ -719,7 +725,7 @@ test "Row::get_time: HH:MM:SS.1234567 (7-digit fraction truncates to 123456)" {
 }
 
 test "Row::get_time: HH:MM:SS.12 (2-digit fraction pads to 120000)" {
-  let row = Row::new(fn(_i) { "10:30:45.12" })
+  let row = Row::new(fn(_i) { "10:30:45.12" }, Array::make(1, false))
   let val = row.get_time(0)
   match val {
     Ok(t) => inspect(t.micros, content="120000")
@@ -728,14 +734,14 @@ test "Row::get_time: HH:MM:SS.12 (2-digit fraction pads to 120000)" {
 }
 
 test "Row::get_time: invalid format returns TypeError" {
-  let row = Row::new(fn(_i) { "not_a_time" })
+  let row = Row::new(fn(_i) { "not_a_time" }, Array::make(1, false))
   let val = row.get_time(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
 
 test "Row::decode_array_string: valid JSON array" {
-  let row = Row::new(fn(_i) { "[\"a\",\"b\",\"c\"]" })
+  let row = Row::new(fn(_i) { "[\"a\",\"b\",\"c\"]" }, Array::make(1, false))
   let val = row.decode_array_string(0)
   match val {
     Ok(arr) => {
@@ -748,7 +754,7 @@ test "Row::decode_array_string: valid JSON array" {
 }
 
 test "Row::decode_array_string: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_string(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -757,7 +763,7 @@ test "Row::decode_array_string: empty string returns empty array" {
 }
 
 test "Row::decode_array_int64: valid JSON array" {
-  let row = Row::new(fn(_i) { "[1,2,3]" })
+  let row = Row::new(fn(_i) { "[1,2,3]" }, Array::make(1, false))
   let val = row.decode_array_int64(0)
   match val {
     Ok(arr) => {
@@ -770,7 +776,7 @@ test "Row::decode_array_int64: valid JSON array" {
 }
 
 test "Row::decode_array_int64: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_int64(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -779,7 +785,7 @@ test "Row::decode_array_int64: empty string returns empty array" {
 }
 
 test "Row::decode_nullable_array_string: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[\"x\",\"y\"]" })
+  let row = Row::new(fn(_i) { "[\"x\",\"y\"]" }, Array::make(1, false))
   let val = row.decode_nullable_array_string(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="2")
@@ -788,7 +794,7 @@ test "Row::decode_nullable_array_string: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_string: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_string(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -797,7 +803,7 @@ test "Row::decode_nullable_array_string: empty string returns None" {
 }
 
 test "Row::decode_nullable_array_int64: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[10,20]" })
+  let row = Row::new(fn(_i) { "[10,20]" }, Array::make(1, false))
   let val = row.decode_nullable_array_int64(0)
   match val {
     Ok(Some(arr)) => {
@@ -809,7 +815,7 @@ test "Row::decode_nullable_array_int64: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_int64: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_int64(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -818,7 +824,7 @@ test "Row::decode_nullable_array_int64: empty string returns None" {
 }
 
 test "Row::decode_array_bool: valid JSON array" {
-  let row = Row::new(fn(_i) { "[true,false,true]" })
+  let row = Row::new(fn(_i) { "[true,false,true]" }, Array::make(1, false))
   let val = row.decode_array_bool(0)
   match val {
     Ok(arr) => {
@@ -832,7 +838,7 @@ test "Row::decode_array_bool: valid JSON array" {
 }
 
 test "Row::decode_array_bool: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_bool(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -841,14 +847,14 @@ test "Row::decode_array_bool: empty string returns empty array" {
 }
 
 test "Row::decode_array_bool: invalid element returns TypeError" {
-  let row = Row::new(fn(_i) { "[\"not_bool\"]" })
+  let row = Row::new(fn(_i) { "[\"not_bool\"]" }, Array::make(1, false))
   let val = row.decode_array_bool(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
 
 test "Row::decode_nullable_array_bool: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[false,true]" })
+  let row = Row::new(fn(_i) { "[false,true]" }, Array::make(1, false))
   let val = row.decode_nullable_array_bool(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="2")
@@ -857,7 +863,7 @@ test "Row::decode_nullable_array_bool: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_bool: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_bool(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -866,7 +872,7 @@ test "Row::decode_nullable_array_bool: empty string returns None" {
 }
 
 test "Row::decode_array_double: valid JSON array" {
-  let row = Row::new(fn(_i) { "[1.5,2.5,3.5]" })
+  let row = Row::new(fn(_i) { "[1.5,2.5,3.5]" }, Array::make(1, false))
   let val = row.decode_array_double(0)
   match val {
     Ok(arr) => {
@@ -879,7 +885,7 @@ test "Row::decode_array_double: valid JSON array" {
 }
 
 test "Row::decode_array_double: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_double(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -888,14 +894,14 @@ test "Row::decode_array_double: empty string returns empty array" {
 }
 
 test "Row::decode_array_double: invalid element returns TypeError" {
-  let row = Row::new(fn(_i) { "[\"not_a_number\"]" })
+  let row = Row::new(fn(_i) { "[\"not_a_number\"]" }, Array::make(1, false))
   let val = row.decode_array_double(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
 
 test "Row::decode_nullable_array_double: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[3.14,2.71]" })
+  let row = Row::new(fn(_i) { "[3.14,2.71]" }, Array::make(1, false))
   let val = row.decode_nullable_array_double(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="2")
@@ -904,7 +910,7 @@ test "Row::decode_nullable_array_double: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_double: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_double(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -913,7 +919,7 @@ test "Row::decode_nullable_array_double: empty string returns None" {
 }
 
 test "Row::decode_array_date: valid JSON array" {
-  let row = Row::new(fn(_i) { "[\"2026-01-15\",\"2026-06-15\"]" })
+  let row = Row::new(fn(_i) { "[\"2026-01-15\",\"2026-06-15\"]" }, Array::make(1, false))
   let val = row.decode_array_date(0)
   match val {
     Ok(arr) => {
@@ -926,7 +932,7 @@ test "Row::decode_array_date: valid JSON array" {
 }
 
 test "Row::decode_array_date: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_date(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -935,7 +941,7 @@ test "Row::decode_array_date: empty string returns empty array" {
 }
 
 test "Row::decode_nullable_array_date: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[\"2026-01-15\"]" })
+  let row = Row::new(fn(_i) { "[\"2026-01-15\"]" }, Array::make(1, false))
   let val = row.decode_nullable_array_date(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="1")
@@ -944,7 +950,7 @@ test "Row::decode_nullable_array_date: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_date: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_date(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -953,7 +959,7 @@ test "Row::decode_nullable_array_date: empty string returns None" {
 }
 
 test "Row::decode_array_datetime: valid JSON array" {
-  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\",\"2026-06-15T12:00:00Z\"]" })
+  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\",\"2026-06-15T12:00:00Z\"]" }, Array::make(1, false))
   let val = row.decode_array_datetime(0)
   match val {
     Ok(arr) => {
@@ -965,7 +971,7 @@ test "Row::decode_array_datetime: valid JSON array" {
 }
 
 test "Row::decode_array_datetime: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_datetime(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -974,7 +980,7 @@ test "Row::decode_array_datetime: empty string returns empty array" {
 }
 
 test "Row::decode_nullable_array_datetime: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\"]" })
+  let row = Row::new(fn(_i) { "[\"2026-01-15T10:30:00Z\"]" }, Array::make(1, false))
   let val = row.decode_nullable_array_datetime(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="1")
@@ -983,7 +989,7 @@ test "Row::decode_nullable_array_datetime: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_datetime: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_datetime(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -992,7 +998,7 @@ test "Row::decode_nullable_array_datetime: empty string returns None" {
 }
 
 test "Row::decode_array_decimal: valid JSON array" {
-  let row = Row::new(fn(_i) { "[\"123.45\",\"678.90\"]" })
+  let row = Row::new(fn(_i) { "[\"123.45\",\"678.90\"]" }, Array::make(1, false))
   let val = row.decode_array_decimal(0)
   match val {
     Ok(arr) => {
@@ -1005,7 +1011,7 @@ test "Row::decode_array_decimal: valid JSON array" {
 }
 
 test "Row::decode_array_decimal: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_decimal(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -1014,7 +1020,7 @@ test "Row::decode_array_decimal: empty string returns empty array" {
 }
 
 test "Row::decode_nullable_array_decimal: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[\"999.99\"]" })
+  let row = Row::new(fn(_i) { "[\"999.99\"]" }, Array::make(1, false))
   let val = row.decode_nullable_array_decimal(0)
   match val {
     Ok(Some(arr)) => inspect(arr.length(), content="1")
@@ -1023,7 +1029,7 @@ test "Row::decode_nullable_array_decimal: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_decimal: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_decimal(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -1032,7 +1038,7 @@ test "Row::decode_nullable_array_decimal: empty string returns None" {
 }
 
 test "Row::decode_array_bytes: valid JSON array" {
-  let row = Row::new(fn(_i) { "[\"abc\",\"de\"]" })
+  let row = Row::new(fn(_i) { "[\"abc\",\"de\"]" }, Array::make(1, false))
   let val = row.decode_array_bytes(0)
   match val {
     Ok(arr) => {
@@ -1045,7 +1051,7 @@ test "Row::decode_array_bytes: valid JSON array" {
 }
 
 test "Row::decode_array_bytes: empty string returns empty array" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_array_bytes(0)
   match val {
     Ok(arr) => inspect(arr.length(), content="0")
@@ -1054,7 +1060,7 @@ test "Row::decode_array_bytes: empty string returns empty array" {
 }
 
 test "Row::decode_nullable_array_bytes: valid JSON returns Some" {
-  let row = Row::new(fn(_i) { "[\"hello\"]" })
+  let row = Row::new(fn(_i) { "[\"hello\"]" }, Array::make(1, false))
   let val = row.decode_nullable_array_bytes(0)
   match val {
     Ok(Some(arr)) => {
@@ -1066,7 +1072,7 @@ test "Row::decode_nullable_array_bytes: valid JSON returns Some" {
 }
 
 test "Row::decode_nullable_array_bytes: empty string returns None" {
-  let row = Row::new(fn(_i) { "" })
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
   let val = row.decode_nullable_array_bytes(0)
   match val {
     Ok(None) => inspect("null", content="null")
@@ -1075,14 +1081,14 @@ test "Row::decode_nullable_array_bytes: empty string returns None" {
 }
 
 test "Row::decode_array_decimal: not a JSON array returns TypeError" {
-  let row = Row::new(fn(_i) { "\"not_an_array\"" })
+  let row = Row::new(fn(_i) { "\"not_an_array\"" }, Array::make(1, false))
   let val = row.decode_array_decimal(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
 
 test "Row::decode_array_datetime: not a JSON array returns TypeError" {
-  let row = Row::new(fn(_i) { "42" })
+  let row = Row::new(fn(_i) { "42" }, Array::make(1, false))
   let val = row.decode_array_datetime(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")

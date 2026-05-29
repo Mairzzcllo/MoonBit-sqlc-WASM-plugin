@@ -81,7 +81,7 @@ test "Transaction::new and exec returns Ok" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -95,7 +95,7 @@ test "Transaction::execrows returns Ok with count" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(5L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -109,7 +109,7 @@ test "Transaction::query returns RowIter" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -123,7 +123,7 @@ test "Transaction::query_row returns Row" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(i) { if i == 0 { "42" } else { "" } } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(i) { if i == 0 { "42" } else { "" } }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -137,7 +137,7 @@ test "Transaction::commit returns Ok" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -151,7 +151,7 @@ test "Transaction::rollback returns Ok" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )
@@ -165,7 +165,7 @@ test "Transaction::commit returns Err on failure" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Err(QueryError("commit failed")) },
     fn() { Ok(()) },
   )
@@ -179,7 +179,7 @@ test "Transaction::rollback returns Err on failure" {
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Err(QueryError("rollback failed")) },
   )
@@ -193,7 +193,7 @@ test "Transaction::exec returns Err on failure" {
     fn(_sql, _params) { Err(QueryError("table not found")) },
     fn(_sql, _params) { Ok(1L) },
     fn(_sql, _params) { Ok(RowIter::new(fn() { Ok(None) })) },
-    fn(_sql, _params) { Ok({ get_fn: fn(_i) { "" } }) },
+    fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
     fn() { Ok(()) },
     fn() { Ok(()) },
   )

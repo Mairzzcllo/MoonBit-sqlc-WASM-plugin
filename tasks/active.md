@@ -1,8 +1,16 @@
 # Active Tasks — UI Projection
 
-> 生成时间: 2026-05-28
-> 项目: MoonBit sqlc WASM Plugin — Phase C 路线图 + P0 Hotfix Sprint
+> 生成时间: 2026-05-29
+> 项目: MoonBit sqlc WASM Plugin — Bug Fix Sprint
 > 运行时状态来源: `tasks/tasks/active/{id}.yaml`
+
+## Bug Fix Sprint — 2026-05-29 (5 Bugs)
+
+| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
+|----|------|--------|------|------|------|
+| **P0-055** | 修复 NULL vs 空字符串: Row 加 null_mask | P0 | fix | ✅ done | — |
+| **P2-013** | 清理死代码: store_u8 + encode_u32_le + redundant pub | P2 | refactor | ✅ done | — |
+| **P2-014** | inspect→debug_inspect 迁移 type_map.mbt (94 处) | P2 | refactor | ✅ done | — |
 
 ## Phase 0 — P0 Hotfix Sprint (数据正确性/运行时崩溃)
 

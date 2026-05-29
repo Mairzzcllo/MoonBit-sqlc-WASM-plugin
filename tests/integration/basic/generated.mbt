@@ -34,12 +34,22 @@ pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row,
 /// Row runtime stub (mirrors runtime/row.mbt for compilation testing).
 pub struct Row {
   get_fn : (Int) -> String
+  null_mask : Array[Bool]
+}
+
+pub fn Row::new(get_fn: (Int) -> String, null_mask: Array[Bool]) -> Row {
+  { get_fn: get_fn, null_mask: null_mask }
 }
 
 pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
+
+pub fn Row::is_null(self: Row, index: Int) -> Bool {
+  index >= 0 && index < self.null_mask.length() && self.null_mask[index]
+}
+
 pub fn Row::get_int64(_self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] { Ok(self.get(index)) }
-pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] { let v = self.get(index); if v == "" { Ok(None) } else { Ok(Some(v)) } }
+pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] { let v = self.get(index); if self.is_null(index) { Ok(None) } else { Ok(Some(v)) } }
 
 /// RowIter runtime stub (mirrors runtime/row_iter.mbt for compilation testing).
 pub struct RowIter {

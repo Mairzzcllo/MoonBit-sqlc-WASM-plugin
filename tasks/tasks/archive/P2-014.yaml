@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: P2-014
+state: done
+deterministic: true
+title: "Migrate inspect→debug_inspect in type_map.mbt (94 calls)"
+type: refactor
+priority: P2
+description: >
+  plugin/type_map.mbt 中全部 94 处 inspect(value, content=...) 调用
+  未被 P2-009 迁移，仍使用 deprecated 的 inspect 函数。需全部替换为
+  debug_inspect(value, content=...)，与其他 780+ 处已迁移调用保持一致。
+  编译期确认 4 处 deprecation warning (585,591,596,601)，
+  其余 90 处虽未报警但为预防性迁移。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-29"
+updated_at: "2026-05-30"
+artifacts:
+  - type: implementation
+    path: plugin/type_map.mbt
+    hash: null
+references:
+  - plugin/type_map.mbt
+execution_notes: >
+  正则替换: inspect(  →  debug_inspect(  (精确匹配，保留缩进)。
+  共 94 处，全局替换不会误伤其他文件。
+  执行 moon test + moon check 验证无 regression。

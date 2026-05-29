@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: P2-013
+state: done
+deterministic: true
+title: "Remove dead code: store_u8, encode_u32_le/decode_u32_le, redundant pub"
+type: refactor
+priority: P2
+description: >
+  清理三处编译警告: (1) wasi_io.mbt:68-69 store_u8 函数未使用;
+  (2) protocol.mbt:33-47 encode_u32_le/decode_u32_le 死代码(含14个测试);
+  (3) value.mbt:86-89 Time 字段冗余 pub 修饰符。P0-045 已移除帧头协议，
+  遗留的 encode_u32_le/decode_u32_le 及其测试应一并删除。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-29"
+updated_at: "2026-05-30"
+artifacts:
+  - type: implementation
+    path: plugin/wasi_io.mbt
+    hash: null
+  - type: implementation
+    path: plugin/protocol.mbt
+    hash: null
+  - type: implementation
+    path: runtime/value.mbt
+    hash: null
+references:
+  - plugin/wasi_io.mbt
+  - plugin/protocol.mbt
+  - runtime/value.mbt
+execution_notes: >
+  1. wasi_io.mbt: 删除 store_u8 函数定义 (L68-69)
+  2. protocol.mbt: 删除 encode_u32_le (L33-40) + decode_u32_le (L44-47)
+  3. protocol.mbt: 删除 14 个相关测试 (L61-154)
+  4. protocol.mbt: 更新 L12 注释移除对这两个函数的引用
+  5. value.mbt: 删除 Time.hour/min/sec/micros 前的 pub 修饰符
+  6. moon test + moon check 验证

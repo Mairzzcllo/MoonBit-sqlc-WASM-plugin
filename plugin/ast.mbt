@@ -31,6 +31,10 @@ pub enum TypeExpr {
   Wildcard
 }
 
+impl Debug for TypeExpr with to_repr(self) {
+  Repr::literal(self.to_string())
+}
+
 impl Show for TypeExpr with to_string(self) -> String {
   match self {
     Named(s) => "Named(\"" + s + "\")"
