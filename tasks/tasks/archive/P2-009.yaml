@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P2-009
-state: todo
+state: done
 deterministic: true
 title: "inspect→debug_inspect全库迁移 (M7)"
 type: refactor

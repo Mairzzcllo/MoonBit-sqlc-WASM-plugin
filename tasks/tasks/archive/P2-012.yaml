@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P2-012
-state: todo
+state: done
 deterministic: true
 title: "小问题批量修复 (四)"
 type: refactor

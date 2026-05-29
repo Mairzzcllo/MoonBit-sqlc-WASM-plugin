@@ -138,15 +138,39 @@ pub struct AdaptRequest {
 pub struct PluginOptions {
   /// Package name for generated code (e.g. "myapp" from codegen.options.package_name).
   package_name : String
+  /// Type overrides: Array of (pg_type, moonbit_type) pairs.
+  /// Parsed from lines like `override_int4=String` in plugin_options bytes.
+  overrides : Array[(String, String)]
+  /// Emit @json.tag("column_name") annotations on struct fields.
+  emit_json_tags : Bool
+  /// Emit @db.tag("column_name") annotations on struct fields.
+  emit_db_tags : Bool
+  /// Rename mappings: Array of (original_name, new_name) pairs.
+  /// Parsed from lines like `rename_created_at=CreatedAt` in plugin_options bytes.
+  renames : Array[(String, String)]
+}
+
+/// Find first occurrence of a character in a string.
+fn find_char(s: String, c: Char) -> Option[Int] {
+  let n = s.length()
+  let target = c.to_int()
+  for i = 0; i < n; i = i + 1 {
+    if s[i].to_int() == target { return Some(i) }
+  }
+  None
 }
 
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Silently returns defaults on empty data or parse failure.
 pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
-  if data.length() == 0 { return { package_name: "" } }
+  if data.length() == 0 { return { package_name: "", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] } }
   let text = @utf8.decode_lossy(data[:])
   let mut package_name = ""
   let mut has_package_name = false
+  let overrides: Array[(String, String)] = []
+  let renames: Array[(String, String)] = []
+  let mut emit_json_tags = false
+  let mut emit_db_tags = false
   for line in text.split("\n") {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
@@ -173,9 +197,33 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       }
       package_name = s[9:].trim().to_owned()
       has_package_name = true
+    } else if s.has_prefix("override_") {
+      let eq_pos = find_char(s, '=')
+      match eq_pos {
+        Some(pos) => {
+          let pg_type = s[9:pos].trim().to_owned()
+          let moon_type = s[pos + 1:].trim().to_owned()
+          overrides.push((pg_type.to_lower(), moon_type))
+        }
+        None => ()
+      }
+    } else if s.has_prefix("rename_") {
+      let eq_pos = find_char(s, '=')
+      match eq_pos {
+        Some(pos) => {
+          let key = s[7:pos].trim().to_owned()   // after "rename_"
+          let val = s[pos + 1:].trim().to_owned()
+          renames.push((key, val))
+        }
+        None => ()
+      }
+    } else if s == "emit_json_tags=true" || s == "emit_json_tags = true" {
+      emit_json_tags = true
+    } else if s == "emit_db_tags=true" || s == "emit_db_tags = true" {
+      emit_db_tags = true
     }
   }
-  { package_name: package_name }
+  { package_name: package_name, overrides: overrides, emit_json_tags: emit_json_tags, emit_db_tags: emit_db_tags, renames: renames }
 }
 
 // === Converters: raw protobuf types → internal model ===
@@ -393,6 +441,8 @@ test "convert_request: query with parameter" {
 test "parse_plugin_options: empty bytes returns empty package_name" {
   let opts = parse_plugin_options(b"")
   inspect(opts.package_name, content="")
+  inspect(opts.emit_json_tags, content="false")
+  inspect(opts.emit_db_tags, content="false")
 }
 
 test "parse_plugin_options: package_name= prefix parsed" {
@@ -423,6 +473,122 @@ test "parse_plugin_options: unknown keys are ignored" {
 test "parse_plugin_options: multiline with trailing newline" {
   let opts = parse_plugin_options(b"package_name=myapp\n")
   inspect(opts.package_name, content="myapp")
+}
+
+test "parse_plugin_options: emit_json_tags=true parsed" {
+  let opts = parse_plugin_options(b"emit_json_tags=true")
+  inspect(opts.emit_json_tags, content="true")
+  inspect(opts.emit_db_tags, content="false")
+}
+
+test "parse_plugin_options: emit_db_tags=true parsed" {
+  let opts = parse_plugin_options(b"emit_db_tags=true")
+  inspect(opts.emit_db_tags, content="true")
+  inspect(opts.emit_json_tags, content="false")
+}
+
+test "parse_plugin_options: emit_json_tags and emit_db_tags both true" {
+  let opts = parse_plugin_options(b"emit_json_tags=true\nemit_db_tags=true")
+  inspect(opts.emit_json_tags, content="true")
+  inspect(opts.emit_db_tags, content="true")
+}
+
+test "parse_plugin_options: emit_json_tags=false by default" {
+  let opts = parse_plugin_options(b"package_name=test")
+  inspect(opts.emit_json_tags, content="false")
+  inspect(opts.emit_db_tags, content="false")
+}
+
+test "parse_plugin_options: emit_json_tags = true with spaces parsed" {
+  let opts = parse_plugin_options(b"emit_json_tags = true")
+  inspect(opts.emit_json_tags, content="true")
+}
+
+test "parse_plugin_options: emit_db_tags = true with spaces parsed" {
+  let opts = parse_plugin_options(b"emit_db_tags = true")
+  inspect(opts.emit_db_tags, content="true")
+}
+
+test "parse_plugin_options: single override_ line parsed" {
+  let opts = parse_plugin_options(b"package_name=testdb\noverride_numeric=Decimal")
+  inspect(opts.package_name, content="testdb")
+  inspect(opts.overrides.length(), content="1")
+  inspect(opts.overrides[0].0, content="numeric")
+  inspect(opts.overrides[0].1, content="Decimal")
+}
+
+test "parse_plugin_options: multiple override_ lines parsed" {
+  let opts = parse_plugin_options(b"package_name=testdb\noverride_numeric=Decimal\noverride_int4=String\noverride_bool=Int64")
+  inspect(opts.overrides.length(), content="3")
+  inspect(opts.overrides[0].0, content="numeric")
+  inspect(opts.overrides[0].1, content="Decimal")
+  inspect(opts.overrides[1].0, content="int4")
+  inspect(opts.overrides[1].1, content="String")
+  inspect(opts.overrides[2].0, content="bool")
+  inspect(opts.overrides[2].1, content="Int64")
+}
+
+test "parse_plugin_options: override with spaces around = works" {
+  let opts = parse_plugin_options(b"package_name=testdb\noverride_numeric = Decimal")
+  inspect(opts.overrides.length(), content="1")
+  inspect(opts.overrides[0].0, content="numeric")
+  inspect(opts.overrides[0].1, content="Decimal")
+}
+
+test "parse_plugin_options: override without = is silently skipped" {
+  let opts = parse_plugin_options(b"override_numeric")
+  inspect(opts.overrides.length(), content="0")
+}
+
+test "parse_plugin_options: empty bytes returns empty overrides" {
+  let opts = parse_plugin_options(b"")
+  inspect(opts.overrides.length(), content="0")
+}
+
+test "parse_plugin_options: only overrides without package_name" {
+  let opts = parse_plugin_options(b"override_numeric=Decimal")
+  inspect(opts.package_name, content="")
+  inspect(opts.overrides.length(), content="1")
+}
+
+test "parse_plugin_options: override with spaces in value" {
+  let opts = parse_plugin_options(b"override_int4 = Option[Int64]")
+  inspect(opts.overrides.length(), content="1")
+  inspect(opts.overrides[0].0, content="int4")
+  inspect(opts.overrides[0].1, content="Option[Int64]")
+}
+
+test "parse_plugin_options: rename_ line parsed" {
+  let opts = parse_plugin_options(b"package_name=testdb\nrename_created_at=CreatedAt\nrename_updated_at=UpdatedAt")
+  inspect(opts.renames.length(), content="2")
+  inspect(opts.renames[0].0, content="created_at")
+  inspect(opts.renames[0].1, content="CreatedAt")
+  inspect(opts.renames[1].0, content="updated_at")
+  inspect(opts.renames[1].1, content="UpdatedAt")
+}
+
+test "parse_plugin_options: rename_ with spaces around = works" {
+  let opts = parse_plugin_options(b"rename_created_at = CreatedAt")
+  inspect(opts.renames.length(), content="1")
+  inspect(opts.renames[0].0, content="created_at")
+  inspect(opts.renames[0].1, content="CreatedAt")
+}
+
+test "parse_plugin_options: rename_ without = is silently skipped" {
+  let opts = parse_plugin_options(b"rename_created_at")
+  inspect(opts.renames.length(), content="0")
+}
+
+test "parse_plugin_options: empty bytes returns empty renames" {
+  let opts = parse_plugin_options(b"")
+  inspect(opts.renames.length(), content="0")
+}
+
+test "parse_plugin_options: unknown keys do not produce renames" {
+  let opts = parse_plugin_options(b"rename_foo=bar\nunknown=val")
+  inspect(opts.renames.length(), content="1")
+  inspect(opts.renames[0].0, content="foo")
+  inspect(opts.renames[0].1, content="bar")
 }
 
 test "convert_request: column with type info preserved" {

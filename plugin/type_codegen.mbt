@@ -48,24 +48,50 @@ pub fn generate_struct_from_fields(
   fields: Array[InternalField],
   doc: Option[String],
   is_pub: Bool,
+  emit_json_tags: Bool,
+  emit_db_tags: Bool,
+  overrides: Array[(String, String)],
 ) -> StructDef {
   let field_defs = fields.map(fn(f) {
-    let moon_type = map_internal_type_nullable(f.ty, f.not_null)
+    let moon_type = map_internal_type_nullable(f.ty, f.not_null, overrides)
     let field_doc: Option[String] = if f.comment == "" { None } else { Some(f.comment) }
-    { name: f.name, ty: moon_type, doc: field_doc }
+    let field_name = match f.rename_to {
+      Some(r) => r
+      None => f.name
+    }
+    // json_tag/db_tag use original column name (database column name), not renamed
+    let json_tag: Option[String] = if emit_json_tags { Some(f.name) } else { None }
+    let db_tag: Option[String] = if emit_db_tags { Some(f.name) } else { None }
+    { name: field_name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
   })
   { name: type_name, fields: field_defs, doc: doc, is_pub: is_pub }
 }
 
 /// Generate a StructDef from a catalog table.
-pub fn generate_struct_from_table(table_name: String, columns: Array[AdaptColumn], comment: String) -> StructDef {
+pub fn generate_struct_from_table(
+  table_name: String,
+  columns: Array[AdaptColumn],
+  comment: String,
+  emit_json_tags: Bool,
+  emit_db_tags: Bool,
+  overrides: Array[(String, String)],
+  renames: Array[(String, String)],
+) -> StructDef {
   let type_name = snake_to_pascal(table_name)
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
   let fields = columns.map(fn(c) {
     let ir_type = if c.is_array { Arr(Named(c.ty.name)) } else { Named(c.ty.name) }
-    let moon_type = map_internal_type_nullable(ir_type, c.not_null)
+    let moon_type = map_internal_type_nullable(ir_type, c.not_null, overrides)
     let field_doc: Option[String] = if c.comment == "" { None } else { Some(c.comment) }
-    { name: c.name, ty: moon_type, doc: field_doc }
+    let rename_to = lookup_rename(c.name, renames)
+    let field_name = match rename_to {
+      Some(r) => r
+      None => c.name
+    }
+    // json_tag/db_tag use original column name (database column name), not renamed
+    let json_tag: Option[String] = if emit_json_tags { Some(c.name) } else { None }
+    let db_tag: Option[String] = if emit_db_tags { Some(c.name) } else { None }
+    { name: field_name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
   })
   { name: type_name, fields: fields, doc: doc, is_pub: true }
 }
@@ -80,10 +106,10 @@ pub fn generate_enum_from_enum(name: String, vals: Array[String], comment: Strin
 
 /// Generate all type definitions from an AdaptCatalog.
 /// Produces StructDef for each table (with decode method) and EnumDef for every enum.
-pub fn generate_types_from_catalog(catalog: AdaptCatalog) -> Array[TopLevel] {
+pub fn generate_types_from_catalog(catalog: AdaptCatalog, emit_json_tags: Bool, emit_db_tags: Bool, overrides: Array[(String, String)], renames: Array[(String, String)]) -> Array[TopLevel] {
   catalog.schemas.map(fn(schema) {
     let table_items = schema.tables.map(fn(table) {
-      let sd = generate_struct_from_table(table.name, table.columns, table.comment)
+      let sd = generate_struct_from_table(table.name, table.columns, table.comment, emit_json_tags, emit_db_tags, overrides, renames)
       [Struct(sd), Fn(generate_decode_fn(sd))]
     }).flatten()
     let enum_items = schema.enums.map(fn(e) {
@@ -96,13 +122,13 @@ pub fn generate_types_from_catalog(catalog: AdaptCatalog) -> Array[TopLevel] {
 /// Generate struct definitions for query result types.
 /// Produces a StructDef (with decode method) for each query that has a Rows result shape.
 /// The struct is named `<QueryName>Row` in PascalCase.
-pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLevel] {
+pub fn generate_types_from_queries(queries: Array[InternalQuery], emit_json_tags: Bool, emit_db_tags: Bool, overrides: Array[(String, String)]) -> Array[TopLevel] {
   queries.map(fn(q) {
     match q.result_shape {
       Rows(fields) => {
         let type_name = snake_to_pascal(q.name) + "Row"
         let doc: Option[String] = if q.comments.length() > 0 { Some(q.comments[0]) } else { None }
-        let sd = generate_struct_from_fields(type_name, fields, doc, true)
+        let sd = generate_struct_from_fields(type_name, fields, doc, true, emit_json_tags, emit_db_tags, overrides)
         [Struct(sd), Fn(generate_decode_fn(sd))]
       }
       None => []
@@ -112,8 +138,8 @@ pub fn generate_types_from_queries(queries: Array[InternalQuery]) -> Array[TopLe
 
 /// Generate all type definitions from both catalog and queries.
 /// Each struct is followed by its decode method.
-pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery]) -> Array[TopLevel] {
-  generate_types_from_catalog(catalog) + generate_types_from_queries(queries)
+pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery], emit_json_tags: Bool, emit_db_tags: Bool, overrides: Array[(String, String)], renames: Array[(String, String)]) -> Array[TopLevel] {
+  generate_types_from_catalog(catalog, emit_json_tags, emit_db_tags, overrides, renames) + generate_types_from_queries(queries, emit_json_tags, emit_db_tags, overrides)
 }
 
 /// Map a MoonBit struct type name to the corresponding typed getter suffix.
@@ -244,10 +270,10 @@ test "snake_to_pascal: multiple underscores" {
 
 test "generate_struct_from_fields: basic struct" {
   let fields: Array[InternalField] = [
-    { name: "id", ty: Named("int4"), not_null: true, comment: "" },
-    { name: "email", ty: Named("text"), not_null: false, comment: "user email" },
+    { name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+    { name: "email", ty: Named("text"), not_null: false, comment: "user email", rename_to: (None: Option[String]) },
   ]
-  let sd = generate_struct_from_fields("User", fields, Some("A user"), true)
+  let sd = generate_struct_from_fields("User", fields, Some("A user"), true, false, false, [])
   inspect(sd.name, content="User")
   inspect(sd.fields.length(), content="2")
   inspect(sd.fields[0].name, content="id")
@@ -258,9 +284,9 @@ test "generate_struct_from_fields: basic struct" {
 
 test "generate_struct_from_fields: array field" {
   let fields: Array[InternalField] = [
-    { name: "tags", ty: Arr(Named("text")), not_null: true, comment: "" },
+    { name: "tags", ty: Arr(Named("text")), not_null: true, comment: "", rename_to: (None: Option[String]) },
   ]
-  let sd = generate_struct_from_fields("Post", fields, (None: Option[String]), true)
+  let sd = generate_struct_from_fields("Post", fields, (None: Option[String]), true, false, false, [])
   inspect(sd.fields[0].ty, content="Parameterized(\"Array\", [Named(\"String\")])")
 }
 
@@ -268,7 +294,7 @@ test "generate_struct_from_table: snake_case table name to PascalCase" {
   let cols: Array[AdaptColumn] = [
     { name: "id", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "user_profiles" } },
   ]
-  let sd = generate_struct_from_table("user_profiles", cols, "User profiles table")
+  let sd = generate_struct_from_table("user_profiles", cols, "User profiles table", false, false, [], [])
   inspect(sd.name, content="UserProfiles")
   debug_inspect(sd.doc, content="Some(\"User profiles table\")")
   inspect(sd.fields[0].name, content="id")
@@ -279,7 +305,7 @@ test "generate_struct_from_table: nullable column becomes Option" {
   let cols: Array[AdaptColumn] = [
     { name: "nickname", not_null: false, is_array: false, ty: { catalog: "", schema: "", name: "text" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "users" } },
   ]
-  let sd = generate_struct_from_table("users", cols, "")
+  let sd = generate_struct_from_table("users", cols, "", false, false, [], [])
   inspect(sd.fields[0].ty, content="Option(Named(\"String\"))")
 }
 
@@ -287,7 +313,7 @@ test "generate_struct_from_table: array column becomes Array[T]" {
   let cols: Array[AdaptColumn] = [
     { name: "tags", not_null: true, is_array: true, ty: { catalog: "", schema: "", name: "text" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "posts" } },
   ]
-  let sd = generate_struct_from_table("posts", cols, "")
+  let sd = generate_struct_from_table("posts", cols, "", false, false, [], [])
   inspect(sd.fields[0].ty, content="Parameterized(\"Array\", [Named(\"String\")])")
 }
 
@@ -312,7 +338,7 @@ test "generate_types_from_catalog: single schema with table" {
     enums: [],
   }
   let catalog: AdaptCatalog = { name: "", default_schema: "public", schemas: [schema] }
-  let items = generate_types_from_catalog(catalog)
+  let items = generate_types_from_catalog(catalog, false, false, [], [])
   inspect(items.length(), content="2")
   let name = match items[0] {
     Struct(s) => s.name
@@ -339,7 +365,7 @@ test "generate_types_from_catalog: table and enum" {
     enums: [{ name: "status", vals: ["pending", "shipped"], comment: "" }],
   }
   let catalog: AdaptCatalog = { name: "", default_schema: "public", schemas: [schema] }
-  let items = generate_types_from_catalog(catalog)
+  let items = generate_types_from_catalog(catalog, false, false, [], [])
   inspect(items.length(), content="3")
   let names = items.map(fn(item) {
     match item {
@@ -356,8 +382,8 @@ test "generate_types_from_catalog: table and enum" {
 
 test "generate_types_from_queries: :many query produces Row struct" {
   let fields: Array[InternalField] = [
-    { name: "id", ty: Named("int4"), not_null: true, comment: "" },
-    { name: "name", ty: Named("text"), not_null: false, comment: "" },
+    { name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+    { name: "name", ty: Named("text"), not_null: false, comment: "", rename_to: (None: Option[String]) },
   ]
   let q: InternalQuery = {
     name: "list_users",
@@ -369,7 +395,7 @@ test "generate_types_from_queries: :many query produces Row struct" {
     comments: ["List all users"],
     filename: "query.sql",
   }
-  let items = generate_types_from_queries([q])
+  let items = generate_types_from_queries([q], false, false, [])
   inspect(items.length(), content="2")
   let sd = match items[0] {
     Struct(s) => s
@@ -397,7 +423,7 @@ test "generate_types_from_queries: :exec query produces no struct" {
     comments: Array::make(0, ""),
     filename: "q.sql",
   }
-  let items = generate_types_from_queries([q])
+  let items = generate_types_from_queries([q], false, false, [])
   inspect(items.length(), content="0")
 }
 
@@ -415,7 +441,7 @@ test "generate_types: combines catalog and query types" {
   }
   let catalog: AdaptCatalog = { name: "", default_schema: "public", schemas: [schema] }
   let fields: Array[InternalField] = [
-    { name: "id", ty: Named("int4"), not_null: true, comment: "" },
+    { name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) },
   ]
   let q: InternalQuery = {
     name: "get_user",
@@ -427,7 +453,7 @@ test "generate_types: combines catalog and query types" {
     comments: Array::make(0, ""),
     filename: "q.sql",
   }
-  let items = generate_types(catalog, [q])
+  let items = generate_types(catalog, [q], false, false, [], [])
   inspect(items.length(), content="4")
   let first_name = match items[0] {
     Struct(s) => s.name
@@ -457,8 +483,8 @@ test "capitalize_first: lowercase letter" {
 
 test "generate_struct_from_fields: int8 maps to Int64" {
   let fields: Array[InternalField] = [
-    { name: "big_id", ty: Named("int8"), not_null: true, comment: "" },
+    { name: "big_id", ty: Named("int8"), not_null: true, comment: "", rename_to: (None: Option[String]) },
   ]
-  let sd = generate_struct_from_fields("Big", fields, (None: Option[String]), true)
+  let sd = generate_struct_from_fields("Big", fields, (None: Option[String]), true, false, false, [])
   inspect(sd.fields[0].ty, content="Named(\"Int64\")")
 }

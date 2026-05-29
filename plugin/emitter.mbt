@@ -122,6 +122,16 @@ fn emit_struct_def(em: Emitter, indent: Int, s: StructDef) -> Unit {
 fn emit_field_def(em: Emitter, indent: Int, f: FieldDef) -> Unit {
   emit_doc_comment(em, indent, f.doc)
   push_indent(em, indent)
+  // Emit @json.tag("name") annotation before field name
+  match f.json_tag {
+    Some(tag) => { em.push("@json.tag(\"" + escape_string(tag) + "\") ") }
+    None => ()
+  }
+  // Emit @db.tag("name") annotation before field name
+  match f.db_tag {
+    Some(tag) => { em.push("@db.tag(\"" + escape_string(tag) + "\") ") }
+    None => ()
+  }
   em.push(f.name)
   em.push(": ")
   em.push(emit_type_expr(f.ty))
@@ -455,8 +465,8 @@ test "emit: public struct with fields" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: None },
-      { name: "email", ty: Named("String"), doc: Some("user email") },
+      { name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
     ],
     doc: Some("A user record"),
     is_pub: true,
@@ -607,8 +617,8 @@ test "emit: full source file with multiple items" {
   let imp: ImportDef = { path: "moonbitlang/core/builtin", import_alias: None }
   let s: StructDef = {
     name: "Point", fields: [
-      { name: "x", ty: Named("Int"), doc: None },
-      { name: "y", ty: Named("Int"), doc: None },
+      { name: "x", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "y", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
     ], doc: None, is_pub: true,
   }
   let f: FnDef = {
@@ -676,8 +686,8 @@ test "emit: struct with doc comment and field doc comments" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: Some("primary key") },
-      { name: "name", ty: Named("String"), doc: Some("full name") },
+      { name: "id", ty: Named("Int"), doc: Some("primary key"), json_tag: None, db_tag: None },
+      { name: "name", ty: Named("String"), doc: Some("full name"), json_tag: None, db_tag: None },
     ],
     doc: Some("Represents a user in the system"),
     is_pub: true,
@@ -761,4 +771,47 @@ test "emit: strlit with newline emits escaped" {
   emit_expr(em, 0, e)
   let result = em.finish()
   inspect(result, content="\"multi\\nline\"\n")
+}
+
+test "emit: field with json_tag outputs @json.tag annotation" {
+  let s: StructDef = {
+    name: "Tagged",
+    fields: [
+      { name: "user_id", ty: Named("Int64"), doc: None, json_tag: Some("user_id"), db_tag: None },
+      { name: "email_addr", ty: Named("String"), doc: None, json_tag: None, db_tag: Some("email_addr") },
+    ],
+    doc: None,
+    is_pub: true,
+  }
+  let sf: SourceFile = { items: [Struct(s)] }
+  let result = emit_source_file(sf)
+  inspect(result, content="pub struct Tagged {\n  @json.tag(\"user_id\") user_id: Int64\n  @db.tag(\"email_addr\") email_addr: String\n}\n")
+}
+
+test "emit: field with both json_tag and db_tag outputs both annotations" {
+  let s: StructDef = {
+    name: "Both",
+    fields: [
+      { name: "full_name", ty: Named("String"), doc: None, json_tag: Some("full_name"), db_tag: Some("full_name") },
+    ],
+    doc: None,
+    is_pub: true,
+  }
+  let sf: SourceFile = { items: [Struct(s)] }
+  let result = emit_source_file(sf)
+  inspect(result, content="pub struct Both {\n  @json.tag(\"full_name\") @db.tag(\"full_name\") full_name: String\n}\n")
+}
+
+test "emit: field with no tags outputs no annotations" {
+  let s: StructDef = {
+    name: "Plain",
+    fields: [
+      { name: "id", ty: Named("Int64"), doc: None, json_tag: None, db_tag: None },
+    ],
+    doc: None,
+    is_pub: true,
+  }
+  let sf: SourceFile = { items: [Struct(s)] }
+  let result = emit_source_file(sf)
+  inspect(result, content="pub struct Plain {\n  id: Int64\n}\n")
 }

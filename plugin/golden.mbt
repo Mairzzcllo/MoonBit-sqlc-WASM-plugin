@@ -21,13 +21,13 @@ const GOLDEN_USERS: String = "package testdb\n\nimport \"Mairzzcllo/moonbit_sqlc
 
 test "golden: full pipeline matches expected output" {
   let req = make_users_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result, content=GOLDEN_USERS)
 }
 
 test "golden: realistic types — bigserial→Int64, pg_catalog.int8→Int64, TEXT[]→Option[Array[String]]" {
   let req = make_realistic_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result.contains("id: Int64"), content="true")
   inspect(result.contains("author_id: Int64"), content="true")
   inspect(result.contains("title: String"), content="true")
@@ -37,20 +37,20 @@ test "golden: realistic types — bigserial→Int64, pg_catalog.int8→Int64, TE
 
 test "golden: realistic types — decode body uses typed getters for Int64 columns" {
   let req = make_realistic_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result.contains("row.get_int64("), content="true")
 }
 
 test "golden: deterministic output" {
   let req = make_users_request()
-  let result1 = generate_source(req, { package_name: "testdb" })
-  let result2 = generate_source(req, { package_name: "testdb" })
+  let result1 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result2 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result1, content=result2)
 }
 
 test "golden: all PG types — struct field types" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result.contains("is_active: Bool"), content="true")
   inspect(result.contains("score: Double"), content="true")
   inspect(result.contains("data: Option[Bytes]"), content="true")
@@ -71,7 +71,7 @@ test "golden: all PG types — struct field types" {
 
 test "golden: all PG types — decode getters" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result.contains("row.get_int64(0)"), content="true")
   inspect(result.contains("row.get_bool(1)"), content="true")
   inspect(result.contains("row.get_double(2)"), content="true")
@@ -93,7 +93,7 @@ test "golden: all PG types — decode getters" {
 
 test "golden: all PG types — Value constructors in params" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb" })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
   inspect(result.contains("Int64(id)"), content="true")
   inspect(result.contains("Bool(is_active)"), content="true")
   inspect(result.contains("Double(score)"), content="true")

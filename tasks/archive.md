@@ -641,3 +641,66 @@
 - 架构: moon check 0 errors, moon test 366/366 passed
 - 创建: 2026-05-26
 - 完成: 2026-05-26
+
+### [P2-010] 清理空文件 decoder.mbt (M6)
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: runtime/decoder.mbt 仅含许可证头+文档注释无代码。直接删除文件。runtime/moon.pkg 未引用该文件。
+- 架构: moon check 0 errors, moon test 449/449 passed
+- 创建: 2026-05-28
+- 完成: 2026-05-29
+
+### [P2-011] 补全 protobuf codec wire type 1/5 (M8)
+- 优先级: P2
+- 类型: fix
+- 状态: 完成
+- 描述: codec.mbt 新增 WT_BITS64=1 / WT_BITS32=5 常量，read_fixed32/read_fixed64 方法，skip_field 分支。8 个新测试覆盖解码和跳过逻辑。
+- 架构: moon check 0 errors, moon test 457/457 passed (+8)
+- 创建: 2026-05-28
+- 完成: 2026-05-29
+
+### [P2-012] 小问题批量修复 (四)
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: 3 个修复：(1) JsonValue→Json 变体重命名 (value.mbt+全库引用); (2) NoRows→NoRows(String) 追加查询上下文; (3) Value/DBError Show+Eq trait 手动实现。Bonus: codec read_fixed32 all-ones 测试期望值修正。
+- 架构: moon check 0 errors, moon test 457/457 passed
+- 创建: 2026-05-28
+- 完成: 2026-05-29
+
+### [P2-009] inspect→debug_inspect 全库迁移 (M7)
+- 优先级: P2
+- 类型: refactor
+- 状态: 完成
+- 描述: 784 处 inspect(→debug_inspect( 替换 + 359 处 .to_string() 填补 Show→Debug trait 不匹配。22 个文件修改，零残留。Extra: pre-existing Eq errors 已确认无关。
+- 架构: moon check 0 errors, moon test 449/449 passed (build clean)
+- 创建: 2026-05-28
+- 完成: 2026-05-29
+
+### [P2-002] type_override 支持
+- 优先级: P2
+- 类型: feature
+- 状态: 完成
+- 描述: PluginOptions{overrides: Array[(String,String)]}。parse_plugin_options 解析 override_<pgtype>=<mbt> 行。map_pg_name/lookup_override 优先查 overrides→默认映射。type_to_value_constructor 从 query_codegen.mbt 迁移到 type_map.mbt。全链路 threading overrides 参数。~20 个新测试。
+- 架构: moon check 0 errors, moon test 492/492 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-29
+
+### [P2-004] emit_json / emit_db_tags 标签生成
+- 优先级: P2
+- 类型: feature
+- 状态: 完成
+- 描述: AST FieldDef{json_tag, db_tag}。PluginOptions{emit_json_tags, emit_db_tags}。parse_plugin_options 解析 emit_json_tags/emit_db_tags bool。emitter emit_field_def 条件输出 @json.tag("name")/@db.tag("name") 注解。默认 false 向后兼容。
+- 架构: moon check 0 errors, moon test 492/492 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-29
+
+### [P2-003] rename 重命名映射
+- 优先级: P2
+- 类型: feature
+- 状态: 完成
+- 描述: IR InternalField{rename_to: Option[String]}。parse_plugin_options 解析 rename_<name>=<new> 行。type_codegen generate_struct_from_fields/table 使用 rename_to 优先。重命名仅影响 struct field name，不影响 json_tag/db_tag/函数名。~5 个新测试。
+- 架构: moon check 0 errors, moon test 497/497 passed
+- 创建: 2026-05-25
+- 完成: 2026-05-29

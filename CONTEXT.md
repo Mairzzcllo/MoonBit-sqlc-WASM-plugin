@@ -4,11 +4,11 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
-- **最新事件**: 2026-05-28 — P1-032/033/034 全部完成 (449 测试通过)
-- P0: 54/54 completed ✅ (48 + 6 hotfix: P0-049~P0-054)
-- P1: 30/30 completed ✅ (+ P1-032~P1-034)
-- P2: 2/10 completed ✅ (+ P2-007, P2-008); 10 remaining (P2-001~P2-006, P2-009~P2-012)
-- 活跃 Phase: **Phase C (P1/P2)** — Codegen 可配置性 + 重构
+- **最新事件**: 2026-05-29 — P2-002/003/004/009/010/011/012 全部完成 (497 测试通过)
+- P0: 54/54 completed ✅
+- P1: 30/30 completed ✅
+- P2: 10/10 completed ✅ (+ 全部 P2 任务)
+- 活跃 Phase: **Phase C — 全部完成** ✅
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -80,7 +80,7 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 |----|------|--------|------|
 | **P2-007** | Value enum unused warnings 处理 | P2 | ✅ done |
 | **P2-008** | Transaction codegen 精确分发 | P2 | ✅ done |
-| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | todo |
+| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | ✅ done → 2026-05-29 |
 
 ### 交付细节
 
@@ -118,15 +118,25 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 
 并行性: 全部并行完成。`moon test` 415/415 pass ✅, `moon check` 0 errors ✅。
 
-## Phase C-3 — 新增清理任务 (2026-05-28)
+## Phase C-3 — P2 全部完成 (2026-05-29)
 
 | ID | 标题 | 优先级 | 类型 | 状态 |
 |----|------|--------|------|------|
-| **P2-010** | M6: 清理空文件 decoder.mbt | P2 | refactor | todo |
-| **P2-011** | M8: 补全 protobuf codec wire type 1/5 | P2 | fix | todo |
-| **P2-012** | 小问题批量: JsonValue→Json 命名 + NoRows 上下文 + Show/Eq | P2 | refactor | todo |
+| **P2-010** | M6: 清理空文件 decoder.mbt | P2 | refactor | ✅ done |
+| **P2-011** | M8: 补全 protobuf codec wire type 1/5 | P2 | fix | ✅ done |
+| **P2-012** | 小问题批量: JsonValue→Json + NoRows 上下文 + Show/Eq | P2 | refactor | ✅ done |
+| **P2-009** | M7: inspect→debug_inspect 全库迁移 (784 处) | P2 | refactor | ✅ done |
+| **P2-002** | type_override 支持 | P2 | feature | ✅ done |
+| **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | ✅ done |
+| **P2-003** | rename 重命名映射 | P2 | feature | ✅ done |
 
-并行性: 全部独立，可并行。
+### Phase C-4 — Pending
+
+| ID | 标题 | 优先级 | 类型 | 状态 |
+|----|------|--------|------|------|
+| **P2-001** | MySQL 数据库支持 | P2 | feature | pending |
+| **P2-005** | 多文件输出支持 | P2 | feature | pending |
+| **P2-006** | emit_interface 支持 (探索) | P2 | feature | blocked |
 
 ## 关键勘误记录（2026-05-22 代码评审）
 

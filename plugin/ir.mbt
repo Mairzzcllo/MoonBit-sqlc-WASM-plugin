@@ -56,6 +56,7 @@ pub struct InternalField {
   ty : InternalType
   not_null : Bool
   comment : String
+  rename_to : Option[String]
 }
 
 /// IR parameter — a query parameter with position and type.
@@ -100,12 +101,23 @@ fn cmd_to_cardinality(cmd: QueryCmd) -> QueryCardinality {
   }
 }
 
-fn adapt_column_to_field(col: AdaptColumn) -> InternalField {
+/// Look up a rename mapping by original name.
+/// Returns Some(new_name) if a mapping exists, None otherwise.
+fn lookup_rename(name: String, renames: Array[(String, String)]) -> Option[String] {
+  for r in renames {
+    if r.0 == name { return Some(r.1) }
+  }
+  None
+}
+
+fn adapt_column_to_field(col: AdaptColumn, renames: Array[(String, String)]) -> InternalField {
+  let rename_to = lookup_rename(col.name, renames)
   {
     name: col.name,
     ty: if col.is_array { Arr(Named(col.ty.name)) } else { Named(col.ty.name) },
     not_null: col.not_null,
     comment: col.comment,
+    rename_to: rename_to,
   }
 }
 
@@ -127,9 +139,9 @@ fn build_result_shape(cmd: QueryCardinality, fields: Array[InternalField]) -> In
   }
 }
 
-fn build_query(q: AdaptQuery) -> InternalQuery {
+fn build_query(q: AdaptQuery, renames: Array[(String, String)]) -> InternalQuery {
   let card = cmd_to_cardinality(q.cmd)
-  let fields = q.columns.map(adapt_column_to_field)
+  let fields = q.columns.map(fn(col) { adapt_column_to_field(col, renames) })
   {
     name: q.name,
     text: q.text,
@@ -143,8 +155,8 @@ fn build_query(q: AdaptQuery) -> InternalQuery {
 }
 
 /// Convert an adapted request into IR queries.
-pub fn build_ir(req: AdaptRequest) -> Array[InternalQuery] {
-  req.queries.map(build_query)
+pub fn build_ir(req: AdaptRequest, renames: Array[(String, String)]) -> Array[InternalQuery] {
+  req.queries.map(fn(q) { build_query(q, renames) })
 }
 
 // === Tests ===
@@ -191,7 +203,7 @@ test "build_ir: empty queries" {
     queries: [],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir.length(), content="0")
 }
 
@@ -220,7 +232,7 @@ test "build_ir: :one query produces Rows result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir.length(), content="1")
   inspect(ir[0].name, content="get_user")
   inspect(ir[0].cmd, content="OneRow")
@@ -269,7 +281,7 @@ test "build_ir: :many query with multiple columns" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ManyRows")
   inspect(ir[0].comments.length(), content="1")
   inspect(ir[0].comments[0], content="list all users")
@@ -301,7 +313,7 @@ test "build_ir: :exec produces None result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecResult")
   let is_none = match ir[0].result_shape {
     None => true
@@ -326,7 +338,7 @@ test "build_ir: :execrows produces None result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecCount")
   let is_none = match ir[0].result_shape {
     None => true
@@ -358,7 +370,7 @@ test "build_ir: query with parameters" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].params.length(), content="1")
   inspect(ir[0].params[0].number, content="1")
   inspect(ir[0].params[0].name, content="min_age")
@@ -387,7 +399,7 @@ test "build_ir: multiple queries" {
     queries: [q1, q2],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir.length(), content="2")
   inspect(ir[0].name, content="q1")
   inspect(ir[1].name, content="q2")
@@ -400,7 +412,7 @@ test "adapt_column_to_field: is_array wraps type in Arr" {
     length: 0, comment: "",
     table: { catalog: "", schema: "public", name: "posts" },
   }
-  let f = adapt_column_to_field(col)
+  let f = adapt_column_to_field(col, [])
   inspect(f.name, content="tags")
   inspect(f.ty, content="Arr(Named(\"text\"))")
   inspect(f.not_null, content="true")
@@ -413,7 +425,7 @@ test "adapt_column_to_field: is_array false does not wrap" {
     length: 0, comment: "",
     table: { catalog: "", schema: "public", name: "users" },
   }
-  let f = adapt_column_to_field(col)
+  let f = adapt_column_to_field(col, [])
   inspect(f.ty, content="Named(\"int4\")")
 }
 
@@ -434,7 +446,7 @@ test "build_ir: :many with array column preserves Arr type" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   let fields = match ir[0].result_shape {
     Rows(f) => f
     None => []
@@ -461,7 +473,7 @@ test "build_ir: :exec with RETURNING * produces Rows when columns non-empty" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecResult")
   let has_rows = match ir[0].result_shape {
     Rows(_) => true
@@ -494,7 +506,7 @@ test "build_ir: :execrows with RETURNING * produces Rows when columns non-empty"
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecCount")
   let has_rows = match ir[0].result_shape {
     Rows(_) => true
@@ -514,7 +526,7 @@ test "build_ir: :copyfrom produces ExecResult with None result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecResult")
   let is_none = match ir[0].result_shape {
     None => true
@@ -534,7 +546,7 @@ test "build_ir: :batch produces ExecResult with None result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecResult")
   let is_none = match ir[0].result_shape {
     None => true
@@ -554,7 +566,7 @@ test "build_ir: :execlastid produces ExecResult with None result shape" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   inspect(ir[0].cmd, content="ExecResult")
   let is_none = match ir[0].result_shape {
     None => true
@@ -574,7 +586,7 @@ test "build_ir: :exec with empty columns still produces None" {
     queries: [q],
     sqlc_version: "",
   }
-  let ir = build_ir(req)
+  let ir = build_ir(req, [])
   let is_none = match ir[0].result_shape {
     None => true
     Rows(_) => false

@@ -2,7 +2,7 @@ id: P2-002
 title: type_override 支持 — 自定义列类型映射
 priority: P2
 type: feature
-state: todo
+state: done
 description: >
   实现 sqlc 的 type_override 配置选项，允许用户通过 sqlc.yaml 自定义
   特定列或类型的映射。例如覆盖 numeric→Decimal 或指定特定列的自定义类型。

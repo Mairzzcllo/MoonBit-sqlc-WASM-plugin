@@ -2,7 +2,7 @@ id: P2-003
 title: rename 支持 — 字段/表重命名映射
 priority: P2
 type: feature
-state: todo
+state: done
 description: >
   实现 sqlc 的 rename 配置选项，允许用户重命名生成的 struct 字段或查询函数名。
   例如将 created_at 重命名为 CreatedAt 或自定义命名规则。

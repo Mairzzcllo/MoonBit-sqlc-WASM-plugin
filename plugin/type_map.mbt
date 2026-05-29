@@ -65,243 +65,277 @@ pub fn map_pg_to_value_constructor_str(name: String) -> String {
   }
 }
 
+/// Look up an override for a PG type name in the overrides list.
+/// Strips schema prefix (e.g., "pg_catalog.int4" → "int4") before lookup.
+/// Returns the mapped MoonBit type name if found, None otherwise.
+fn lookup_override(name: String, overrides: Array[(String, String)]) -> Option[String] {
+  let lower = name.to_lower()
+  let base = match lower.rev_find(".") {
+    Some(pos) => lower[:][pos + 1:].to_owned()
+    None => lower
+  }
+  for o in overrides {
+    if o.0 == base { return Some(o.1) }
+  }
+  None
+}
+
 /// PostgreSQL canonical/common aliases → MoonBit type mapping.
 /// Returns the MoonBit TypeExpr for the given PG type name.
 /// Delegates to map_pg_to_value_constructor_str for the canonical mapping.
-fn map_pg_name(name: String) -> TypeExpr {
-  Named(map_pg_to_value_constructor_str(name))
+fn map_pg_name(name: String, overrides: Array[(String, String)]) -> TypeExpr {
+  match lookup_override(name, overrides) {
+    Some(mapped) => Named(mapped)
+    None => Named(map_pg_to_value_constructor_str(name))
+  }
 }
 
 /// Map an IR InternalType to a MoonBit TypeExpr.
 /// Handles Named types via the mapping table and Arr types recursively.
-pub fn map_internal_type(ir_type: InternalType) -> TypeExpr {
+pub fn map_internal_type(ir_type: InternalType, overrides: Array[(String, String)]) -> TypeExpr {
   match ir_type {
-    Named(name) => map_pg_name(name)
-    Arr(elem) => Parameterized("Array", [map_internal_type(elem)])
+    Named(name) => map_pg_name(name, overrides)
+    Arr(elem) => Parameterized("Array", [map_internal_type(elem, overrides)])
   }
 }
 
 /// Map an IR InternalType to a MoonBit TypeExpr, considering nullability.
 /// When `not_null` is false, wraps in `Option[...]`.
-pub fn map_internal_type_nullable(ir_type: InternalType, not_null: Bool) -> TypeExpr {
-  let base = map_internal_type(ir_type)
+pub fn map_internal_type_nullable(
+  ir_type: InternalType,
+  not_null: Bool,
+  overrides: Array[(String, String)],
+) -> TypeExpr {
+  let base = map_internal_type(ir_type, overrides)
   if not_null { base } else { Option(base) }
+}
+
+/// Map an IR InternalType to a Value constructor name, respecting overrides.
+/// If an override is found, returns the override target as the constructor name.
+pub fn type_to_value_constructor(ir_type: InternalType, overrides: Array[(String, String)]) -> String {
+  match ir_type {
+    Named(name) => match lookup_override(name, overrides) {
+      Some(mapped) => mapped
+      None => map_pg_to_value_constructor_str(name)
+    }
+    Arr(_) => "String"
+  }
 }
 
 // === Tests ===
 
 test "map_pg_name: int4 maps to Int64" {
-  let t = map_pg_name("int4")
+  let t = map_pg_name("int4", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: int8 maps to Int64" {
-  let t = map_pg_name("int8")
+  let t = map_pg_name("int8", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: int2 maps to Int64" {
-  let t = map_pg_name("int2")
+  let t = map_pg_name("int2", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: float4 maps to Double" {
-  let t = map_pg_name("float4")
+  let t = map_pg_name("float4", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: float8 maps to Double" {
-  let t = map_pg_name("float8")
+  let t = map_pg_name("float8", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: bool maps to Bool" {
-  let t = map_pg_name("bool")
+  let t = map_pg_name("bool", [])
   inspect(t, content="Named(\"Bool\")")
 }
 
 test "map_pg_name: text maps to String" {
-  let t = map_pg_name("text")
+  let t = map_pg_name("text", [])
   inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: varchar maps to String" {
-  let t = map_pg_name("varchar")
+  let t = map_pg_name("varchar", [])
   inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: timestamptz maps to DateTime" {
-  let t = map_pg_name("timestamptz")
+  let t = map_pg_name("timestamptz", [])
   inspect(t, content="Named(\"DateTime\")")
 }
 
 test "map_pg_name: jsonb maps to JsonValue" {
-  let t = map_pg_name("jsonb")
+  let t = map_pg_name("jsonb", [])
   inspect(t, content="Named(\"JsonValue\")")
 }
 
 test "map_pg_name: bytea maps to Bytes" {
-  let t = map_pg_name("bytea")
+  let t = map_pg_name("bytea", [])
   inspect(t, content="Named(\"Bytes\")")
 }
 
 test "map_pg_name: uuid maps to Uuid" {
-  let t = map_pg_name("uuid")
+  let t = map_pg_name("uuid", [])
   inspect(t, content="Named(\"Uuid\")")
 }
 
 test "map_pg_name: inet maps to IpAddr" {
-  let t = map_pg_name("inet")
+  let t = map_pg_name("inet", [])
   inspect(t, content="Named(\"IpAddr\")")
 }
 
 test "map_pg_name: date maps to Date" {
-  let t = map_pg_name("date")
+  let t = map_pg_name("date", [])
   inspect(t, content="Named(\"Date\")")
 }
 
 test "map_pg_name: numeric maps to Decimal" {
-  let t = map_pg_name("numeric")
+  let t = map_pg_name("numeric", [])
   inspect(t, content="Named(\"Decimal\")")
 }
 
 test "map_pg_name: unknown type falls back to String" {
-  let t = map_pg_name("some_unknown_type")
+  let t = map_pg_name("some_unknown_type", [])
   inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: boolean alias" {
-  let t = map_pg_name("boolean")
+  let t = map_pg_name("boolean", [])
   inspect(t, content="Named(\"Bool\")")
 }
 
 test "map_pg_name: smallint alias" {
-  let t = map_pg_name("smallint")
+  let t = map_pg_name("smallint", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: bigint alias" {
-  let t = map_pg_name("bigint")
+  let t = map_pg_name("bigint", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_internal_type: Named int4 maps to Int64" {
-  let t = map_internal_type(Named("int4"))
+  let t = map_internal_type(Named("int4"), [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_internal_type: Arr of int4 maps to Array[Int64]" {
-  let t = map_internal_type(Arr(Named("int4")))
+  let t = map_internal_type(Arr(Named("int4")), [])
   inspect(t, content="Parameterized(\"Array\", [Named(\"Int64\")])")
 }
 
 test "map_internal_type: nested Arr maps to Array[Array[Int64]]" {
-  let t = map_internal_type(Arr(Arr(Named("int4"))))
+  let t = map_internal_type(Arr(Arr(Named("int4"))), [])
   inspect(t, content="Parameterized(\"Array\", [Parameterized(\"Array\", [Named(\"Int64\")])])")
 }
 
 test "map_internal_type_nullable: not_null preserves type" {
-  let t = map_internal_type_nullable(Named("int4"), true)
+  let t = map_internal_type_nullable(Named("int4"), true, [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_internal_type_nullable: nullable wraps in Option" {
-  let t = map_internal_type_nullable(Named("int4"), false)
+  let t = map_internal_type_nullable(Named("int4"), false, [])
   inspect(t, content="Option(Named(\"Int64\"))")
 }
 
 test "map_internal_type_nullable: nullable array wraps in Option" {
-  let t = map_internal_type_nullable(Arr(Named("text")), false)
+  let t = map_internal_type_nullable(Arr(Named("text")), false, [])
   inspect(t, content="Option(Parameterized(\"Array\", [Named(\"String\")]))")
 }
 
 test "map_pg_name: real alias" {
-  let t = map_pg_name("real")
+  let t = map_pg_name("real", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: decimal alias" {
-  let t = map_pg_name("decimal")
+  let t = map_pg_name("decimal", [])
   inspect(t, content="Named(\"Decimal\")")
 }
 
 test "map_pg_name: serial maps to Int64" {
-  let t = map_pg_name("serial")
+  let t = map_pg_name("serial", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: bigserial maps to Int64" {
-  let t = map_pg_name("bigserial")
+  let t = map_pg_name("bigserial", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: smallserial maps to Int64" {
-  let t = map_pg_name("smallserial")
+  let t = map_pg_name("smallserial", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: INT4 uppercase maps to Int64" {
-  let t = map_pg_name("INT4")
+  let t = map_pg_name("INT4", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: BIGINT uppercase maps to Int64" {
-  let t = map_pg_name("BIGINT")
+  let t = map_pg_name("BIGINT", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: TEXT uppercase maps to String" {
-  let t = map_pg_name("TEXT")
+  let t = map_pg_name("TEXT", [])
   inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: pg_catalog.int4 strips schema prefix" {
-  let t = map_pg_name("pg_catalog.int4")
+  let t = map_pg_name("pg_catalog.int4", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: pg_catalog.int8 strips schema prefix" {
-  let t = map_pg_name("pg_catalog.int8")
+  let t = map_pg_name("pg_catalog.int8", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: pg_catalog.text strips schema prefix" {
-  let t = map_pg_name("pg_catalog.text")
+  let t = map_pg_name("pg_catalog.text", [])
   inspect(t, content="Named(\"String\")")
 }
 
 test "map_pg_name: pg_catalog.INT4 uppercase schema prefix strips correctly" {
-  let t = map_pg_name("pg_catalog.INT4")
+  let t = map_pg_name("pg_catalog.INT4", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: pg_catalog.BIGSERIAL strips schema prefix" {
-  let t = map_pg_name("pg_catalog.BIGSERIAL")
+  let t = map_pg_name("pg_catalog.BIGSERIAL", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_pg_name: timestamp with time zone maps to DateTime" {
-  let t = map_pg_name("timestamp with time zone")
+  let t = map_pg_name("timestamp with time zone", [])
   inspect(t, content="Named(\"DateTime\")")
 }
 
 test "map_pg_name: double precision maps to Double" {
-  let t = map_pg_name("double precision")
+  let t = map_pg_name("double precision", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: DOUBLE PRECISION uppercase maps to Double" {
-  let t = map_pg_name("DOUBLE PRECISION")
+  let t = map_pg_name("DOUBLE PRECISION", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: pg_catalog.float8 strips schema prefix" {
-  let t = map_pg_name("pg_catalog.float8")
+  let t = map_pg_name("pg_catalog.float8", [])
   inspect(t, content="Named(\"Double\")")
 }
 
 test "map_pg_name: serial type pg_catalog.SERIAL strips prefix" {
-  let t = map_pg_name("pg_catalog.SERIAL")
+  let t = map_pg_name("pg_catalog.SERIAL", [])
   inspect(t, content="Named(\"Int64\")")
 }
 
@@ -465,4 +499,104 @@ test "map_pg_to_value_constructor_str: pg_catalog.int8 strips schema prefix" {
 test "map_pg_to_value_constructor_str: pg_catalog.text strips schema prefix" {
   let s = map_pg_to_value_constructor_str("pg_catalog.text")
   inspect(s, content="String")
+}
+
+// === Override tests ===
+
+test "map_pg_name: override numeric to Decimal" {
+  let t = map_pg_name("numeric", [("numeric", "Decimal")])
+  inspect(t, content="Named(\"Decimal\")")
+}
+
+test "map_pg_name: override int4 to String" {
+  let t = map_pg_name("int4", [("int4", "String")])
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: override INT4 uppercase to String" {
+  let t = map_pg_name("INT4", [("int4", "String")])
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: override unknown type to custom type" {
+  let t = map_pg_name("my_custom_type", [("my_custom_type", "MyCustomType")])
+  inspect(t, content="Named(\"MyCustomType\")")
+}
+
+test "map_pg_name: override with multiple entries picks first match" {
+  let overrides: Array[(String, String)] = [("int4", "String"), ("int4", "Int64")]
+  let t = map_pg_name("int4", overrides)
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_pg_name: empty overrides falls back to default" {
+  let t = map_pg_name("int4", [])
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: overrides with non-matching entry falls back to default" {
+  let t = map_pg_name("int4", [("text", "MyString")])
+  inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_pg_name: pg_catalog.int4 with override works with schema prefix" {
+  let t = map_pg_name("pg_catalog.int4", [("int4", "String")])
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_internal_type: override Named type" {
+  let t = map_internal_type(Named("int4"), [("int4", "String")])
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_internal_type: override in array element" {
+  let t = map_internal_type(Arr(Named("int4")), [("int4", "String")])
+  inspect(t, content="Parameterized(\"Array\", [Named(\"String\")])")
+}
+
+test "map_internal_type_nullable: override with not_null" {
+  let t = map_internal_type_nullable(Named("int4"), true, [("int4", "String")])
+  inspect(t, content="Named(\"String\")")
+}
+
+test "map_internal_type_nullable: override with nullable wraps in Option" {
+  let t = map_internal_type_nullable(Named("int4"), false, [("int4", "String")])
+  inspect(t, content="Option(Named(\"String\"))")
+}
+
+test "type_to_value_constructor: override affects value constructor" {
+  let t = type_to_value_constructor(Named("int4"), [("int4", "String")])
+  inspect(t, content="String")
+}
+
+test "type_to_value_constructor: empty overrides uses default" {
+  let t = type_to_value_constructor(Named("int4"), [])
+  inspect(t, content="Int64")
+}
+
+test "type_to_value_constructor: array returns String regardless of override" {
+  let t = type_to_value_constructor(Arr(Named("int4")), [("int4", "String")])
+  inspect(t, content="String")
+}
+
+test "lookup_override: finds matching entry" {
+  let overrides: Array[(String, String)] = [("numeric", "Decimal"), ("int4", "String")]
+  let r = lookup_override("numeric", overrides)
+  inspect(r, content="Some(Decimal)")
+}
+
+test "lookup_override: case-insensitive match" {
+  let overrides: Array[(String, String)] = [("int4", "String")]
+  let r = lookup_override("INT4", overrides)
+  inspect(r, content="Some(String)")
+}
+
+test "lookup_override: not found returns None" {
+  let r = lookup_override("unknown", [("int4", "String")])
+  inspect(r, content="None")
+}
+
+test "lookup_override: empty overrides returns None" {
+  let r = lookup_override("int4", [])
+  inspect(r, content="None")
 }

@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P2-010
-state: todo
+state: done
 deterministic: true
 title: "清理空文件 decoder.mbt (M6)"
 type: refactor

@@ -29,7 +29,7 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
   let global_opts = parse_plugin_options(req.global_options)
   let plugin_opts = parse_plugin_options(req.plugin_options)
   let pkg = if plugin_opts.package_name.length() > 0 { plugin_opts.package_name } else { global_opts.package_name }
-  let opts = { package_name: pkg }
+  let opts = { package_name: pkg, overrides: plugin_opts.overrides, emit_json_tags: plugin_opts.emit_json_tags, emit_db_tags: plugin_opts.emit_db_tags, renames: plugin_opts.renames }
   let source = generate_source(req, opts)
   let contents = @utf8.encode(source)
   let out_name = req.settings.codegen.out
@@ -46,9 +46,9 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
 /// Accepts parsed PluginOptions for codegen configuration (package_name, etc.).
 pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
   let adapted = convert_request(req)
-  let ir = build_ir(adapted)
-  let types = generate_types(adapted.catalog, ir)
-  let query_fns = generate_query_fns(ir)
+  let ir = build_ir(adapted, opts.renames)
+  let types = generate_types(adapted.catalog, ir, opts.emit_json_tags, opts.emit_db_tags, opts.overrides, opts.renames)
+  let query_fns = generate_query_fns(ir, opts.overrides)
   let ast: SourceFile = { items: [] }
   ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
   for t in types { ast.items.push(t) }

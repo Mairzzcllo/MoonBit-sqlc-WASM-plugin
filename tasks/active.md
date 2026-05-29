@@ -36,17 +36,17 @@
 | **P1-033** | 合并重复类型映射 (M3) | P1 | refactor | ✅ done | — |
 | **P1-034** | MockDB 事务可配置 (M5) | P1 | feature | ✅ done | — |
 
-### P2 任务
+### P2 任务 — Phase C-4 (2026-05-29) 全部完成 ✅
 
-| ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
-|----|------|--------|------|------|------|
-| **P2-001** | MySQL 数据库支持 | P2 | feature | 待办 | S-001, S-002 |
-| **P2-002** | type_override 支持 | P2 | feature | todo | — |
-| **P2-003** | rename 重命名映射 | P2 | feature | todo | — |
-| **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | todo | — |
-| **P2-005** | 多文件输出支持 | P2 | feature | todo | — |
-| **P2-006** | emit_interface 支持 (探索) | P2 | feature | todo | MoonBit trait 更新 |
-| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | refactor | todo | — |
-| **P2-010** | 清理空文件 decoder.mbt (M6) | P2 | refactor | todo | — |
-| **P2-011** | 补全 protobuf codec wire type 1/5 (M8) | P2 | fix | todo | — |
-| **P2-012** | 小问题批量修复 (四) | P2 | refactor | todo | — |
+| ID | 标题 | 优先级 | 类型 | 状态 |
+|----|------|--------|------|------|
+| **P2-002** | type_override 支持 | P2 | feature | ✅ done |
+| **P2-003** | rename 重命名映射 | P2 | feature | ✅ done |
+| **P2-004** | emit_json / emit_db_tags 标签生成 | P2 | feature | ✅ done |
+| **P2-009** | inspect→debug_inspect 全库迁移 (M7) | P2 | refactor | ✅ done |
+| **P2-010** | 清理空文件 decoder.mbt (M6) | P2 | refactor | ✅ done |
+| **P2-011** | 补全 protobuf codec wire type 1/5 (M8) | P2 | fix | ✅ done |
+| **P2-012** | 小问题批量修复 (四) | P2 | refactor | ✅ done |
+| **P2-001** | MySQL 数据库支持 | P2 | feature | pending |
+| **P2-005** | 多文件输出支持 | P2 | feature | pending |
+| **P2-006** | emit_interface 支持 (探索) | P2 | feature | blocked (MoonBit trait) |

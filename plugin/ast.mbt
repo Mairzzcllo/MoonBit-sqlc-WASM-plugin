@@ -54,6 +54,8 @@ pub struct FieldDef {
   name : String
   ty : TypeExpr
   doc : Option[String]
+  json_tag : Option[String]
+  db_tag : Option[String]
 }
 
 /// Struct definition.
@@ -182,8 +184,8 @@ test "StructDef with fields" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: None },
-      { name: "email", ty: Named("String"), doc: Some("user email") },
+      { name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
     ],
     doc: Some("A user record"),
     is_pub: true,

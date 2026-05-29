@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P2-011
-state: todo
+state: done
 deterministic: true
 title: "补全 protobuf codec wire type 1/5 (M8)"
 type: fix

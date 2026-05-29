@@ -19,7 +19,9 @@
 //
 
 const WT_VARINT: Int = 0
+const WT_BITS64: Int = 1
 const WT_LEN: Int = 2
+const WT_BITS32: Int = 5
 
 // === Encoder: mutable byte buffer ===
 
@@ -147,12 +149,38 @@ fn Decoder::read_bool(self: Decoder) -> Bool {
   self.read_varint() != 0
 }
 
+/// Read 4 little-endian bytes as a 32-bit fixed-width unsigned integer.
+/// Corresponds to protobuf wire type 5 (32-bit).
+fn Decoder::read_fixed32(self: Decoder) -> Int {
+  let b0 = self.read_byte().to_int()
+  let b1 = self.read_byte().to_int()
+  let b2 = self.read_byte().to_int()
+  let b3 = self.read_byte().to_int()
+  b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+}
+
+/// Read 8 little-endian bytes as a 64-bit fixed-width integer.
+/// Corresponds to protobuf wire type 1 (64-bit).
+fn Decoder::read_fixed64(self: Decoder) -> Int64 {
+  let b0 = self.read_byte().to_int()
+  let b1 = self.read_byte().to_int()
+  let b2 = self.read_byte().to_int()
+  let b3 = self.read_byte().to_int()
+  let b4 = self.read_byte().to_int()
+  let b5 = self.read_byte().to_int()
+  let b6 = self.read_byte().to_int()
+  let b7 = self.read_byte().to_int()
+  let low: Int64 = Int64::from_int(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24))
+  let high: Int64 = Int64::from_int(b4 | (b5 << 8) | (b6 << 16) | (b7 << 24))
+  low | (high << 32)
+}
+
 fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
   match wt {
     WT_VARINT => { let _ = self.read_varint() }
     WT_LEN => { let len = self.read_varint(); self.pos = self.pos + len }
-    1 => { self.pos = self.pos + 8 }
-    5 => { self.pos = self.pos + 4 }
+    WT_BITS64 => { self.pos = self.pos + 8 }
+    WT_BITS32 => { self.pos = self.pos + 4 }
     3 => { self.skip_group(fn_num) }
     4 => { () }
     _ => {
@@ -1519,4 +1547,92 @@ test "skip_field: unknown wire type skips to end" {
   let (fn_num, wt) = dec.read_tag()
   dec.skip_field(fn_num, wt)
   inspect(dec.remaining(), content="0")
+}
+
+test "read_fixed32: decodes 4 LE bytes" {
+  let buf = Bytes::from_array([0x78, 0x56, 0x34, 0x12])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  inspect(val, content="305419896")
+}
+
+test "read_fixed32: zero value" {
+  let buf = Bytes::from_array([0x00, 0x00, 0x00, 0x00])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  inspect(val, content="0")
+}
+
+test "read_fixed32: all-ones value (wraps to -1 as Int)" {
+  let buf = Bytes::from_array([0xFF, 0xFF, 0xFF, 0xFF])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  // 0xFFFFFFFF as 32-bit signed Int = -1 (consistent with decode_u32_le)
+  inspect(val, content="-1")
+}
+
+test "read_fixed64: decodes 8 LE bytes" {
+  let buf = Bytes::from_array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  // 0x0807060504030201 = 578437695752307201
+  inspect(val, content="578437695752307201")
+}
+
+test "read_fixed64: zero value" {
+  let buf = Bytes::from_array([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  inspect(val, content="0")
+}
+
+test "read_fixed64: small value (42)" {
+  let buf = Bytes::from_array([0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  inspect(val, content="42")
+}
+
+test "skip_field: WT_BITS64 (wire type 1) skips 8 bytes" {
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_BITS64)
+  enc.write_byte((0x01).to_byte())
+  enc.write_byte((0x02).to_byte())
+  enc.write_byte((0x03).to_byte())
+  enc.write_byte((0x04).to_byte())
+  enc.write_byte((0x05).to_byte())
+  enc.write_byte((0x06).to_byte())
+  enc.write_byte((0x07).to_byte())
+  enc.write_byte((0x08).to_byte())
+  enc.write_tag(2, WT_LEN)
+  enc.write_string("ok")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (fn_num, wt) = dec.read_tag()
+  dec.skip_field(fn_num, wt)
+  let (fn2, wt2) = dec.read_tag()
+  inspect(fn2, content="2")
+  inspect(wt2, content="2")
+  let s = dec.read_string()
+  inspect(s, content="ok")
+}
+
+test "skip_field: WT_BITS32 (wire type 5) skips 4 bytes" {
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_BITS32)
+  enc.write_byte((0xDE).to_byte())
+  enc.write_byte((0xAD).to_byte())
+  enc.write_byte((0xBE).to_byte())
+  enc.write_byte((0xEF).to_byte())
+  enc.write_tag(2, WT_LEN)
+  enc.write_string("ok")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let (fn_num, wt) = dec.read_tag()
+  dec.skip_field(fn_num, wt)
+  let (fn2, wt2) = dec.read_tag()
+  inspect(fn2, content="2")
+  inspect(wt2, content="2")
+  let s = dec.read_string()
+  inspect(s, content="ok")
 }
