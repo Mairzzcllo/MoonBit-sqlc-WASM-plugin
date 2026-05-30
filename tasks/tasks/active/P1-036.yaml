@@ -22,6 +22,7 @@ artifacts:
     path: sqlc.yaml
 references:
   - examples/users/sqlc.yaml
+  - adr/ADR-014.md
 execution_notes: >
   GAP-8 from architecture review. Copy working config pattern from
   examples/users/sqlc.yaml, adapt for root-level use.

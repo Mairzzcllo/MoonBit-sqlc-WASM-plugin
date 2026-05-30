@@ -4,8 +4,8 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 规划就绪
-- **最新事件**: 2026-05-29 — P0-056 ✅ :execresult 完整语义完成 (486 tests)
-- P0: 56/61 completed ✅ (P0-056 done, P0-057~060 active)
+- **最新事件**: 2026-05-30 — P0-058 ✅ 类型覆盖扩展 (column + nullable) (571 tests)
+- P0: 58/61 completed ✅ (P0-056/057/058 done, P0-059~060 active)
 - P1: 30/34 completed ✅ (P1-035~038 active)
 - P2: 12/12 completed ✅; P2-001/005/006 superseded
 - 活跃 Phase: **Phase D — 架构差距消除 Sprint**
@@ -179,12 +179,21 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 - plugin/golden.mbt: GOLDEN_USERS 中 query_delete_user 更新为 ExecResult 返回 + Match body
 - 测试: 486/486 pass (482 original + 4 new Match arm structure tests)
 
+### P0-057 交付内容 ✅
+- **8 新选项**: emit_sql_as_comment（SQL 注释）, omit_unused_structs（跳过未用结构体）, emit_empty_slices（空结果返回空数组）, initialisms（命名缩写）, json_tags_case_style（标签大小写风格）, query_parameter_limit（参数限制, TODO）, emit_exact_table_names（精确表名）, emit_methods_with_db_argument（DB 参数函数风格）
+- **naming.mbt (NEW)**: capitalize_first, lowercase_first, parse_initialisms, snake_to_pascal/camel, apply_case_style + 21 内联测试
+- **adapter.mbt**: 所有选项解析支持 snake_case + kebab-case；全部布尔选项有 =true/=false 分支；+27 内联测试
+- **type_codegen.mbt**: omit_unused_structs 过滤；emit_exact_table_names 透传；initialisms 影响枚举/结构体命名；json_tags_case_style 影响标签
+- **query_codegen.mbt**: emit_sql_as_comment 生成 SQL 文档注释；emit_empty_slices 正确匹配 Err(NoRows)→Ok([]) 而非掩盖所有错误；emit_methods_with_db_argument 文档澄清
+- **golden.mbt**: 7 个新 golden 变体覆盖 emit_sql_as_comment、json_tags_case_style、initialisms、emit_exact_table_names、emit_empty_slices、emit_methods_with_db_argument、omit_unused_structs
+- **测试**: 555/555 pass (+68 from 486), moon check 0 errors
+
 ### P0 任务
 
 | ID | GAP | 标题 | 类型 | 状态 | 依赖 |
 |----|-----|------|------|------|------|
 | **P0-056** | GAP-2 | :execresult 完整语义 — LastInsertId + RowsAffected 结构体 | feature | ✅ done | — |
-| **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | todo | — |
+| **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | ✅ done | — |
 | **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | todo | — |
 | **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | todo | — |
 | **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | todo | — |
@@ -243,7 +252,7 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 1. **GAP-2 ExecResult**: `ExecResult { last_insert_id: Int64, rows_affected: Int64 }` 双值结构体，类似 sql.Result
 2. **GAP-7 TimeTZ**: 新增独立 struct `TimeTZ { hour, min, sec, micros: Int, tz_offset: Int }`，Value 新增 `TimeTZ(TimeTZ)` 变体
 3. **GAP-3 Overrides**: 扩展 adapter 解析 `overrides[]` 配置，支持 `column` 精确列匹配和 `nullable` 可空覆盖
-4. **GAP-4 Options**: 全部 8 个选项通过 `parse_plugin_options` 统一提取，`PluginOptions` struct 新增字段
+4. **GAP-4 Options** ✅: 全部 8 个选项通过 `parse_plugin_options` 统一提取，`PluginOptions` struct 新增字段。naming.mbt 新增命名转换工具链。emit_empty_slices 正确实现 Err(NoRows) 过滤。query_parameter_limit 留 TODO (需 SQL 级查询拆分)。
 5. **GAP-9 E2E**: PowerShell 脚本调用本地 sqlc.exe + WASM 验证生成结果
 
 ## 关键勘误记录（2026-05-22 代码评审）

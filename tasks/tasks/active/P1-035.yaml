@@ -23,6 +23,7 @@ artifacts: []
 references:
   - plugin/type_map.mbt
   - plugin/adapter.mbt
+  - adr/ADR-014.md
 execution_notes: >
   GAP-5 from architecture review. Supersedes P2-001.
   MySQL types: TINYINT/SMALLINT/MEDIUMINT/BIGINT → Int64,

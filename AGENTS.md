@@ -3,7 +3,7 @@
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
-- `moon test` — 运行测试（481 测试）
+- `moon test` — 运行测试（555 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
 - `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）

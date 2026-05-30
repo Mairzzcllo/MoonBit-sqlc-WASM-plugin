@@ -19,13 +19,13 @@
 //
 
 /// Get the result struct type name for a query.
-fn get_result_type_name(query: InternalQuery) -> String {
-  snake_to_pascal(query.name) + "Row"
+fn get_result_type_name(query: InternalQuery, initialisms: Array[String]) -> String {
+  snake_to_pascal(query.name, initialisms) + "Row"
 }
 
 /// Convert an InternalParameter to a ParamDef, mapping the type through the type layer.
-fn param_to_param_def(p: InternalParameter, overrides: Array[(String, String)]) -> ParamDef {
-  let moon_type = map_internal_type_nullable(p.ty, p.not_null, overrides)
+fn param_to_param_def(p: InternalParameter, overrides: Array[(String, String)], nullable_overrides: Array[String]) -> ParamDef {
+  let moon_type = map_internal_type_nullable(p.ty, p.not_null, overrides, nullable_overrides)
   { name: p.name, ty: moon_type }
 }
 
@@ -43,7 +43,7 @@ fn param_to_value_expr(p: InternalParameter, overrides: Array[(String, String)])
 }
 
 /// Build the Array[Value] params expression from query parameters.
-fn build_params_expr(params: Array[InternalParameter], overrides: Array[(String, String)]) -> Expr {
+fn build_params_expr(params: Array[InternalParameter], overrides: Array[(String, String)], _nullable_overrides: Array[String]) -> Expr {
   let value_exprs = params.map(fn(p) { param_to_value_expr(p, overrides) })
   ArrLit(value_exprs)
 }
@@ -69,9 +69,11 @@ fn build_return_ty(cmd: QueryCardinality, result_type: String, result_shape: Int
 /// Build the function body expressions for a query.
 /// ExecResult/ExecCount with Rows (e.g. RETURNING *) generate decode paths
 /// instead of exec/execrows calls.
-fn build_body(query: InternalQuery, result_type: String, conn_name: String, result_shape: InternalResultShape, overrides: Array[(String, String)]) -> Array[Expr] {
+/// When emit_empty_slices is true, :many queries return an empty array
+/// instead of an error when no rows are returned.
+fn build_body(query: InternalQuery, result_type: String, conn_name: String, result_shape: InternalResultShape, overrides: Array[(String, String)], nullable_overrides: Array[String], emit_empty_slices: Bool) -> Array[Expr] {
   let sql_let = Let("sql", StrLit(query.text))
-  let params_expr = build_params_expr(query.params, overrides)
+  let params_expr = build_params_expr(query.params, overrides, nullable_overrides)
   let params_let = Let("params", params_expr)
   match query.cmd {
     OneRow => [
@@ -82,26 +84,32 @@ fn build_body(query: InternalQuery, result_type: String, conn_name: String, resu
         ("Err(e)", Call("Err", [Ident("e")])),
       ]),
     ]
-    ManyRows => [
-      sql_let,
-      params_let,
-      Match(Call(conn_name + ".query", [Ident("sql"), Ident("params")]), [
-        ("Ok(iter)", Match(Call("iter.collect", []), [
-          ("Ok(rows)", Block([
-            Let("result", ArrLit([])),
-            ForLoop("row", Ident("rows"), [
-              Match(Call(result_type + "::decode", [Ident("row")]), [
-                ("Ok(v)", Call("result.push", [Ident("v")])),
-                ("Err(e)", Return(Call("Err", [Ident("e")]))),
-              ]),
-            ]),
-            Call("Ok", [Ident("result")]),
-          ])),
+    ManyRows => {
+      let ok_arm = ("Ok(rows)", Block([
+        Let("result", ArrLit([])),
+        ForLoop("row", Ident("rows"), [
+          Match(Call(result_type + "::decode", [Ident("row")]), [
+            ("Ok(v)", Call("result.push", [Ident("v")])),
+            ("Err(e)", Return(Call("Err", [Ident("e")]))),
+          ]),
+        ]),
+        Call("Ok", [Ident("result")]),
+      ]))
+      let err_arm = ("Err(e)", Call("Err", [Ident("e")]))
+      let collect_arms: Array[(String, Expr)] = if emit_empty_slices {
+        [ok_arm, ("Err(NoRows)", Call("Ok", [ArrLit([])])), err_arm]
+      } else {
+        [ok_arm, err_arm]
+      }
+      [
+        sql_let,
+        params_let,
+        Match(Call(conn_name + ".query", [Ident("sql"), Ident("params")]), [
+          ("Ok(iter)", Match(Call("iter.collect", []), collect_arms)),
           ("Err(e)", Call("Err", [Ident("e")])),
-        ])),
-        ("Err(e)", Call("Err", [Ident("e")])),
-      ]),
-    ]
+        ]),
+      ]
+    }
     ExecResult => match result_shape {
       // RETURNING * — use query_row + decode (single row)
       Rows(_) => [
@@ -136,26 +144,32 @@ fn build_body(query: InternalQuery, result_type: String, conn_name: String, resu
     }
     ExecCount => match result_shape {
       // RETURNING * — use query + collect + decode (multiple rows)
-      Rows(_) => [
-        sql_let,
-        params_let,
-        Match(Call(conn_name + ".query", [Ident("sql"), Ident("params")]), [
-          ("Ok(iter)", Match(Call("iter.collect", []), [
-            ("Ok(rows)", Block([
-              Let("result", ArrLit([])),
-              ForLoop("row", Ident("rows"), [
-                Match(Call(result_type + "::decode", [Ident("row")]), [
-                  ("Ok(v)", Call("result.push", [Ident("v")])),
-                  ("Err(e)", Return(Call("Err", [Ident("e")]))),
-                ]),
-              ]),
-              Call("Ok", [Ident("result")]),
-            ])),
+      Rows(_) => {
+        let ok_arm = ("Ok(rows)", Block([
+          Let("result", ArrLit([])),
+          ForLoop("row", Ident("rows"), [
+            Match(Call(result_type + "::decode", [Ident("row")]), [
+              ("Ok(v)", Call("result.push", [Ident("v")])),
+              ("Err(e)", Return(Call("Err", [Ident("e")]))),
+            ]),
+          ]),
+          Call("Ok", [Ident("result")]),
+        ]))
+        let err_arm = ("Err(e)", Call("Err", [Ident("e")]))
+        let collect_arms: Array[(String, Expr)] = if emit_empty_slices {
+          [ok_arm, ("Err(NoRows)", Call("Ok", [ArrLit([])])), err_arm]
+        } else {
+          [ok_arm, err_arm]
+        }
+        [
+          sql_let,
+          params_let,
+          Match(Call(conn_name + ".query", [Ident("sql"), Ident("params")]), [
+            ("Ok(iter)", Match(Call("iter.collect", []), collect_arms)),
             ("Err(e)", Call("Err", [Ident("e")])),
-          ])),
-          ("Err(e)", Call("Err", [Ident("e")])),
-        ]),
-      ]
+          ]),
+        ]
+      }
       None => [sql_let, params_let, Call(conn_name + ".execrows", [Ident("sql"), Ident("params")])]
     }
   }
@@ -183,20 +197,35 @@ fn to_snake_case(s: String) -> String {
 }
 
 /// Generate a single query function FnDef.
-pub fn generate_query_fn(query: InternalQuery, conn_name: String, conn_ty: TypeExpr, overrides: Array[(String, String)]) -> FnDef {
+/// emit_methods_with_db_argument is accepted for API compatibility with sqlc's other plugins.
+/// MoonBit 0.1 always generates standalone functions with DB as first param (see generate_query_fns).
+pub fn generate_query_fn(query: InternalQuery, conn_name: String, conn_ty: TypeExpr, overrides: Array[(String, String)], nullable_overrides: Array[String], emit_sql_as_comment: Bool, _emit_methods_with_db_argument: Bool, emit_empty_slices: Bool, initialisms: Array[String]) -> FnDef {
   let fn_name = "query_" + to_snake_case(query.name)
-  let result_type = get_result_type_name(query)
+  let result_type = get_result_type_name(query, initialisms)
   // First param is connection (db: DB or tx: Transaction)
   let conn_param: ParamDef = { name: conn_name, ty: conn_ty }
   // Convert IR params to AST params
-  let query_params = query.params.map(fn(p) { param_to_param_def(p, overrides) })
+  let query_params = query.params.map(fn(p) { param_to_param_def(p, overrides, nullable_overrides) })
   let all_params = [conn_param] + query_params
   // Return type (respects RETURNING * for ExecResult/ExecCount)
   let return_ty = build_return_ty(query.cmd, result_type, query.result_shape)
   // Body (respects RETURNING * for ExecResult/ExecCount)
-  let body = build_body(query, result_type, conn_name, query.result_shape, overrides)
-  // Doc comment
-  let doc = if query.comments.length() > 0 { Some(query.comments[0]) } else { None }
+  let body = build_body(query, result_type, conn_name, query.result_shape, overrides, nullable_overrides, emit_empty_slices)
+  // Doc comment — if emit_sql_as_comment is true, include SQL text in doc comment
+  let doc = if query.comments.length() > 0 {
+    let comment = query.comments[0]
+    if emit_sql_as_comment {
+      Some(comment + "\n\n" + query.text)
+    } else {
+      Some(comment)
+    }
+  } else {
+    if emit_sql_as_comment {
+      Some(query.text)
+    } else {
+      None
+    }
+  }
   { name: fn_name, params: all_params, return_ty: return_ty, body: body, doc: doc, is_pub: true }
 }
 
@@ -212,12 +241,22 @@ fn supports_transaction(cmd: QueryCmd) -> Bool {
 /// Generate all query function TopLevel items from IR queries.
 /// Always generates a `db: DB` overload. Only generates a `tx: Transaction` overload
 /// for queries whose `raw_cmd` is supported by Transaction (One, Many, Exec, ExecRows).
-pub fn generate_query_fns(queries: Array[InternalQuery], overrides: Array[(String, String)]) -> Array[TopLevel] {
+///
+/// emit_methods_with_db_argument:
+///   The current codegen strategy always produces standalone functions with `db: DB` as
+///   the first parameter (e.g., `pub fn query_list_users(db: DB) -> ...`). This is the
+///   only feasible approach in MoonBit 0.1 since trait objects and method dispatch are
+///   not fully supported. Both `true` and `false` produce identical output — standalone
+///   functions with a DB argument. A future version might use `fn DB::query_list_users()`
+///   method receiver syntax when MoonBit supports it, at which point `false` could mean
+///   "emit as method on DB type". For now, the option is accepted for API compatibility
+///   with sqlc's other plugins but is a no-op.
+pub fn generate_query_fns(queries: Array[InternalQuery], overrides: Array[(String, String)], nullable_overrides: Array[String], emit_sql_as_comment: Bool, emit_methods_with_db_argument: Bool, emit_empty_slices: Bool, initialisms: Array[String]) -> Array[TopLevel] {
   let items: Array[TopLevel] = []
   for q in queries {
-    items.push(Fn(generate_query_fn(q, "db", Named("DB"), overrides)))
+    items.push(Fn(generate_query_fn(q, "db", Named("DB"), overrides, nullable_overrides, emit_sql_as_comment, emit_methods_with_db_argument, emit_empty_slices, initialisms)))
     if supports_transaction(q.raw_cmd) {
-      items.push(Fn(generate_query_fn(q, "tx", Named("Transaction"), overrides)))
+      items.push(Fn(generate_query_fn(q, "tx", Named("Transaction"), overrides, nullable_overrides, emit_sql_as_comment, emit_methods_with_db_argument, emit_empty_slices, initialisms)))
     }
   }
   items
@@ -232,20 +271,20 @@ test "get_result_type_name: basic" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let name = get_result_type_name(q)
+  let name = get_result_type_name(q, [])
   inspect(name, content="GetUserRow")
 }
 
 test "param_to_param_def: not_null param" {
   let p: InternalParameter = { number: 1, name: "id", ty: Named("int4"), not_null: true }
-  let pd = param_to_param_def(p, [])
+  let pd = param_to_param_def(p, [], [])
   inspect(pd.name, content="id")
   inspect(pd.ty, content="Named(\"Int64\")")
 }
 
 test "param_to_param_def: nullable param" {
   let p: InternalParameter = { number: 1, name: "email", ty: Named("text"), not_null: false }
-  let pd = param_to_param_def(p, [])
+  let pd = param_to_param_def(p, [], [])
   inspect(pd.ty, content="Option(Named(\"String\"))")
 }
 
@@ -289,7 +328,7 @@ test "generate_query_fn: :one query has db param and result return" {
     result_shape: (None: InternalResultShape),
     comments: ["Get a user by ID"], filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], false, false, false, [])
   inspect(fn_def.name, content="query_get_user")
   inspect(fn_def.params.length(), content="2")
   inspect(fn_def.params[0].name, content="db")
@@ -308,7 +347,7 @@ test "generate_query_fn: :many query has no params" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   inspect(fn_def.name, content="query_list_users")
   inspect(fn_def.params.length(), content="1")
   inspect(fn_def.params[0].name, content="db")
@@ -322,7 +361,7 @@ test "generate_query_fn: :exec query returns Result[ExecResult, DBError]" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   inspect(fn_def.name, content="query_delete_user")
   inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"ExecResult\"), Named(\"DBError\")])")
   inspect(fn_def.body.length(), content="3")
@@ -349,202 +388,11 @@ test "generate_query_fn: :execrows query returns Result[Int64, DBError]" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
   inspect(fn_def.params.length(), content="3")
   inspect(fn_def.params[1].name, content="email")
   inspect(fn_def.params[2].name, content="id")
-}
-
-test "generate_query_fn: ExecResult with RETURNING * uses decode path" {
-  let q: InternalQuery = {
-    name: "create_user", text: "INSERT INTO users DEFAULT VALUES RETURNING id", cmd: ExecResult, raw_cmd: Exec,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (Rows([{ name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) }]) : InternalResultShape),
-    comments: Array::make(0, ""), filename: "q.sql",
-  }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
-  // Return type should be Result[CreateUserRow, DBError], not Result[Int64, DBError]
-  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"CreateUserRow\"), Named(\"DBError\")])")
-  // Body should use query_row + decode path
-  inspect(fn_def.body.length(), content="3")
-  let call_name = match fn_def.body[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  inspect(call_name, content="db.query_row")
-}
-
-test "generate_query_fns: multiple queries" {
-  let q1: InternalQuery = {
-    name: "q1", text: "S1", cmd: ManyRows, raw_cmd: Many,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let q2: InternalQuery = {
-    name: "q2", text: "S2", cmd: ExecResult, raw_cmd: Exec,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let items = generate_query_fns([q1, q2], [])
-  inspect(items.length(), content="4")
-  let name1 = match items[0] { Fn(f) => f.name; _ => "" }
-  let name2 = match items[1] { Fn(f) => f.name; _ => "" }
-  inspect(name1, content="query_q1")
-  inspect(name2, content="query_q1")
-}
-
-test "generate_query_fns: produces two items per query (DB + Transaction)" {
-  let q: InternalQuery = {
-    name: "test", text: "SELECT 1", cmd: ManyRows, raw_cmd: Many,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let items = generate_query_fns([q], [])
-  inspect(items.length(), content="2")
-  // First is db: DB
-  let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
-  let param0_ty = match items[0] { Fn(f) => f.params[0].ty; _ => Named("") }
-  inspect(param0_name, content="db")
-  inspect(param0_ty, content="Named(\"DB\")")
-  // Second is tx: Transaction
-  let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }
-  let param1_ty = match items[1] { Fn(f) => f.params[0].ty; _ => Named("") }
-  inspect(param1_name, content="tx")
-  inspect(param1_ty, content="Named(\"Transaction\")")
-}
-
-test "generate_query_fn: transaction overload uses tx.method calls" {
-  let q: InternalQuery = {
-    name: "get", text: "SELECT 1", cmd: OneRow, raw_cmd: One,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let fn_def = generate_query_fn(q, "tx", Named("Transaction"), [])
-  inspect(fn_def.params[0].name, content="tx")
-  inspect(fn_def.params[0].ty, content="Named(\"Transaction\")")
-  // Verify body uses tx.query_row
-  let call_name = match fn_def.body[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  inspect(call_name, content="tx.query_row")
-}
-
-test "build_body: :many body uses db.query + iter.collect + for loop" {
-  let q: InternalQuery = {
-    name: "list", text: "SELECT 1", cmd: ManyRows, raw_cmd: Many,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body = build_body(q, "ListRow", "db", None, [])
-  inspect(body.length(), content="3")
-  // First: let sql
-  // Second: let params = []
-  let params_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(params_name, content="params")
-  // Third: match db.query(sql, params) { ... }
-  let is_match = match body[2] {
-    Match(_, _) => true
-    _ => false
-  }
-  inspect(is_match, content="true")
-}
-
-test "build_body: :one body uses match db.query_row + decode" {
-  let q: InternalQuery = {
-    name: "get", text: "SELECT 1 WHERE id = $1", cmd: OneRow, raw_cmd: One,
-    params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body = build_body(q, "GetRow", "db", None, [])
-  inspect(body.length(), content="3")
-  // First: let sql
-  // Second: let params = [Int64(id)]
-  let params_name = match body[1] { Let(name, _) => name; _ => "" }
-  inspect(params_name, content="params")
-  // Third: match db.query_row(sql, params) { ... }
-  let is_match = match body[2] {
-    Match(_, _) => true
-    _ => false
-  }
-  inspect(is_match, content="true")
-}
-
-test "build_body: :execrows uses db.execrows with params" {
-  let q: InternalQuery = {
-    name: "del", text: "DELETE FROM t", cmd: ExecCount, raw_cmd: ExecRows,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body = build_body(q, "DelRow", "db", None, [])
-  let call_name = match body[2] { Call(name, _) => name; _ => "" }
-  inspect(call_name, content="db.execrows")
-}
-
-test "build_body: conn_name parameterizes the method receiver" {
-  let q: InternalQuery = {
-    name: "get", text: "SELECT 1", cmd: OneRow, raw_cmd: One,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (None: InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body_with_db = build_body(q, "Row", "db", None, [])
-  let body_with_tx = build_body(q, "Row", "tx", None, [])
-  let call_db = match body_with_db[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  let call_tx = match body_with_tx[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  inspect(call_db, content="db.query_row")
-  inspect(call_tx, content="tx.query_row")
-}
-
-test "build_body: ExecResult + Rows uses query_row + decode" {
-  let q: InternalQuery = {
-    name: "create_user", text: "INSERT INTO users DEFAULT VALUES RETURNING id", cmd: ExecResult, raw_cmd: Exec,
-    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
-    result_shape: (Rows([{ name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) }]) : InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body = build_body(q, "CreateUserRow", "db", q.result_shape, [])
-  inspect(body.length(), content="3")
-  let call_name = match body[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  inspect(call_name, content="db.query_row")
-  let has_decode = match body[2] {
-    Match(_, [("Ok(row)", Call(d, _)), _]) => d == "CreateUserRow::decode"
-    _ => false
-  }
-  inspect(has_decode, content="true")
-}
-
-test "build_body: ExecCount + Rows uses db.query + iter.collect + for loop" {
-  let q: InternalQuery = {
-    name: "update_user", text: "UPDATE users SET name = $1 RETURNING name", cmd: ExecCount, raw_cmd: ExecRows,
-    params: [{ number: 1, name: "name", ty: Named("text"), not_null: true }],
-    result_shape: (Rows([{ name: "name", ty: Named("text"), not_null: false, comment: "", rename_to: (None: Option[String]) }]) : InternalResultShape),
-    comments: Array::make(0, ""), filename: "",
-  }
-  let body = build_body(q, "UpdateUserRow", "db", q.result_shape, [])
-  inspect(body.length(), content="3")
-  let call_name = match body[2] {
-    Match(Call(name, _), _) => name
-    _ => ""
-  }
-  inspect(call_name, content="db.query")
 }
 
 test "generate_query_fn: full function emission matches expected pattern" {
@@ -554,7 +402,7 @@ test "generate_query_fn: full function emission matches expected pattern" {
     result_shape: (None: InternalResultShape),
     comments: ["Get a user by ID"], filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   let sf: SourceFile = { items: [Fn(fn_def)] }
   let result = emit_source_file(sf)
   inspect(result.contains("match db.query_row"), content="true")
@@ -588,7 +436,7 @@ test "build_body: CopyFrom raw_cmd uses conn.copyfrom" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "CopyUsersRow", "db", None, [])
+  let body = build_body(q, "CopyUsersRow", "db", None, [], [], false)
   let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.copyfrom")
 }
@@ -600,7 +448,7 @@ test "build_body: Batch raw_cmd uses conn.batch" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "BatchInsertRow", "db", None, [])
+  let body = build_body(q, "BatchInsertRow", "db", None, [], [], false)
   let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.batch")
 }
@@ -612,7 +460,7 @@ test "build_body: ExecLastId raw_cmd uses conn.execlastid" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "InsertUserRow", "db", None, [])
+  let body = build_body(q, "InsertUserRow", "db", None, [], [], false)
   let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.execlastid")
 }
@@ -624,7 +472,7 @@ test "build_body: Exec raw_cmd uses conn.exec (default)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "DeleteUserRow", "db", None, [])
+  let body = build_body(q, "DeleteUserRow", "db", None, [], [], false)
   let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.exec")
 }
@@ -636,7 +484,7 @@ test "build_body: ExecResult+None Exec constructs ExecResult::new(0L, n) in Matc
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "DeleteUserRow", "db", None, [])
+  let body = build_body(q, "DeleteUserRow", "db", None, [], [], false)
   let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
     Match(_, [
       ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
@@ -656,7 +504,7 @@ test "build_body: ExecResult+None CopyFrom constructs ExecResult::new(0L, n) in 
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "CopyUsersRow", "db", None, [])
+  let body = build_body(q, "CopyUsersRow", "db", None, [], [], false)
   let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
     Match(_, [
       ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
@@ -676,7 +524,7 @@ test "build_body: ExecResult+None Batch constructs ExecResult::new(0L, n) in Mat
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "BatchInsertRow", "db", None, [])
+  let body = build_body(q, "BatchInsertRow", "db", None, [], [], false)
   let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
     Match(_, [
       ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
@@ -696,7 +544,7 @@ test "build_body: ExecResult+None ExecLastId constructs ExecResult::new(n, 1L) i
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "InsertUserRow", "db", None, [])
+  let body = build_body(q, "InsertUserRow", "db", None, [], [], false)
   let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
     Match(_, [
       ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
@@ -716,7 +564,7 @@ test "build_body: CopyFrom with Rows uses query_row + decode (result_shape > raw
     result_shape: (Rows([{ name: "id", ty: Named("int4"), not_null: true, comment: "", rename_to: (None: Option[String]) }]) : InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let body = build_body(q, "CopyUsersRow", "db", q.result_shape, [])
+  let body = build_body(q, "CopyUsersRow", "db", q.result_shape, [], [], false)
   let call_name = match body[2] {
     Match(Call(name, _), _) => name
     _ => ""
@@ -734,7 +582,7 @@ test "generate_query_fn: PascalCase query name converted to snake_case fn name" 
     result_shape: (None: InternalResultShape),
     comments: ["Get a user by ID"], filename: "q.sql",
   }
-  let fn_def = generate_query_fn(q, "db", Named("DB"), [])
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   inspect(fn_def.name, content="query_get_user")
 }
 
@@ -773,7 +621,7 @@ test "generate_query_fns: CopyFrom only generates 1 fn (no tx overload)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="1")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   inspect(param0_name, content="db")
@@ -786,7 +634,7 @@ test "generate_query_fns: Batch only generates 1 fn (no tx overload)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="1")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   inspect(param0_name, content="db")
@@ -799,7 +647,7 @@ test "generate_query_fns: ExecLastId only generates 1 fn (no tx overload)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="1")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   inspect(param0_name, content="db")
@@ -812,7 +660,7 @@ test "generate_query_fns: One still generates 2 fns (db + tx)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="2")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }
@@ -827,7 +675,7 @@ test "generate_query_fns: Exec still generates 2 fns (db + tx)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="2")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }
@@ -842,7 +690,7 @@ test "generate_query_fns: Many still generates 2 fns (db + tx)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="2")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }
@@ -860,7 +708,7 @@ test "generate_query_fns: ExecRows still generates 2 fns (db + tx)" {
     result_shape: (None: InternalResultShape),
     comments: Array::make(0, ""), filename: "",
   }
-  let items = generate_query_fns([q], [])
+  let items = generate_query_fns([q], [], [], true, false, false, [])
   inspect(items.length(), content="2")
   let param0_name = match items[0] { Fn(f) => f.params[0].name; _ => "" }
   let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }

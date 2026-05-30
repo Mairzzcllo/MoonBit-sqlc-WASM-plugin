@@ -216,7 +216,7 @@ pub fn make_users_request() -> GenerateRequest {
   let q_get : Query = { text : "SELECT id, name, email FROM users WHERE id = $1", name : "get_user", cmd : ":one", columns : [col_id, col_name, col_email], params : [{ number : 1, column : param_col }], comments : ["Get user by ID"], filename : "users.sql", insert_into_table : empty_id }
   let param_del : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
   let q_del : Query = { text : "DELETE FROM users WHERE id = $1", name : "delete_user", cmd : ":exec", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_del }], comments : Array::make(0, ""), filename : "users.sql", insert_into_table : empty_id }
-  { settings : settings, catalog : catalog, queries : [q_list, q_get, q_del], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+  { settings : settings, catalog : catalog, queries : [q_list, q_get, q_del], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb\nemit_sql_as_comment=false", global_options : b"" }
 }
 
 /// Build a GenerateRequest with realistic sqlc input types: bigserial, schema-qualified,

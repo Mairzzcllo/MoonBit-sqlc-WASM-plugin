@@ -134,6 +134,13 @@ pub struct AdaptRequest {
   sqlc_version : String
 }
 
+/// A column-level type override: maps a specific table.column to a MoonBit type.
+pub struct ColumnOverride {
+  table : String
+  column : String
+  moonbit_type : String
+}
+
 /// Parsed plugin/global options from codegen configuration.
 pub struct PluginOptions {
   /// Package name for generated code (e.g. "myapp" from codegen.options.package_name).
@@ -148,6 +155,26 @@ pub struct PluginOptions {
   /// Rename mappings: Array of (original_name, new_name) pairs.
   /// Parsed from lines like `rename_created_at=CreatedAt` in plugin_options bytes.
   renames : Array[(String, String)]
+  /// Emit SQL as doc comment above generated functions (default: true).
+  emit_sql_as_comment : Bool
+  /// Omit structs not referenced by any query (default: false).
+  omit_unused_structs : Bool
+  /// When true, return empty array instead of error for :many with no rows (default: false).
+  emit_empty_slices : Bool
+  /// Comma-separated list of initialisms (e.g. "ID,URL,HTTP") for naming conversion (default: "").
+  initialisms : String
+  /// Case style for JSON tags: "snake", "camel", "pascal" (default: "snake").
+  json_tags_case_style : String
+  /// Maximum number of query parameters before splitting. 0 = no limit (default: 0).
+  query_parameter_limit : Int
+  /// Use exact table names instead of singularized form for struct names (default: false).
+  emit_exact_table_names : Bool
+  /// Generate standalone functions accepting DB as argument instead of method receivers (default: false).
+  emit_methods_with_db_argument : Bool
+  /// Column-level overrides: Array of ColumnOverride, parsed from `override_column_<table>.<column>=<MoonBitType>`.
+  column_overrides : Array[ColumnOverride]
+  /// PG type names to always treat as nullable, parsed from `override_nullable_<pg_type>=true`.
+  nullable_overrides : Array[String]
 }
 
 /// Find first occurrence of a character in a string.
@@ -163,7 +190,25 @@ fn find_char(s: String, c: Char) -> Option[Int] {
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Silently returns defaults on empty data or parse failure.
 pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
-  if data.length() == 0 { return { package_name: "", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] } }
+  if data.length() == 0 {
+    return {
+      package_name: "",
+      overrides: [],
+      emit_json_tags: false,
+      emit_db_tags: false,
+      renames: [],
+      emit_sql_as_comment: true,
+      omit_unused_structs: false,
+      emit_empty_slices: false,
+      initialisms: "",
+      json_tags_case_style: "snake",
+      query_parameter_limit: 0,
+      emit_exact_table_names: false,
+      emit_methods_with_db_argument: false,
+      column_overrides: [],
+      nullable_overrides: [],
+    }
+  }
   let text = @utf8.decode_lossy(data[:])
   let mut package_name = ""
   let mut has_package_name = false
@@ -171,6 +216,16 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   let renames: Array[(String, String)] = []
   let mut emit_json_tags = false
   let mut emit_db_tags = false
+  let mut emit_sql_as_comment = true
+  let mut omit_unused_structs = false
+  let mut emit_empty_slices = false
+  let mut initialisms = ""
+  let mut json_tags_case_style = "snake"
+  let mut query_parameter_limit = 0
+  let mut emit_exact_table_names = false
+  let mut emit_methods_with_db_argument = false
+  let column_overrides: Array[ColumnOverride] = []
+  let nullable_overrides: Array[String] = []
   for line in text.split("\n") {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
@@ -197,6 +252,34 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       }
       package_name = s[9:].trim().to_owned()
       has_package_name = true
+    } else if s.has_prefix("override_column_") {
+      let eq_pos = find_char(s, '=')
+      match eq_pos {
+        Some(pos) => {
+          let key = s[16:pos].trim().to_owned()
+          let moon_type = s[pos + 1:].trim().to_owned()
+          let dot_pos = key.rev_find(".")
+          match dot_pos {
+            Some(d) => {
+              let table = key[:d].to_owned()
+              let column = key[d + 1:].to_owned()
+              column_overrides.push({ table: table, column: column, moonbit_type: moon_type })
+            }
+            None => ()
+          }
+        }
+        None => ()
+      }
+    } else if s.has_prefix("override_nullable_") {
+      let eq_pos = find_char(s, '=')
+      match eq_pos {
+        Some(pos) => {
+          let pg_type = s[18:pos].trim().to_owned()
+          let val = s[pos + 1:].trim().to_owned()
+          if val == "true" { nullable_overrides.push(pg_type.to_lower()) }
+        }
+        None => ()
+      }
     } else if s.has_prefix("override_") {
       let eq_pos = find_char(s, '=')
       match eq_pos {
@@ -219,11 +302,105 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       }
     } else if s == "emit_json_tags=true" || s == "emit_json_tags = true" {
       emit_json_tags = true
+    } else if s == "emit_json_tags=false" || s == "emit_json_tags = false" {
+      emit_json_tags = false
     } else if s == "emit_db_tags=true" || s == "emit_db_tags = true" {
       emit_db_tags = true
+    } else if s == "emit_db_tags=false" || s == "emit_db_tags = false" {
+      emit_db_tags = false
+    } else if s == "emit_sql_as_comment=true" || s == "emit_sql_as_comment = true" {
+      emit_sql_as_comment = true
+    } else if s == "emit_sql_as_comment=false" || s == "emit_sql_as_comment = false" {
+      emit_sql_as_comment = false
+    } else if s == "omit_unused_structs=true" || s == "omit_unused_structs = true" {
+      omit_unused_structs = true
+    } else if s == "omit_unused_structs=false" || s == "omit_unused_structs = false" {
+      omit_unused_structs = false
+    } else if s == "emit_empty_slices=true" || s == "emit_empty_slices = true" {
+      emit_empty_slices = true
+    } else if s == "emit_empty_slices=false" || s == "emit_empty_slices = false" {
+      emit_empty_slices = false
+    } else if s.has_prefix("initialisms=") {
+      initialisms = s[12:].trim().to_owned()
+    } else if s.has_prefix("initialisms =") {
+      initialisms = s[13:].trim().to_owned()
+    } else if s.has_prefix("json_tags_case_style=") {
+      json_tags_case_style = s[21:].trim().to_owned()
+    } else if s.has_prefix("json_tags_case_style =") {
+      json_tags_case_style = s[22:].trim().to_owned()
+    } else if s.has_prefix("query_parameter_limit=") {
+      let val = s[22:].trim().to_owned()
+      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
+    } else if s.has_prefix("query_parameter_limit =") {
+      let val = s[23:].trim().to_owned()
+      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
+    } else if s == "emit_exact_table_names=true" || s == "emit_exact_table_names = true" {
+      emit_exact_table_names = true
+    } else if s == "emit_exact_table_names=false" || s == "emit_exact_table_names = false" {
+      emit_exact_table_names = false
+    } else if s == "emit_methods_with_db_argument=true" || s == "emit_methods_with_db_argument = true" {
+      emit_methods_with_db_argument = true
+    } else if s == "emit_methods_with_db_argument=false" || s == "emit_methods_with_db_argument = false" {
+      emit_methods_with_db_argument = false
+    }
+    // Support kebab-case variants for all new options
+    else if s == "emit-json-tags=true" || s == "emit-json-tags = true" {
+      emit_json_tags = true
+    } else if s == "emit-json-tags=false" || s == "emit-json-tags = false" {
+      emit_json_tags = false
+    } else if s == "emit-db-tags=true" || s == "emit-db-tags = true" {
+      emit_db_tags = true
+    } else if s == "emit-db-tags=false" || s == "emit-db-tags = false" {
+      emit_db_tags = false
+    } else if s == "emit-sql-as-comment=true" || s == "emit-sql-as-comment = true" {
+      emit_sql_as_comment = true
+    } else if s == "emit-sql-as-comment=false" || s == "emit-sql-as-comment = false" {
+      emit_sql_as_comment = false
+    } else if s == "omit-unused-structs=true" || s == "omit-unused-structs = true" {
+      omit_unused_structs = true
+    } else if s == "omit-unused-structs=false" || s == "omit-unused-structs = false" {
+      omit_unused_structs = false
+    } else if s == "emit-empty-slices=true" || s == "emit-empty-slices = true" {
+      emit_empty_slices = true
+    } else if s == "emit-empty-slices=false" || s == "emit-empty-slices = false" {
+      emit_empty_slices = false
+    } else if s.has_prefix("json-tags-case-style=") {
+      json_tags_case_style = s[21:].trim().to_owned()
+    } else if s.has_prefix("json-tags-case-style =") {
+      json_tags_case_style = s[22:].trim().to_owned()
+    } else if s.has_prefix("query-parameter-limit=") {
+      let val = s[22:].trim().to_owned()
+      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
+    } else if s.has_prefix("query-parameter-limit =") {
+      let val = s[23:].trim().to_owned()
+      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
+    } else if s == "emit-exact-table-names=true" || s == "emit-exact-table-names = true" {
+      emit_exact_table_names = true
+    } else if s == "emit-exact-table-names=false" || s == "emit-exact-table-names = false" {
+      emit_exact_table_names = false
+    } else if s == "emit-methods-with-db-argument=true" || s == "emit-methods-with-db-argument = true" {
+      emit_methods_with_db_argument = true
+    } else if s == "emit-methods-with-db-argument=false" || s == "emit-methods-with-db-argument = false" {
+      emit_methods_with_db_argument = false
     }
   }
-  { package_name: package_name, overrides: overrides, emit_json_tags: emit_json_tags, emit_db_tags: emit_db_tags, renames: renames }
+  {
+    package_name: package_name,
+    overrides: overrides,
+    emit_json_tags: emit_json_tags,
+    emit_db_tags: emit_db_tags,
+    renames: renames,
+    emit_sql_as_comment: emit_sql_as_comment,
+    omit_unused_structs: omit_unused_structs,
+    emit_empty_slices: emit_empty_slices,
+    initialisms: initialisms,
+    json_tags_case_style: json_tags_case_style,
+    query_parameter_limit: query_parameter_limit,
+    emit_exact_table_names: emit_exact_table_names,
+    emit_methods_with_db_argument: emit_methods_with_db_argument,
+    column_overrides: column_overrides,
+    nullable_overrides: nullable_overrides,
+  }
 }
 
 // === Converters: raw protobuf types → internal model ===
@@ -614,4 +791,276 @@ test "convert_request: column with type info preserved" {
   inspect(adapted_col.comment, content="user email")
   inspect(adapted_col.table.schema, content="public")
   inspect(adapted_col.table.name, content="users")
+}
+
+// === P0-057: Plugin options inline tests ===
+
+test "parse_plugin_options: emit_sql_as_comment=true parsed" {
+  let opts = parse_plugin_options(b"emit_sql_as_comment=true")
+  inspect(opts.emit_sql_as_comment, content="true")
+}
+
+test "parse_plugin_options: emit_sql_as_comment=false parsed" {
+  let opts = parse_plugin_options(b"emit_sql_as_comment=false")
+  inspect(opts.emit_sql_as_comment, content="false")
+}
+
+test "parse_plugin_options: omit_unused_structs=true parsed" {
+  let opts = parse_plugin_options(b"omit_unused_structs=true")
+  inspect(opts.omit_unused_structs, content="true")
+}
+
+test "parse_plugin_options: emit_empty_slices=true parsed" {
+  let opts = parse_plugin_options(b"emit_empty_slices=true")
+  inspect(opts.emit_empty_slices, content="true")
+}
+
+test "parse_plugin_options: initialisms=ID,URL,HTTP parsed" {
+  let opts = parse_plugin_options(b"initialisms=ID,URL,HTTP")
+  inspect(opts.initialisms, content="ID,URL,HTTP")
+}
+
+test "parse_plugin_options: initialisms with spaces parsed" {
+  let opts = parse_plugin_options(b"initialisms = ID,URL,HTTP")
+  inspect(opts.initialisms, content="ID,URL,HTTP")
+}
+
+test "parse_plugin_options: json_tags_case_style=camel parsed" {
+  let opts = parse_plugin_options(b"json_tags_case_style=camel")
+  inspect(opts.json_tags_case_style, content="camel")
+}
+
+test "parse_plugin_options: json_tags_case_style with spaces parsed" {
+  let opts = parse_plugin_options(b"json_tags_case_style = pascal")
+  inspect(opts.json_tags_case_style, content="pascal")
+}
+
+test "parse_plugin_options: query_parameter_limit=100 parsed" {
+  let opts = parse_plugin_options(b"query_parameter_limit=100")
+  inspect(opts.query_parameter_limit, content="100")
+}
+
+test "parse_plugin_options: query_parameter_limit with spaces parsed" {
+  let opts = parse_plugin_options(b"query_parameter_limit = 50")
+  inspect(opts.query_parameter_limit, content="50")
+}
+
+test "parse_plugin_options: query_parameter_limit=abc non-numeric falls back to 0" {
+  let opts = parse_plugin_options(b"query_parameter_limit=abc")
+  inspect(opts.query_parameter_limit, content="0")
+}
+
+test "parse_plugin_options: emit_exact_table_names=true parsed" {
+  let opts = parse_plugin_options(b"emit_exact_table_names=true")
+  inspect(opts.emit_exact_table_names, content="true")
+}
+
+test "parse_plugin_options: emit_methods_with_db_argument=true parsed" {
+  let opts = parse_plugin_options(b"emit_methods_with_db_argument=true")
+  inspect(opts.emit_methods_with_db_argument, content="true")
+}
+
+test "parse_plugin_options: kebab-case emit-sql-as-comment=false parsed" {
+  let opts = parse_plugin_options(b"emit-sql-as-comment=false")
+  inspect(opts.emit_sql_as_comment, content="false")
+}
+
+test "parse_plugin_options: kebab-case omit-unused-structs=true parsed" {
+  let opts = parse_plugin_options(b"omit-unused-structs=true")
+  inspect(opts.omit_unused_structs, content="true")
+}
+
+test "parse_plugin_options: kebab-case emit-empty-slices=true parsed" {
+  let opts = parse_plugin_options(b"emit-empty-slices=true")
+  inspect(opts.emit_empty_slices, content="true")
+}
+
+test "parse_plugin_options: kebab-case json-tags-case-style=pascal parsed" {
+  let opts = parse_plugin_options(b"json-tags-case-style=pascal")
+  inspect(opts.json_tags_case_style, content="pascal")
+}
+
+test "parse_plugin_options: kebab-case query-parameter-limit=75 parsed" {
+  let opts = parse_plugin_options(b"query-parameter-limit=75")
+  inspect(opts.query_parameter_limit, content="75")
+}
+
+test "parse_plugin_options: kebab-case emit-exact-table-names=true parsed" {
+  let opts = parse_plugin_options(b"emit-exact-table-names=true")
+  inspect(opts.emit_exact_table_names, content="true")
+}
+
+test "parse_plugin_options: kebab-case emit-methods-with-db-argument=true parsed" {
+  let opts = parse_plugin_options(b"emit-methods-with-db-argument=true")
+  inspect(opts.emit_methods_with_db_argument, content="true")
+}
+
+test "parse_plugin_options: kebab-case with spaces emit-sql-as-comment = false parsed" {
+  let opts = parse_plugin_options(b"emit-sql-as-comment = false")
+  inspect(opts.emit_sql_as_comment, content="false")
+}
+
+test "parse_plugin_options: kebab-case json-tags-case-style = camel parsed" {
+  let opts = parse_plugin_options(b"json-tags-case-style = camel")
+  inspect(opts.json_tags_case_style, content="camel")
+}
+
+test "parse_plugin_options: mixed combination emit_empty_slices + json_tags_case_style" {
+  let opts = parse_plugin_options(b"emit_empty_slices=true\njson_tags_case_style=camel")
+  inspect(opts.emit_empty_slices, content="true")
+  inspect(opts.json_tags_case_style, content="camel")
+}
+
+test "parse_plugin_options: mixed combination kebab + snake" {
+  let opts = parse_plugin_options(b"emit-empty-slices=true\njson_tags_case_style=pascal")
+  inspect(opts.emit_empty_slices, content="true")
+  inspect(opts.json_tags_case_style, content="pascal")
+}
+
+test "parse_plugin_options: all new options simultaneously" {
+  let opts = parse_plugin_options(b"emit_sql_as_comment=false\nomit_unused_structs=true\nemit_empty_slices=true\ninitialisms=ID,URL\njson_tags_case_style=camel\nquery_parameter_limit=50\nemit_exact_table_names=true\nemit_methods_with_db_argument=true")
+  inspect(opts.emit_sql_as_comment, content="false")
+  inspect(opts.omit_unused_structs, content="true")
+  inspect(opts.emit_empty_slices, content="true")
+  inspect(opts.initialisms, content="ID,URL")
+  inspect(opts.json_tags_case_style, content="camel")
+  inspect(opts.query_parameter_limit, content="50")
+  inspect(opts.emit_exact_table_names, content="true")
+  inspect(opts.emit_methods_with_db_argument, content="true")
+}
+
+test "parse_plugin_options: non-numeric query_parameter_limit defaults to 0 (kebab)" {
+  let opts = parse_plugin_options(b"query-parameter-limit=xyz")
+  inspect(opts.query_parameter_limit, content="0")
+}
+
+test "parse_plugin_options: emit_sql_as_comment default true when not set" {
+  let opts = parse_plugin_options(b"package_name=test")
+  inspect(opts.emit_sql_as_comment, content="true")
+}
+
+test "parse_plugin_options: omit_unused_structs=false parsed (snake_case)" {
+  let opts = parse_plugin_options(b"omit_unused_structs=false")
+  inspect(opts.omit_unused_structs, content="false")
+}
+
+test "parse_plugin_options: emit_empty_slices=false parsed (snake_case)" {
+  let opts = parse_plugin_options(b"emit_empty_slices=false")
+  inspect(opts.emit_empty_slices, content="false")
+}
+
+test "parse_plugin_options: emit_exact_table_names=false parsed (snake_case)" {
+  let opts = parse_plugin_options(b"emit_exact_table_names=false")
+  inspect(opts.emit_exact_table_names, content="false")
+}
+
+test "parse_plugin_options: emit_methods_with_db_argument=false parsed (snake_case)" {
+  let opts = parse_plugin_options(b"emit_methods_with_db_argument=false")
+  inspect(opts.emit_methods_with_db_argument, content="false")
+}
+
+test "parse_plugin_options: omit-unused-structs=false parsed (kebab-case)" {
+  let opts = parse_plugin_options(b"omit-unused-structs=false")
+  inspect(opts.omit_unused_structs, content="false")
+}
+
+test "parse_plugin_options: emit-empty-slices=false parsed (kebab-case)" {
+  let opts = parse_plugin_options(b"emit-empty-slices=false")
+  inspect(opts.emit_empty_slices, content="false")
+}
+
+test "parse_plugin_options: emit-exact-table-names=false parsed (kebab-case)" {
+  let opts = parse_plugin_options(b"emit-exact-table-names=false")
+  inspect(opts.emit_exact_table_names, content="false")
+}
+
+test "parse_plugin_options: emit-methods-with-db-argument=false parsed (kebab-case)" {
+  let opts = parse_plugin_options(b"emit-methods-with-db-argument=false")
+  inspect(opts.emit_methods_with_db_argument, content="false")
+}
+
+test "parse_plugin_options: false branches do not override true values later" {
+  // Setting false then true should result in true (last wins)
+  let opts = parse_plugin_options(b"emit_empty_slices=false\nemit_empty_slices=true")
+  inspect(opts.emit_empty_slices, content="true")
+}
+
+test "parse_plugin_options: true branches do not override false values later" {
+  // Setting true then false should result in false (last wins)
+  let opts = parse_plugin_options(b"emit_empty_slices=true\nemit_empty_slices=false")
+  inspect(opts.emit_empty_slices, content="false")
+}
+
+test "parse_plugin_options: override_column_ single line parsed" {
+  let opts = parse_plugin_options(b"override_column_users.id=String")
+  inspect(opts.column_overrides.length(), content="1")
+  inspect(opts.column_overrides[0].table, content="users")
+  inspect(opts.column_overrides[0].column, content="id")
+  inspect(opts.column_overrides[0].moonbit_type, content="String")
+}
+
+test "parse_plugin_options: override_column_ multiple lines parsed" {
+  let opts = parse_plugin_options(b"override_column_users.id=String\noverride_column_posts.title=Int64")
+  inspect(opts.column_overrides.length(), content="2")
+  inspect(opts.column_overrides[0].table, content="users")
+  inspect(opts.column_overrides[0].column, content="id")
+  inspect(opts.column_overrides[0].moonbit_type, content="String")
+  inspect(opts.column_overrides[1].table, content="posts")
+  inspect(opts.column_overrides[1].column, content="title")
+  inspect(opts.column_overrides[1].moonbit_type, content="Int64")
+}
+
+test "parse_plugin_options: override_column_ malformed no dot silently skipped" {
+  let opts = parse_plugin_options(b"override_column_usersid=String")
+  inspect(opts.column_overrides.length(), content="0")
+}
+
+test "parse_plugin_options: override_column_ with spaces around = works" {
+  let opts = parse_plugin_options(b"override_column_users.id = String")
+  inspect(opts.column_overrides.length(), content="1")
+  inspect(opts.column_overrides[0].table, content="users")
+  inspect(opts.column_overrides[0].column, content="id")
+  inspect(opts.column_overrides[0].moonbit_type, content="String")
+}
+
+test "parse_plugin_options: override_column_ no = silently skipped" {
+  let opts = parse_plugin_options(b"override_column_users.id")
+  inspect(opts.column_overrides.length(), content="0")
+}
+
+test "parse_plugin_options: override_nullable_ true parsed" {
+  let opts = parse_plugin_options(b"override_nullable_int4=true")
+  inspect(opts.nullable_overrides.length(), content="1")
+  inspect(opts.nullable_overrides[0], content="int4")
+}
+
+test "parse_plugin_options: override_nullable_ false ignored" {
+  let opts = parse_plugin_options(b"override_nullable_int4=false")
+  inspect(opts.nullable_overrides.length(), content="0")
+}
+
+test "parse_plugin_options: override_nullable_ multiple types parsed" {
+  let opts = parse_plugin_options(b"override_nullable_int4=true\noverride_nullable_text=true")
+  inspect(opts.nullable_overrides.length(), content="2")
+  inspect(opts.nullable_overrides[0], content="int4")
+  inspect(opts.nullable_overrides[1], content="text")
+}
+
+test "parse_plugin_options: override_nullable_ uppercase normalized to lowercase" {
+  let opts = parse_plugin_options(b"override_nullable_INT4=true")
+  inspect(opts.nullable_overrides.length(), content="1")
+  inspect(opts.nullable_overrides[0], content="int4")
+}
+
+test "parse_plugin_options: override_column_ combined with other options" {
+  let opts = parse_plugin_options(b"package_name=testdb\noverride_column_users.id=String\noverride_nullable_int4=true\noverride_numeric=Decimal")
+  inspect(opts.package_name, content="testdb")
+  inspect(opts.column_overrides.length(), content="1")
+  inspect(opts.column_overrides[0].table, content="users")
+  inspect(opts.column_overrides[0].moonbit_type, content="String")
+  inspect(opts.nullable_overrides.length(), content="1")
+  inspect(opts.nullable_overrides[0], content="int4")
+  inspect(opts.overrides.length(), content="1")
+  inspect(opts.overrides[0].0, content="numeric")
+  inspect(opts.overrides[0].1, content="Decimal")
 }

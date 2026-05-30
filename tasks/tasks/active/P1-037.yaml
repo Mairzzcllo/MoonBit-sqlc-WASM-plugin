@@ -16,6 +16,9 @@ dependencies:
     type: soft
   - id: P0-060
     type: soft
+  - id: ADR-014
+    type: info
+    description: Documenting plugin options to be tested in E2E
 owner: ""
 acquired_at: null
 expires_at: null
@@ -28,6 +31,7 @@ artifacts:
     path: tests/integration
 references:
   - .github/workflows/ci.yml
+  - adr/ADR-014.md
 execution_notes: >
   GAP-9 from architecture review. Use user-approved PowerShell approach.
   Script: build wasm → run sqlc generate → check output files content.

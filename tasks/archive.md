@@ -4,6 +4,16 @@
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
+### [P0-058] 类型覆盖扩展 — column 级 + nullable 级覆盖
+- 优先级: P0
+- 类型: feature
+- 状态: 完成
+- 描述: 扩展 override 系统支持 column 级精确列覆盖 (override_column_<table>.<col>=<type>) 和 nullable 级覆盖 (override_nullable_<type>=true)
+- 架构: adapter.mbt 新增 ColumnOverride 结构体; type_map.mbt 新增 lookup_column_override/is_nullable_override; type_codegen.mbt/query_codegen.mbt 全链路透传; Coder+Reviewer 双 agent 验证
+- 测试: 571 tests (新增 27 tests), moon check 0 errors
+- 创建: 2026-05-29
+- 完成: 2026-05-30
+
 ### [P2-014] inspect→debug_inspect 迁移 type_map.mbt (94 处)
 - 优先级: P2
 - 类型: refactor
@@ -739,3 +749,14 @@
 - ExecCount (:execrows) 不受影响，仍返回 Result[Int64, DBError]
 - 架构: moon check 0 errors, moon test 486/486 passed
 - 创建: 2026-05-29 | 完成: 2026-05-29
+
+### P0-057 — 插件选项扩展 — 8 个新配置选项 (2026-05-30)
+- GAP-4: 新增 8 个插件选项：emit_sql_as_comment, omit_unused_structs,
+  emit_empty_slices, initialisms, json_tags_case_style,
+  query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument
+- 新建 plugin/naming.mbt 文件，处理 initialisms 字典和 json_tags_case_style 命名风格
+- emit_empty_slices 在 Err(NoRows) 时正确返回空数组而非错误
+- query_parameter_limit 留为 TODO（非阻塞）
+- 所有选项默认值保持向后兼容
+- 架构: moon check 0 errors, moon test 555/555 passed
+- 创建: 2026-05-29 | 完成: 2026-05-30

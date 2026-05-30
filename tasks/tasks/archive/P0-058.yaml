@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P0-058
-state: todo
+state: done
 deterministic: true
 title: "类型覆盖扩展 — column 级 + nullable 级覆盖"
 type: feature
@@ -21,7 +21,9 @@ artifacts: []
 references:
   - plugin/adapter.mbt
   - plugin/type_map.mbt
+  - adr/ADR-014.md
 execution_notes: >
   GAP-3 from architecture review. Extend adapter parse overrides from
   GenerateRequest.settings.overrides. Apply in type mapping layer.
   P1-035 (MySQL) hard-depends on this.
+  ADR-014 documents the plugin options extension context for overrides.

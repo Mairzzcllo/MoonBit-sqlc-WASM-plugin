@@ -145,11 +145,44 @@ pub struct DB {
 
 生成函数中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃。
 
+### 插件选项
+
+在 `sqlc.yaml` 的 `codegen:` 段 `plugin_options:` 中支持以下配置：
+
+| 选项 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `package_name` | string | `"main"` | 生成代码的包名 |
+| `emit_json_tags` | bool | `false` | 生成 `@json.tag("name")` 注解 |
+| `emit_db_tags` | bool | `false` | 生成 `@db.tag("name")` 注解 |
+| `emit_sql_as_comment` | bool | `false` | 在函数上方嵌入原始 SQL 作为 doc comment |
+| `omit_unused_structs` | bool | `false` | 跳过未被查询引用的 struct 类型生成 |
+| `emit_empty_slices` | bool | `false` | `:many` 无结果时返回空数组 `[]` 而非 `Err(NoRows)` |
+| `initialisms` | string | `""` | 逗号分隔的首字母缩写词，如 `"API,HTTP,ID"` |
+| `json_tags_case_style` | string | `"snake"` | JSON 标签命名风格：`snake` / `camel` / `pascal` |
+| `query_parameter_limit` | int | `0` | 查询参数数量上限（`0` = 无限制） |
+| `emit_exact_table_names` | bool | `false` | struct 名使用数据库表名原样（不转换单复数） |
+| `emit_methods_with_db_argument` | bool | `false` | 生成显式接收 `db: DB` 参数的方法变体（实验性） |
+
+示例：
+```yaml
+codegen:
+  out: gen
+  plugin: moonbit
+  plugin_options:
+    - package_name=moonbit_app
+    - emit_json_tags=true
+    - emit_empty_slices=true
+    - initialisms=API,HTTP,ID
+    - json_tags_case_style=camel
+```
+
+> **注意**: 所有选项均向后兼容，默认值保持现有行为。
+
 ## 项目结构
 
 ```
 .
-├── plugin/              # WASM 插件主包 (14 .mbt 文件)
+├── plugin/              # WASM 插件主包 (15 .mbt 文件)
 │   ├── main.mbt         # 入口 (fn main → run_io_loop)
 │   ├── wasi_io.mbt      # Native WASI I/O via inline WAT FFI
 │   ├── protocol.mbt     # WASM 插件协议 + process_message
@@ -163,12 +196,12 @@ pub struct DB {
 │   ├── type_codegen.mbt # 类型代码生成器
 │   ├── query_codegen.mbt# 查询函数代码生成器
 │   └── golden.mbt       # Golden 测试（确定性输出验证）
+├── naming.mbt           # 命名转换 (initialisms, case style) — 顶层共享模块
 ├── runtime/             # 生成代码运行时库
 │   ├── db.mbt           # DB concrete struct (exec/execrows/query/query_row/begin)
 │   ├── row.mbt          # Row concrete struct (typed getter 16 种)
 │   ├── row_iter.mbt     # RowIter streaming iterator
 │   ├── transaction.mbt  # Transaction (commit/rollback)
-│   ├── decoder.mbt      # Decoder convention
 │   ├── value.mbt        # Value enum + Date/DateTime wrappers
 │   ├── error.mbt        # DBError enum
 │   └── mock.mbt         # MockDB for testing
@@ -176,7 +209,7 @@ pub struct DB {
 ├── examples/users/      # 完整使用示例 (schema.sql + query.sql + sqlc.yaml)
 ├── tests/               # 集成测试 (basic + wasm)
 ├── docs/                # API 参考与快速开始指南
-├── adr/                 # 架构决策记录 (10 条)
+├── adr/                 # 架构决策记录 (14 条)
 └── tasks/               # 任务追踪 (active.md + archive/)
 ```
 
@@ -184,7 +217,7 @@ pub struct DB {
 
 ```bash
 moon check              # 类型检查
-moon test               # 运行所有 240 个 inline 测试
+moon test               # 运行所有 555 个 inline 测试
 ```
 
 测试使用 inline `test { ... }` 块而非 `_test.mbt` 文件（main 包不支持 blackbox 测试）。空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型。
@@ -213,6 +246,10 @@ moon test               # 运行所有 240 个 inline 测试
 | ADR-008 | Native WASI I/O via Inline WAT FFI | Accepted |
 | ADR-009 | Known Limitations and MVP Boundaries | Draft |
 | ADR-010 | Transaction Support: Concrete Struct + Closure Pattern | Accepted |
+| ADR-011 | Codegen Build Body: result_shape Priority and Method Dispatch | Accepted |
+| ADR-012 | Phase D Architecture Gaps: ExecResult, Type Overrides, TimeTZ | Accepted |
+| ADR-013 | 100 Edge Cases Analysis: Classification and Fix Feasibility | Accepted |
+| ADR-014 | Plugin Options Extension (GAP-4) | Accepted |
 
 ## 路线图
 

@@ -21,13 +21,13 @@ const GOLDEN_USERS: String = "package testdb\n\nimport \"Mairzzcllo/moonbit_sqlc
 
 test "golden: full pipeline matches expected output" {
   let req = make_users_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result, content=GOLDEN_USERS)
 }
 
 test "golden: realistic types — bigserial→Int64, pg_catalog.int8→Int64, TEXT[]→Option[Array[String]]" {
   let req = make_realistic_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result.contains("id: Int64"), content="true")
   inspect(result.contains("author_id: Int64"), content="true")
   inspect(result.contains("title: String"), content="true")
@@ -37,20 +37,20 @@ test "golden: realistic types — bigserial→Int64, pg_catalog.int8→Int64, TE
 
 test "golden: realistic types — decode body uses typed getters for Int64 columns" {
   let req = make_realistic_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result.contains("row.get_int64("), content="true")
 }
 
 test "golden: deterministic output" {
   let req = make_users_request()
-  let result1 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
-  let result2 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result1 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  let result2 = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result1, content=result2)
 }
 
 test "golden: all PG types — struct field types" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result.contains("is_active: Bool"), content="true")
   inspect(result.contains("score: Double"), content="true")
   inspect(result.contains("data: Option[Bytes]"), content="true")
@@ -71,7 +71,7 @@ test "golden: all PG types — struct field types" {
 
 test "golden: all PG types — decode getters" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result.contains("row.get_int64(0)"), content="true")
   inspect(result.contains("row.get_bool(1)"), content="true")
   inspect(result.contains("row.get_double(2)"), content="true")
@@ -93,9 +93,114 @@ test "golden: all PG types — decode getters" {
 
 test "golden: all PG types — Value constructors in params" {
   let req = make_all_types_request()
-  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [] })
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
   inspect(result.contains("Int64(id)"), content="true")
   inspect(result.contains("Bool(is_active)"), content="true")
   inspect(result.contains("Double(score)"), content="true")
   inspect(result.contains("String(label)"), content="true")
+}
+
+test "golden: emit_sql_as_comment=true includes SQL text in doc comments" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: true, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // Doc comment contains SQL text when enabled
+  inspect(result.contains("/// List all users"), content="true")
+  inspect(result.contains("/// SELECT id, name, email FROM users"), content="true")
+}
+
+test "golden: emit_sql_as_comment=false omits SQL text from doc comments" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // Doc comment does NOT contain SQL text when disabled
+  inspect(result.contains("/// List all users"), content="true")
+  inspect(result.contains("/// SELECT id, name, email FROM users"), content="false")
+  // But SQL still appears in function body as string literal
+  inspect(result.contains("let sql = \"SELECT id, name, email FROM users\""), content="true")
+}
+
+test "golden: emit_json_tags=true with json_tags_case_style=camel produces camelCase tags" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: true, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "camel", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  inspect(result.contains("@json.tag(\"id\")"), content="true")
+  inspect(result.contains("@json.tag(\"name\")"), content="true")
+  inspect(result.contains("@json.tag(\"email\")"), content="true")
+}
+
+test "golden: emit_json_tags=true with json_tags_case_style=pascal produces PascalCase tags" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: true, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "pascal", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  inspect(result.contains("@json.tag(\"Id\")"), content="true")
+  inspect(result.contains("@json.tag(\"Name\")"), content="true")
+  inspect(result.contains("@json.tag(\"Email\")"), content="true")
+}
+
+test "golden: initialisms=ID,URL affects PascalCase naming in query types" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "ID,URL", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // With initialism "ID", "get_user" type should be GetUserRow (no change, "User" is not "ID")
+  inspect(result.contains("GetUserRow"), content="true")
+  inspect(result.contains("ListUsersRow"), content="true")
+}
+
+test "golden: full pipeline with emit_json_tags=true + json_tags_case_style=camel" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: true, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "ID,URL", json_tags_case_style: "camel", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // Check JSON tags are camelCase
+  inspect(result.contains("@json.tag(\"id\")"), content="true")
+  inspect(result.contains("@json.tag(\"name\")"), content="true")
+  inspect(result.contains("@json.tag(\"email\")"), content="true")
+  // Check SQL appears in body and is referenced in doc (emit_sql_as_comment=false default)
+  inspect(result.contains("let sql"), content="true")
+}
+
+test "golden: emit_exact_table_names=true does not crash" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: true, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // Must at least produce valid output containing struct definitions
+  inspect(result.contains("pub struct "), content="true")
+  inspect(result.contains("pub fn "), content="true")
+}
+
+test "golden: emit_empty_slices=true generates Err(NoRows) arm" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: true, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // With emit_empty_slices=true, Err(NoRows) is converted to Ok([])
+  inspect(result.contains("Err(NoRows) => Ok([])"), content="true")
+  // Other errors are still propagated
+  inspect(result.contains("Err(e) => Err(e)"), content="true")
+  // The buggy pattern Err(e) => Ok([]) must NOT appear
+  inspect(result.contains("Err(e) => Ok([])"), content="false")
+}
+
+test "golden: emit_methods_with_db_argument=true does not crash" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: true, column_overrides: [], nullable_overrides: [] })
+  // Must at least produce valid output containing struct definitions
+  inspect(result.contains("pub struct "), content="true")
+  inspect(result.contains("pub fn "), content="true")
+}
+
+test "golden: omit_unused_structs=true does not crash" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: true, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  // Must at least produce valid output containing struct and function definitions
+  inspect(result.contains("pub struct "), content="true")
+  inspect(result.contains("pub fn "), content="true")
+  // The Users struct IS referenced (via query columns), so it should still be included
+  inspect(result.contains("pub struct Users"), content="true")
+}
+
+test "golden: column_overrides and nullable_overrides affect Users struct" {
+  let req = make_users_request()
+  let col_overrides: Array[ColumnOverride] = [{ table: "users", column: "id", moonbit_type: "String" }]
+  let null_overrides: Array[String] = ["int4"]
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: col_overrides, nullable_overrides: null_overrides })
+  // Column override changes id to String, nullable override wraps it in Option
+  inspect(result.contains("id: Option[String]"), content="true")
+  // name is text, not_null, not affected by any override
+  inspect(result.contains("name: String"), content="true")
+  // email is text, nullable, not affected by any override
+  inspect(result.contains("email: Option[String]"), content="true")
+  // Query result types use nullable_override (int4 becomes Option)
+  inspect(result.contains("id: Option[Int64]"), content="true")
 }

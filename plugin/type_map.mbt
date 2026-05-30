@@ -99,15 +99,49 @@ pub fn map_internal_type(ir_type: InternalType, overrides: Array[(String, String
   }
 }
 
+/// Look up a column-level override for a specific table.column.
+/// Returns the mapped MoonBit type name if found, None otherwise.
+fn lookup_column_override(table: String, column: String, column_overrides: Array[ColumnOverride]) -> Option[String] {
+  for o in column_overrides {
+    if o.table == table && o.column == column { return Some(o.moonbit_type) }
+  }
+  None
+}
+
+/// Check if a PG type name has a nullable override that forces it to be nullable
+/// even when the schema says not_null=true.
+fn is_nullable_override(name: String, nullable_overrides: Array[String]) -> Bool {
+  let lower = name.to_lower()
+  let base = match lower.rev_find(".") {
+    Some(pos) => lower[:][pos + 1:].to_owned()
+    None => lower
+  }
+  for n in nullable_overrides {
+    if n == base { return true }
+  }
+  false
+}
+
 /// Map an IR InternalType to a MoonBit TypeExpr, considering nullability.
 /// When `not_null` is false, wraps in `Option[...]`.
+/// When `not_null` is true but the type is in `nullable_overrides`, also wraps in `Option[...]`.
 pub fn map_internal_type_nullable(
   ir_type: InternalType,
   not_null: Bool,
   overrides: Array[(String, String)],
+  nullable_overrides: Array[String],
 ) -> TypeExpr {
   let base = map_internal_type(ir_type, overrides)
-  if not_null { base } else { Option(base) }
+  if not_null {
+    // Check if nullable override forces this type to be nullable
+    let force_nullable = match ir_type {
+      Named(name) => is_nullable_override(name, nullable_overrides)
+      Arr(_) => false
+    }
+    if force_nullable { Option(base) } else { base }
+  } else {
+    Option(base)
+  }
 }
 
 /// Map an IR InternalType to a Value constructor name, respecting overrides.
@@ -235,17 +269,17 @@ test "map_internal_type: nested Arr maps to Array[Array[Int64]]" {
 }
 
 test "map_internal_type_nullable: not_null preserves type" {
-  let t = map_internal_type_nullable(Named("int4"), true, [])
+  let t = map_internal_type_nullable(Named("int4"), true, [], [])
   debug_inspect(t, content="Named(\"Int64\")")
 }
 
 test "map_internal_type_nullable: nullable wraps in Option" {
-  let t = map_internal_type_nullable(Named("int4"), false, [])
+  let t = map_internal_type_nullable(Named("int4"), false, [], [])
   debug_inspect(t, content="Option(Named(\"Int64\"))")
 }
 
 test "map_internal_type_nullable: nullable array wraps in Option" {
-  let t = map_internal_type_nullable(Arr(Named("text")), false, [])
+  let t = map_internal_type_nullable(Arr(Named("text")), false, [], [])
   debug_inspect(t, content="Option(Parameterized(\"Array\", [Named(\"String\")]))")
 }
 
@@ -555,12 +589,12 @@ test "map_internal_type: override in array element" {
 }
 
 test "map_internal_type_nullable: override with not_null" {
-  let t = map_internal_type_nullable(Named("int4"), true, [("int4", "String")])
+  let t = map_internal_type_nullable(Named("int4"), true, [("int4", "String")], [])
   debug_inspect(t, content="Named(\"String\")")
 }
 
 test "map_internal_type_nullable: override with nullable wraps in Option" {
-  let t = map_internal_type_nullable(Named("int4"), false, [("int4", "String")])
+  let t = map_internal_type_nullable(Named("int4"), false, [("int4", "String")], [])
   debug_inspect(t, content="Option(Named(\"String\"))")
 }
 
@@ -599,4 +633,100 @@ test "lookup_override: not found returns None" {
 test "lookup_override: empty overrides returns None" {
   let r = lookup_override("int4", [])
   debug_inspect(r, content="None")
+}
+
+// === lookup_column_override tests ===
+
+test "lookup_column_override: matching table.column returns type" {
+  let overrides: Array[ColumnOverride] = [{ table: "users", column: "id", moonbit_type: "String" }]
+  let r = lookup_column_override("users", "id", overrides)
+  debug_inspect(r, content="Some(\"String\")")
+}
+
+test "lookup_column_override: non-matching table returns None" {
+  let overrides: Array[ColumnOverride] = [{ table: "users", column: "id", moonbit_type: "String" }]
+  let r = lookup_column_override("posts", "id", overrides)
+  debug_inspect(r, content="None")
+}
+
+test "lookup_column_override: non-matching column returns None" {
+  let overrides: Array[ColumnOverride] = [{ table: "users", column: "id", moonbit_type: "String" }]
+  let r = lookup_column_override("users", "name", overrides)
+  debug_inspect(r, content="None")
+}
+
+test "lookup_column_override: empty list returns None" {
+  let r = lookup_column_override("users", "id", [])
+  debug_inspect(r, content="None")
+}
+
+test "lookup_column_override: multiple overrides picks correct match" {
+  let overrides: Array[ColumnOverride] = [
+    { table: "users", column: "id", moonbit_type: "String" },
+    { table: "posts", column: "title", moonbit_type: "Int64" },
+    { table: "users", column: "name", moonbit_type: "Bool" },
+  ]
+  let r1 = lookup_column_override("users", "name", overrides)
+  debug_inspect(r1, content="Some(\"Bool\")")
+  let r2 = lookup_column_override("posts", "title", overrides)
+  debug_inspect(r2, content="Some(\"Int64\")")
+}
+
+// === is_nullable_override tests ===
+
+test "is_nullable_override: matching pg_type returns true" {
+  let r = is_nullable_override("int4", ["int4"])
+  debug_inspect(r, content="true")
+}
+
+test "is_nullable_override: non-matching pg_type returns false" {
+  let r = is_nullable_override("text", ["int4"])
+  debug_inspect(r, content="false")
+}
+
+test "is_nullable_override: empty list returns false" {
+  let r = is_nullable_override("int4", [])
+  debug_inspect(r, content="false")
+}
+
+test "is_nullable_override: matching with schema prefix returns true" {
+  let r = is_nullable_override("pg_catalog.int4", ["int4"])
+  debug_inspect(r, content="true")
+}
+
+test "is_nullable_override: uppercase input normalized" {
+  let r = is_nullable_override("INT4", ["int4"])
+  debug_inspect(r, content="true")
+}
+
+test "is_nullable_override: multiple nullable_overrides finds match" {
+  let r = is_nullable_override("text", ["int4", "text", "bool"])
+  debug_inspect(r, content="true")
+}
+
+// === map_internal_type_nullable with nullable_overrides ===
+
+test "map_internal_type_nullable: not_null with matching nullable_override wraps in Option" {
+  let t = map_internal_type_nullable(Named("int4"), true, [], ["int4"])
+  debug_inspect(t, content="Option(Named(\"Int64\"))")
+}
+
+test "map_internal_type_nullable: not_null with non-matching nullable_override keeps type" {
+  let t = map_internal_type_nullable(Named("int4"), true, [], ["text"])
+  debug_inspect(t, content="Named(\"Int64\")")
+}
+
+test "map_internal_type_nullable: nullable_override does not affect array types" {
+  let t = map_internal_type_nullable(Arr(Named("int4")), true, [], ["int4"])
+  debug_inspect(t, content="Parameterized(\"Array\", [Named(\"Int64\")])")
+}
+
+test "map_internal_type_nullable: override with matching nullable_override" {
+  let t = map_internal_type_nullable(Named("int4"), true, [("int4", "String")], ["int4"])
+  debug_inspect(t, content="Option(Named(\"String\"))")
+}
+
+test "map_internal_type_nullable: nullable with matching nullable_override wraps in Option" {
+  let t = map_internal_type_nullable(Named("int4"), false, [], ["int4"])
+  debug_inspect(t, content="Option(Named(\"Int64\"))")
 }

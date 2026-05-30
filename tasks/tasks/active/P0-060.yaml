@@ -21,7 +21,9 @@ artifacts: []
 references:
   - plugin/main.mbt
   - plugin/emitter.mbt
+  - adr/ADR-014.md
 execution_notes: >
   GAP-1 from architecture review. Supersedes P2-005.
   Modify process_request to produce multiple GenerateResponse.File entries.
   Split: types.mbt (structs/enums), queries/ (all query functions).
+  ADR-014 documents related plugin options for output file naming.

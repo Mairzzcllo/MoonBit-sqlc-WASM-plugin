@@ -15,8 +15,8 @@
 
 | ID | 标题 | 优先级 | 类型 | 状态 | 依赖 |
 |----|------|--------|------|------|------|
-| **P0-057** | 插件选项扩展 (8 新选项) | P0 | feature | todo | — |
-| **P0-058** | 类型覆盖扩展 (column + nullable) | P0 | feature | todo | — |
+| **P0-057** | 插件选项扩展 (8 新选项) | P0 | feature | done | — |
+| **P0-058** | 类型覆盖扩展 (column + nullable) | P0 | feature | done ✅ | — |
 | **P0-059** | TIMETZ 时区支持 (TimeTZ struct) | P0 | feature | todo | — |
 | **P0-060** | 多文件输出支持 | P0 | feature | todo | — |
 | **P0-061** | Codec bounds hardening — skip_field/OOB/error→abort | P0 | bugfix | todo | — |
