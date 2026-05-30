@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: P1-041
+state: todo
+deterministic: true
+title: "命名转换边缘情况加固 — 重复/冲突/特殊字符"
+type: bugfix
+priority: P1
+description: >
+  snake_to_pascal 的 5 个边缘情况：不同下划线命名映射到
+  相同 PascalCase（如 "user_name" 和 "UserName" 冲突）；
+  枚举名与 struct 名冲突产生编译错误；"user__name" 双下
+  划线折叠；"_user" 前导下划线丢失；"USER_NAME" 全大写
+  映射为 "USERNAME" 而非 "UserName"；"userName" 驼峰不
+  处理。需补全测试用例，修复或文档化这些行为。
+dependencies:
+  - id: P0-066
+    type: soft
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - plugin/type_codegen.mbt
+execution_notes: >
+  Edge cases #50, #51, #54, #55, #56, #57, #58, #59.
+  Current snake_to_pascal behavior:
+  - "user__name" → "UserName" (double underscore folded by split)
+  - "_user" → "User" (split produces ["", "user"])
+  - "USER_NAME" → "USERNAME" (split produces ["USER", "NAME"])
+  - "userName" → "userName" (no underscore → unchanged)
+  Need to decide on normalization policy first (ADR-004 update).

@@ -106,6 +106,22 @@ pub fn IpAddr::to_string(self: IpAddr) -> String {
   self.inner
 }
 
+/// Result of an Exec operation, providing both last insert ID and rows affected.
+pub struct ExecResult {
+  last_insert_id : Int64
+  rows_affected : Int64
+}
+
+pub fn ExecResult::new(last_insert_id: Int64, rows_affected: Int64) -> ExecResult {
+  { last_insert_id: last_insert_id, rows_affected: rows_affected }
+}
+
+test "ExecResult::new and field access" {
+  let r = ExecResult::new(42L, 7L)
+  inspect(r.last_insert_id, content="42")
+  inspect(r.rows_affected, content="7")
+}
+
 /// Runtime value type for query parameter binding.
 pub enum Value {
   Null

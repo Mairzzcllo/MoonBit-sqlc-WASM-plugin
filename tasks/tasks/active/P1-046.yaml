@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: P1-046
+state: todo
+deterministic: true
+title: "Row 运行时加固 — 索引越界 + 类型混淆 + collect 挂起"
+type: bugfix
+priority: P1
+description: >
+  Row 运行时 3 个问题：Row.get(index) 直接调 get_fn 闭包
+  无边界检查，越界时行为由驱动定义（可能 panic）；
+  get_json 对非 JSON 列将原始字符串当 JSON 解析，无类型
+  验证；RowIter::collect 如果 next() 永不返回 Ok(None)
+  则永久挂起。修复：Row.get 增加 index < 已知列数检查；
+  get_json 增加类型前验证；collect 增加最大迭代次数保护。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - runtime/row.mbt
+  - runtime/row_iter.mbt
+execution_notes: >
+  Edge cases #37, #43, #72. Row.get bounds: add num_cols field
+  to Row struct or guard in get_fn. get_json type confusion:
+  add column type metadata. collect infinite loop: configurable
+  max_rows limit (default 100000).

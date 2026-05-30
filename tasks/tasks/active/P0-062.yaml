@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P0-062
+state: todo
+deterministic: true
+title: ":one 查询多行静默取第一条 — 新增 TooManyRows 错误"
+type: bugfix
+priority: P0
+description: >
+  :one 查询返回 2+ 行时，当前第 2+ 行被静默丢弃，
+  直接返回第 1 行的解码结果。需要在 runtime 新增
+  TooManyRows 错误变体，或由驱动在 query_row 实现中
+  检查行数 > 1 时返回错误。目前所有 query_row_fn 实现
+  无此检查，属于数据正确性问题。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - runtime/error.mbt
+  - runtime/db.mbt
+execution_notes: >
+  Edge case #84. Two approaches: (a) add TooManyRows variant to DBError
+  and let query_row implementations check row count; (b) add runtime-level
+  guard in query_row_fn. Option (a) is cleaner. Requires update to
+  MockDB and all query_row_fn closures.

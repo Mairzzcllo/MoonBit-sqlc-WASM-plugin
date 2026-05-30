@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: P0-064
+state: todo
+deterministic: true
+title: "输出路径路径穿越防护 — out_name 合法性验证"
+type: bugfix
+priority: P0
+description: >
+  process_request 中 filename 直接拼接 codegen.out + "/lib.mbt"。
+  如果 out_name 包含 ".."（例如 "../../etc"）或绝对路径
+  （"/tmp/foo"），生成文件可能写到当前工作目录外，属于
+  路径穿越安全漏洞。需对 out_name 进行合法性校验，
+  拒绝包含 ".." 或以 "/" 开头的路径。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - plugin/main.mbt
+execution_notes: >
+  Edge case #89. Add validate_output_path function in main.mbt
+  or adapter.mbt. Sanitize: reject paths with ".." segments,
+  reject absolute paths (starts with "/" or "\\").
+  Optionally: sanitize to alphanumeric + underscore + slash only.

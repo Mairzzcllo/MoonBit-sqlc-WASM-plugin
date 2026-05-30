@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: P1-035
+state: todo
+deterministic: true
+title: "MySQL 数据库支持 — 类型映射 + 查询验证"
+type: feature
+priority: P1
+description: >
+  当前仅支持 PostgreSQL。扩展 Type Mapping Layer 支持 MySQL 类型系统，
+  验证 MySQL 查询生成正确性，添加 MySQL golden tests。
+  依赖 P0-058（类型覆盖扩展）完成后的基础设施。
+dependencies:
+  - id: P0-058
+    type: hard
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-29"
+updated_at: "2026-05-29"
+artifacts: []
+references:
+  - plugin/type_map.mbt
+  - plugin/adapter.mbt
+execution_notes: >
+  GAP-5 from architecture review. Supersedes P2-001.
+  MySQL types: TINYINT/SMALLINT/MEDIUMINT/BIGINT → Int64,
+  FLOAT/DOUBLE → Double, VARCHAR/TEXT/CHAR → String,
+  DATETIME/TIMESTAMP → DateTime, DATE → Date, JSON → JsonValue,
+  BLOB/BINARY → Bytes.

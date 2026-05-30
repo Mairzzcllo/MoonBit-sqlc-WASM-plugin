@@ -83,6 +83,9 @@
 - ADR-008 — Native WASI I/O via Inline WAT FFI（已接受）
 - ADR-009 — Known Limitations and MVP Boundaries（草稿）
 - ADR-010 — Transaction Support: Concrete Struct + Closure Pattern（已接受）
+- ADR-011 — Codegen Build Body: result_shape Priority and Method Dispatch（已接受）
+- ADR-012 — Phase D Architecture Gaps: ExecResult, Type Overrides, TimeTZ（已接受）
+- ADR-013 — 100 Edge Cases Analysis: Classification and Fix Feasibility（已接受）
 
 ## 已知限制
 
@@ -101,6 +104,38 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 
 当前 MoonBit I/O 层已修复（P0-045）：使用 `read_all` + `write_all` 无帧格式原始 protobuf。
 
+### Phase D — 架构差距 (2026-05-29 评审) + 100 边界情况 (2026-05-30)
+
+9 个已知 GAP vs 成熟生态插件:
+- GAP-1: 单文件输出 → P0-060
+- GAP-2: :execresult 缺失 LastInsertId → P0-056 ✅ done
+- GAP-3: 类型覆盖简陋 → P0-058
+- GAP-4: 插件选项极少 → P0-057
+- GAP-5: 仅 PostgreSQL → P1-035
+- GAP-6: 无 trait/interface → P1-038 (Blocked by MoonBit)
+- GAP-7: TIMETZ 时区丢失 → P0-059
+- GAP-8: 根 sqlc.yaml 空模板 → P1-036
+- GAP-9: 缺 E2E 集成测试 → P1-037
+
+100 边界情况分析 (2026-05-30): 100 edge cases → 50 新任务 (7 P0 + 10 P1)
+- P0-061: Codec bounds hardening (skip_field/OOB/error→abort)
+- P0-062: :one TooManyRows error (多行静默取第一条)
+- P0-063: 字段解码按列名而非索引 (列顺序变化错位)
+- P0-064: 输出路径穿越防护 (out_name 验证)
+- P0-065: MoonBit 关键字冲突 (完整转义表)
+- P0-066: 空/无效标识符处理 (空查询名/列名)
+- P0-067: iovec 保留内存区间隔离验证
+- P1-039: Codec 静默错误传播 (read_string/decode_embedded)
+- P1-040: 类型格式验证 (Date/DateTime/UUID/IP)
+- P1-041: 命名转换边缘情况加固
+- P1-042: MockDB 可用性改进
+- P1-043: Test 覆盖扩展 (多表/数组/枚举)
+- P1-044: DBError 增强 (嵌套错误 + TooManyRows)
+- P1-045: 代码生成去重与空包名保护
+- P1-046: Row 运行时加固 (越界/类型混淆/挂起)
+- P1-047: 枚举运行时值验证
+- P1-048: 集成测试基础设施加固
+
 ## 代码库勘误（2026-05-22 深度评审记录）
 
 ### 规划陷阱清单 — 避免重复犯错
@@ -114,6 +149,10 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 7. **`type_to_value_constructor()` 完整** — `query_codegen.mbt:33` 已有全部映射（Int64/String/Double/Bool/Bytes/Date/DateTime/JsonValue），无需修改
 8. **`param_to_value_expr()` nullable 正确** — `Some(x) => Ctor(x)` 模式类型推导自动匹配，无需修改
 9. **`parse_plugin_options` slice indices 必须手工验证** — `adapter.mbt` 中 `s[14:]` 应为 `s[13:]`（`"package_name="` 为 13 字符）。硬编码前缀长度与 `has_prefix` 常量字符串长度需一致，不可凭印象写值
+10. **GAP-2 ExecResult 是增强，非重复实现** — `ir.mbt` 已有 `ExecResult` IR 变体，P0-056 是在此基础上增加 LastInsertId + RowsAffected 结构体返回值，不是重新实现
+11. **GAP-3 类型覆盖 vs P2-002** — P2-002 已实现 `override_<type>=<moonbit_type>` 格式，但缺乏 column 级和 nullable 级覆盖维度。P0-058 是扩展而非重写
+12. **GAP-4 emit_empty_slices 不再推迟** — 先前标记「推迟至 Phase 2」，现纳入 P0-057 立即实现
+13. **GAP-7 TimeTZ 新 struct** — 不修改现有 Time struct，新增独立 `TimeTZ { hour, min, sec, micros, tz_offset: Int }` 保持向后兼容
 
 ### 任务分解约定
 

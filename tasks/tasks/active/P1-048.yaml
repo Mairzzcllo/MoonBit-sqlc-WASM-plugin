@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: P1-048
+state: todo
+deterministic: true
+title: "集成测试基础设施加固 — 快照假阴性/手动同步/编译隔离"
+type: test
+priority: P1
+description: >
+  3 个集成测试风险：生成代码是手动快照，输出变化但测试
+  仍可能通过（假阴性）；测试用 RowIter::new([]) 传数组但
+  运行时期望函数，类型不匹配；基础版和 WASM 版两个
+  generated.mbt 需手动同步更新。改进：引入断言非空检查，
+  统一 generated.mbt 减少重复，自动化同步机制。
+dependencies:
+  - id: P0-060
+    type: soft
+  - id: P1-043
+    type: soft
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - tests/integration/
+execution_notes: >
+  Edge cases #80, #81, #82. Actions:
+  - Replace manual golden snapshots with auto-generated ones
+  - Fix RowIter::new array-vs-function mismatch in integration tests
+  - Unify basic/wasm generated.mbt into shared location
+  - Add CI step to verify generated.mbt is up to date

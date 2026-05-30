@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: P1-037
+state: todo
+deterministic: true
+title: "E2E 集成测试 — PowerShell 调用 sqlc + WASM"
+type: test
+priority: P1
+description: >
+  当前仅有 inline unit tests + golden tests，缺少实际 sqlc generate 集成测试。
+  编写 PowerShell 脚本调用 sqlc.exe + WASM 插件，验证生成文件存在性和内容正确性。
+  集成到 CI workflow。
+dependencies:
+  - id: P0-056
+    type: soft
+  - id: P0-057
+    type: soft
+  - id: P0-060
+    type: soft
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-29"
+updated_at: "2026-05-29"
+artifacts:
+  - type: test
+    path: tests/integration
+references:
+  - .github/workflows/ci.yml
+execution_notes: >
+  GAP-9 from architecture review. Use user-approved PowerShell approach.
+  Script: build wasm → run sqlc generate → check output files content.
+  Place in tests/integration/e2e/.

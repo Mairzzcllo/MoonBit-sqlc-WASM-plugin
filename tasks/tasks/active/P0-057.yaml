@@ -1,0 +1,28 @@
+schema_version: "1.0"
+id: P0-057
+state: todo
+deterministic: true
+title: "插件选项扩展 — 8 个新配置选项"
+type: feature
+priority: P0
+description: >
+  当前仅 3 个插件选项（package_name, emit_json_tags, emit_db_tags）。
+  增加 8 个新选项：emit_sql_as_comment, omit_unused_structs,
+  emit_empty_slices, initialisms, json_tags_case_style,
+  query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-29"
+updated_at: "2026-05-29"
+artifacts: []
+references:
+  - plugin/adapter.mbt
+  - plugin/main.mbt
+execution_notes: >
+  GAP-4 from architecture review. Parse options in parse_plugin_options,
+  thread through adapter to codegen. Emit_sql_as_comment affects emitter;
+  omit_unused_structs affects struct generation pass.

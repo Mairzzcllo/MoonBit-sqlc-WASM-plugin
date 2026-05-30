@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P1-042
+state: todo
+deterministic: true
+title: "MockDB 可用性改进 — 按 SQL 匹配 + 可配置字段"
+type: feature
+priority: P1
+description: >
+  MockDB 4 个痛点：构造函数要求所有 7 个结果字段，
+  未注册的 SQL 使用构造函数中的默认结果；SQL 匹配使用
+  startsWith 而非精确匹配（"SEL" 匹配 "SELECT"）；重复
+  注册覆盖不报错。改进：可选字段默认值，精确 SQL 匹配，
+  重复注册报错或追加。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - runtime/mock.mbt
+execution_notes: >
+  Edge cases #66, #67, #68, #69. Focus on usability:
+  - Optional params with defaults for MockDB::new
+  - startsWith → exact match for SQL
+  - Warn on duplicate registration
+  - Consider named constructor pattern for common cases

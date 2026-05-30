@@ -55,7 +55,11 @@ fn build_return_ty(cmd: QueryCardinality, result_type: String, result_shape: Int
   match cmd {
     OneRow => Parameterized("Result", [Named(result_type), Named("DBError")])
     ManyRows => Parameterized("Result", [Parameterized("Array", [Named(result_type)]), Named("DBError")])
-    ExecResult | ExecCount => match result_shape {
+    ExecResult => match result_shape {
+      Rows(_) => Parameterized("Result", [Named(result_type), Named("DBError")])
+      None => Parameterized("Result", [Named("ExecResult"), Named("DBError")])
+    }
+    ExecCount => match result_shape {
       Rows(_) => Parameterized("Result", [Named(result_type), Named("DBError")])
       None => Parameterized("Result", [Named("Int64"), Named("DBError")])
     }
@@ -115,7 +119,19 @@ fn build_body(query: InternalQuery, result_type: String, conn_name: String, resu
           ExecLastId => ".execlastid"
           _ => ".exec"
         }
-        [sql_let, params_let, Call(conn_name + method_name, [Ident("sql"), Ident("params")])]
+        let conn_call = Call(conn_name + method_name, [Ident("sql"), Ident("params")])
+        let (zero_or_n, one_or_n) = match query.raw_cmd {
+          ExecLastId => ("n", "1L")
+          _ => ("0L", "n")
+        }
+        [
+          sql_let,
+          params_let,
+          Match(conn_call, [
+            ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero_or_n), Ident(one_or_n)])])),
+            ("Err(e)", Call("Err", [Ident("e")])),
+          ]),
+        ]
       }
     }
     ExecCount => match result_shape {
@@ -243,9 +259,9 @@ test "build_return_ty: ManyRows returns Result[Array[T], DBError]" {
   inspect(t, content="Parameterized(\"Result\", [Parameterized(\"Array\", [Named(\"User\")]), Named(\"DBError\")])")
 }
 
-test "build_return_ty: ExecResult returns Result[Int64, DBError]" {
+test "build_return_ty: ExecResult returns Result[ExecResult, DBError]" {
   let t = build_return_ty(ExecResult, "User", None)
-  inspect(t, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
+  inspect(t, content="Parameterized(\"Result\", [Named(\"ExecResult\"), Named(\"DBError\")])")
 }
 
 test "build_return_ty: ExecCount returns Result[Int64, DBError]" {
@@ -299,7 +315,7 @@ test "generate_query_fn: :many query has no params" {
   inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Parameterized(\"Array\", [Named(\"ListUsersRow\")]), Named(\"DBError\")])")
 }
 
-test "generate_query_fn: :exec query returns Result[Int64, DBError]" {
+test "generate_query_fn: :exec query returns Result[ExecResult, DBError]" {
   let q: InternalQuery = {
     name: "delete_user", text: "DELETE FROM users WHERE id = $1", cmd: ExecResult, raw_cmd: Exec,
     params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
@@ -308,13 +324,19 @@ test "generate_query_fn: :exec query returns Result[Int64, DBError]" {
   }
   let fn_def = generate_query_fn(q, "db", Named("DB"), [])
   inspect(fn_def.name, content="query_delete_user")
-  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"Int64\"), Named(\"DBError\")])")
+  inspect(fn_def.return_ty, content="Parameterized(\"Result\", [Named(\"ExecResult\"), Named(\"DBError\")])")
   inspect(fn_def.body.length(), content="3")
   let sql_text = match fn_def.body[0] {
     Let(_, StrLit(s)) => s
     _ => ""
   }
   inspect(sql_text, content="DELETE FROM users WHERE id = $1")
+  // body[2] is now a Match wrapping the db.exec call
+  let is_match = match fn_def.body[2] {
+    Match(_, _) => true
+    _ => false
+  }
+  inspect(is_match, content="true")
 }
 
 test "generate_query_fn: :execrows query returns Result[Int64, DBError]" {
@@ -567,7 +589,7 @@ test "build_body: CopyFrom raw_cmd uses conn.copyfrom" {
     comments: Array::make(0, ""), filename: "",
   }
   let body = build_body(q, "CopyUsersRow", "db", None, [])
-  let call_name = match body[2] { Call(name, _) => name; _ => "" }
+  let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.copyfrom")
 }
 
@@ -579,7 +601,7 @@ test "build_body: Batch raw_cmd uses conn.batch" {
     comments: Array::make(0, ""), filename: "",
   }
   let body = build_body(q, "BatchInsertRow", "db", None, [])
-  let call_name = match body[2] { Call(name, _) => name; _ => "" }
+  let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.batch")
 }
 
@@ -591,7 +613,7 @@ test "build_body: ExecLastId raw_cmd uses conn.execlastid" {
     comments: Array::make(0, ""), filename: "",
   }
   let body = build_body(q, "InsertUserRow", "db", None, [])
-  let call_name = match body[2] { Call(name, _) => name; _ => "" }
+  let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.execlastid")
 }
 
@@ -603,8 +625,88 @@ test "build_body: Exec raw_cmd uses conn.exec (default)" {
     comments: Array::make(0, ""), filename: "",
   }
   let body = build_body(q, "DeleteUserRow", "db", None, [])
-  let call_name = match body[2] { Call(name, _) => name; _ => "" }
+  let call_name = match body[2] { Match(Call(name, _), _) => name; _ => "" }
   inspect(call_name, content="db.exec")
+}
+
+test "build_body: ExecResult+None Exec constructs ExecResult::new(0L, n) in Match arm" {
+  let q: InternalQuery = {
+    name: "delete_user", text: "DELETE FROM users WHERE id = $1", cmd: ExecResult, raw_cmd: Exec,
+    params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let body = build_body(q, "DeleteUserRow", "db", None, [])
+  let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
+    Match(_, [
+      ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
+      ("Err(e)", Call("Err", [Ident("e")])),
+    ]) => ("Ok(n)", zero, one)
+    _ => ("", "", "")
+  }
+  inspect(arm0_pat, content="Ok(n)")
+  inspect(arm0_arg0, content="0L")
+  inspect(arm0_arg1, content="n")
+}
+
+test "build_body: ExecResult+None CopyFrom constructs ExecResult::new(0L, n) in Match arm" {
+  let q: InternalQuery = {
+    name: "copy_users", text: "COPY users FROM stdin", cmd: ExecResult, raw_cmd: CopyFrom,
+    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let body = build_body(q, "CopyUsersRow", "db", None, [])
+  let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
+    Match(_, [
+      ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
+      ("Err(e)", Call("Err", [Ident("e")])),
+    ]) => ("Ok(n)", zero, one)
+    _ => ("", "", "")
+  }
+  inspect(arm0_pat, content="Ok(n)")
+  inspect(arm0_arg0, content="0L")
+  inspect(arm0_arg1, content="n")
+}
+
+test "build_body: ExecResult+None Batch constructs ExecResult::new(0L, n) in Match arm" {
+  let q: InternalQuery = {
+    name: "batch_insert", text: "INSERT INTO t VALUES ($1)", cmd: ExecResult, raw_cmd: Batch,
+    params: [{ number: 1, name: "val", ty: Named("int4"), not_null: true }],
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let body = build_body(q, "BatchInsertRow", "db", None, [])
+  let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
+    Match(_, [
+      ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
+      ("Err(e)", Call("Err", [Ident("e")])),
+    ]) => ("Ok(n)", zero, one)
+    _ => ("", "", "")
+  }
+  inspect(arm0_pat, content="Ok(n)")
+  inspect(arm0_arg0, content="0L")
+  inspect(arm0_arg1, content="n")
+}
+
+test "build_body: ExecResult+None ExecLastId constructs ExecResult::new(n, 1L) in Match arm" {
+  let q: InternalQuery = {
+    name: "insert_user", text: "INSERT INTO users (name) VALUES ($1)", cmd: ExecResult, raw_cmd: ExecLastId,
+    params: [{ number: 1, name: "name", ty: Named("text"), not_null: true }],
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let body = build_body(q, "InsertUserRow", "db", None, [])
+  let (arm0_pat, arm0_arg0, arm0_arg1) = match body[2] {
+    Match(_, [
+      ("Ok(n)", Call("Ok", [Call("ExecResult::new", [Ident(zero), Ident(one)])])),
+      ("Err(e)", Call("Err", [Ident("e")])),
+    ]) => ("Ok(n)", zero, one)
+    _ => ("", "", "")
+  }
+  inspect(arm0_pat, content="Ok(n)")
+  inspect(arm0_arg0, content="n")
+  inspect(arm0_arg1, content="1L")
 }
 
 test "build_body: CopyFrom with Rows uses query_row + decode (result_shape > raw_cmd)" {

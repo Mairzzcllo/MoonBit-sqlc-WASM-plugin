@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P1-047
+state: todo
+deterministic: true
+title: "枚举运行时值验证 — 解码值与声明变体不匹配"
+type: bugfix
+priority: P1
+description: >
+  生成的枚举解码函数不验证运行时值是否匹配声明的枚举变体。
+  如果数据库返回 SQL 枚举值 "PENDING" 而生成的 MoonBit
+  枚举只声明了 Active/Inactive 变体，解码会静默产生无效
+  枚举值。需在 decode 中增加枚举变体验证（match + else
+  分支返回 TypeError）。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - plugin/type_codegen.mbt
+  - runtime/value.mbt
+execution_notes: >
+  Edge case #52. Generated decode for enum types should have
+  a catch-all that returns Err(TypeError(...)) instead of
+  producing invalid enum value. Update generate_enum_from_enum
+  in type_codegen.mbt to emit validated decode.

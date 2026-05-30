@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: P0-061
+state: todo
+deterministic: true
+title: "Codec bounds hardening — skip_field/OOB/error→abort"
+type: bugfix
+priority: P0
+description: >
+  编解码器层 4 个越界问题：(1) skip_field 不检查剩余字节，
+  WT_BITS64/BITS32/LEN 直接移动 pos 可能越界读取；
+  (2) read_fixed32/64 调用 4/8 次 read_byte 无边界检查，
+  越界返回 0 而非报错；(3) process_message 中任何解码
+  错误直接终止 WASM；(4) iovec 暂存区硬编码地址与 MoonBit
+  分配器区域重叠风险。前 3 项导致数据损坏或拒绝服务。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - plugin/codec.mbt
+  - plugin/wasi_io.mbt
+  - plugin/main.mbt
+execution_notes: >
+  Edge cases #5, #9, #11, #13 from boundary analysis.
+  skip_field: add bounds check before pos movement.
+  read_fixed32/64: validate remaining >= 4/8.
+  process_message: wrap decode in try/catch, return empty response on error.
+  Reserved region: add check_bytes_data_ptr verification on memory grow.

@@ -1,0 +1,36 @@
+schema_version: "1.0"
+id: P1-043
+state: todo
+deterministic: true
+title: "Test 覆盖扩展 — 多表/多查询模式/数组/枚举/特殊类型"
+type: test
+priority: P1
+description: >
+  当前 golden/test 覆盖 7 个缺口：只有 users 单表 3 列；
+  只测 :one/:many/:exec（缺 :execrows/:copyfrom/:batch/
+  :execlastid）；无数组类型列；无枚举类型；无 time/JSON/
+  numeric/BYTEA/network 类型；无参数查询（如 SELECT 1）；
+  无类型覆盖/重命名测试。逐一补充。
+dependencies:
+  - id: P0-058
+    type: soft
+  - id: P0-060
+    type: soft
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - tests/
+  - plugin/golden.mbt
+execution_notes: >
+  Edge cases #73-79. Each missing scenario needs:
+  1. New test data generator in golden.mbt or test utils
+  2. New golden snapshot test assertion
+  3. Verify output compiles (moon check)
+  Prioritize: enum (#76) and array (#75) columns first,
+  then :execrows/:copyfrom/:batch commands.

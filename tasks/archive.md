@@ -731,3 +731,11 @@
 - 架构: moon check 0 errors, moon test 497/497 passed
 - 创建: 2026-05-25
 - 完成: 2026-05-29
+
+### P0-056 — :execresult 完整语义 — LastInsertId + RowsAffected (2026-05-29)
+- GAP-2: runtime 新增 ExecResult{last_insert_id, rows_affected} struct
+- Codegen: ExecResult+None → Result[ExecResult, DBError]; 裸 Call 改为 Match+ExecResult::new 构造
+- ExecLastId: ExecResult::new(n, 1L); Exec/CopyFrom/Batch: ExecResult::new(0L, n)
+- ExecCount (:execrows) 不受影响，仍返回 Result[Int64, DBError]
+- 架构: moon check 0 errors, moon test 486/486 passed
+- 创建: 2026-05-29 | 完成: 2026-05-29

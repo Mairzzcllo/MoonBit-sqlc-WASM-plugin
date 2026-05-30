@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: P1-044
+state: todo
+deterministic: true
+title: "DBError 增强 — 嵌套错误 + TooManyRows + 查询上下文"
+type: feature
+priority: P1
+description: >
+  当前 DBError 三个不足：无嵌套错误原因（ConnectionError
+  只带 String 消息，不能包装底层驱动错误）；:one 多行无
+  TooManyRows 错误（见 P0-062）；只有 NoRows 带查询上下
+  文（SQL 等），其他错误类型没有。增强：新增 Nested
+  变体包含 cause 字段；所有错误统一携带查询信息。
+dependencies:
+  - id: P0-062
+    type: soft
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - runtime/error.mbt
+execution_notes: >
+  Edge cases #83, #85. Also relates to #84 (TooManyRows, see P0-062).
+  Consider: enum DBError { ConnectionError(String), QueryError{msg: String, sql: String}, TypeError(String), NoRows{query: String}, TooManyRows{count: Int, query: String} }
+  This is a breaking change for existing error handling patterns.

@@ -3,12 +3,12 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: Phase 0 Hotfix 全部完成 ✅ — Phase C 活跃
-- **最新事件**: 2026-05-30 — Bug Fix Sprint: 5 bugs fixed (481 测试通过)
-- P0: 55/55 completed ✅ (+ P0-055 null_mask)
-- P1: 30/30 completed ✅
-- P2: 12/12 completed ✅ (+ P2-013 dead code + P2-014 inspect→debug_inspect)
-- 活跃 Phase: **Bug Fix Sprint — 全部完成** ✅
+- **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 规划就绪
+- **最新事件**: 2026-05-29 — P0-056 ✅ :execresult 完整语义完成 (486 tests)
+- P0: 56/61 completed ✅ (P0-056 done, P0-057~060 active)
+- P1: 30/34 completed ✅ (P1-035~038 active)
+- P2: 12/12 completed ✅; P2-001/005/006 superseded
+- 活跃 Phase: **Phase D — 架构差距消除 Sprint**
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -155,13 +155,96 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 - type_map.mbt 中 94 处 `inspect(` → `debug_inspect(`
 - `ast.mbt` 新增 `impl Debug for TypeExpr`
 
-### Phase C-4 — Pending
+### Phase C-4 — Superseded (→ Phase D)
 
-| ID | 标题 | 优先级 | 类型 | 状态 |
-|----|------|--------|------|------|
-| **P2-001** | MySQL 数据库支持 | P2 | feature | pending |
-| **P2-005** | 多文件输出支持 | P2 | feature | pending |
-| **P2-006** | emit_interface 支持 (探索) | P2 | feature | blocked |
+| 旧 ID | 新 ID | 标题 | 状态 |
+|-------|-------|------|------|
+| **P2-001** | **P1-035** | MySQL 支持 (upgraded P2→P1) | ❌ cancelled → P1-035 |
+| **P2-005** | **P0-060** | 多文件输出 (upgraded P2→P0) | ❌ cancelled → P0-060 |
+| **P2-006** | **P1-038** | emit_interface (upgraded P2→P1) | ❌ cancelled → P1-038 |
+
+## Phase D — 架构差距消除 Sprint (2026-05-29)
+
+**背景**: 架构评审识别 9 个 GAP vs 成熟生态插件 (sqlc-gen-go/python/kotlin/typescript)。全部提升为 P0/P1 优先级，2 周 Sprint。
+
+**并行策略**: P0-056~060 可全部并行执行; P1-035 依赖 P0-058(hard); P1-036/038 独立; P1-037 最后。
+
+### P0-056 交付内容 ✅
+- runtime/value.mbt: 新增 `ExecResult { last_insert_id: Int64, rows_affected: Int64 }` + 构造函数 + inline test
+- plugin/query_codegen.mbt:
+  - `build_return_ty`: ExecResult+None → `Result[ExecResult, DBError]`; ExecCount+None 不变
+  - `build_body`: ExecResult+None 裸 Call 改为 Match 包裹 ExecResult::new()
+    - Exec/CopyFrom/Batch: `ExecResult::new(0L, n)` (rows_affected=n)
+    - ExecLastId: `ExecResult::new(n, 1L)` (last_insert_id=n)
+- plugin/golden.mbt: GOLDEN_USERS 中 query_delete_user 更新为 ExecResult 返回 + Match body
+- 测试: 486/486 pass (482 original + 4 new Match arm structure tests)
+
+### P0 任务
+
+| ID | GAP | 标题 | 类型 | 状态 | 依赖 |
+|----|-----|------|------|------|------|
+| **P0-056** | GAP-2 | :execresult 完整语义 — LastInsertId + RowsAffected 结构体 | feature | ✅ done | — |
+| **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | todo | — |
+| **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | todo | — |
+| **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | todo | — |
+| **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | todo | — |
+
+### P1 任务
+
+| ID | GAP | 标题 | 类型 | 状态 | 依赖 |
+|----|-----|------|------|------|------|
+| **P1-035** | GAP-5 | MySQL 数据库支持 — 类型映射 + 查询验证 | feature | todo | P0-058(hard) |
+| **P1-036** | GAP-8 | 根目录 sqlc.yaml 工作模板填充 | config | todo | — |
+| **P1-037** | GAP-9 | E2E 集成测试 — PowerShell 调用 sqlc + WASM | test | todo | P0-056/057/060(soft) |
+| **P1-038** | GAP-6 | emit_interface 探索 — MoonBit trait 限制 + MockDB 替代 | research | todo | — (Blocked) |
+
+### 100 边界情况分析 (2026-05-30)
+
+**结论**: 100 个边界情况中，30 个已被历史任务覆盖，20 个为设计决策，剩余 **~50 个** 新增为 7 个 P0 + 10 个 P1 任务。
+
+### 新增 P0 任务 (P0-061~P0-067)
+
+| ID | 边界情况 # | 标题 | 类型 |
+|----|-----------|------|------|
+| P0-061 | #5, #9, #11, #13 | Codec bounds hardening — skip_field/OOB/error→abort | bugfix |
+| P0-062 | #84 | :one 多行静默取第一条 — TooManyRows 错误 | bugfix |
+| P0-063 | #60 | 字段解码按索引而非列名 — 列顺序变化静默错位 | bugfix |
+| P0-064 | #89 | 输出路径穿越防护 — out_name 合法性验证 | bugfix |
+| P0-065 | #88 | MoonBit 关键字冲突 — 全部关键字转义 | bugfix |
+| P0-066 | #31, #35, #36, #53 | 空/无效标识符处理 | bugfix |
+| P0-067 | #10 | iovec 保留内存区间隔离验证 | bugfix |
+
+### 新增 P1 任务 (P1-039~P1-048)
+
+| ID | 边界情况 # | 标题 | 类型 |
+|----|-----------|------|------|
+| P1-039 | #3, #4 | Codec 静默错误传播 | bugfix |
+| P1-040 | #17, #18, #19 | 类型格式验证 | feature |
+| P1-041 | #50, #51, #54-59 | 命名边缘情况加固 | bugfix |
+| P1-042 | #66-69 | MockDB 可用性改进 | feature |
+| P1-043 | #73-79 | Test 覆盖扩展 | test |
+| P1-044 | #83, #85 | DBError 增强 | feature |
+| P1-045 | #87, #90 | 代码生成去重与包名保护 | bugfix |
+| P1-046 | #37, #43, #72 | Row 运行时加固 | bugfix |
+| P1-047 | #52 | 枚举运行时值验证 | bugfix |
+| P1-048 | #80-82 | 集成测试基础设施加固 | test |
+
+### 设计决策保留 (不修复)
+
+- #24/#25: 所有 int→Int64, 所有 float→Double (统一化设计)
+- #14/#29/#32/#33: 未知类型→String fallback, 无表→无输出 (静默回退)
+- #12: 无帧头协议 (P0-045 决议)
+- #44/#46/#47: wrapper 类型无格式验证, 调试输出格式 (MVP 边界)
+- #49: 0 变体枚举 (MoonBit 允许)
+- #62/#65: Transaction 无 copyfrom/batch (P2-008 决议), 无线程安全
+
+## 技术决策记录
+
+1. **GAP-2 ExecResult**: `ExecResult { last_insert_id: Int64, rows_affected: Int64 }` 双值结构体，类似 sql.Result
+2. **GAP-7 TimeTZ**: 新增独立 struct `TimeTZ { hour, min, sec, micros: Int, tz_offset: Int }`，Value 新增 `TimeTZ(TimeTZ)` 变体
+3. **GAP-3 Overrides**: 扩展 adapter 解析 `overrides[]` 配置，支持 `column` 精确列匹配和 `nullable` 可空覆盖
+4. **GAP-4 Options**: 全部 8 个选项通过 `parse_plugin_options` 统一提取，`PluginOptions` struct 新增字段
+5. **GAP-9 E2E**: PowerShell 脚本调用本地 sqlc.exe + WASM 验证生成结果
 
 ## 关键勘误记录（2026-05-22 代码评审）
 

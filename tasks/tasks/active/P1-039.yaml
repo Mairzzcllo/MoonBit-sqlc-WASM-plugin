@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: P1-039
+state: todo
+deterministic: true
+title: "Codec 静默错误传播 — read_string/decode_embedded/skip_field"
+type: bugfix
+priority: P1
+description: >
+  编解码器 3 处静默数据丢失：read_string 在 len 超过剩余
+  字节时截断不报错；decode_embedded 在无足够字节时返回
+  空解码器不报错；skip_field 可能跳过过多字节不报错。
+  改为在数据不一致时返回错误而不是静默继续。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-05-30"
+artifacts: []
+references:
+  - plugin/codec.mbt
+execution_notes: >
+  Edge cases #3, #4. read_string: log warning when len > available.
+  decode_embedded: return Err instead of empty decoder.
+  Skip_field: len > remaining in WT_LEN should warn/abort.
+  This overlaps with P0-061 but focuses on silent data loss
+  vs OOB crash.
