@@ -181,6 +181,7 @@ fn type_to_getter_suffix(type_name: String) -> String {
     "Uuid" => "uuid"
     "Duration" => "duration"
     "Time" => "time"
+    "TimeTZ" => "timetz"
     "IpAddr" => "ipaddr"
     _ => "string"
   }

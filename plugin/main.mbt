@@ -24,7 +24,8 @@ fn main {
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.
-/// Uses codegen.out from sqlc config as the output directory prefix + "lib.mbt".
+/// Uses codegen.out from sqlc config as the output directory prefix.
+/// Produces two output files: types.mbt and queries.mbt.
 fn process_request(req: GenerateRequest) -> GenerateResponse raise {
   let global_opts = parse_plugin_options(req.global_options)
   let plugin_opts = parse_plugin_options(req.plugin_options)
@@ -46,16 +47,53 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
     column_overrides: plugin_opts.column_overrides,
     nullable_overrides: plugin_opts.nullable_overrides,
   }
-  let source = generate_source(req, opts)
-  let contents = @utf8.encode(source)
+  let sources = generate_sources(req, opts)
   let out_name = req.settings.codegen.out
-  let filename = if out_name.length() > 0 {
-    let dir = if out_name[out_name.length() - 1] == '/' { out_name[0:out_name.length() - 1].to_owned() } else { out_name }
-    dir + "/lib.mbt"
+  let dir = if out_name.length() > 0 {
+    let dir_str = if out_name[out_name.length() - 1] == '/' { out_name[0:out_name.length() - 1].to_owned() } else { out_name }
+    dir_str
   } else {
-    "lib.mbt"
+    ""
   }
-  { files: [{ name: filename, contents: contents }] }
+  let files: Array[File] = []
+  for s in sources {
+    let fname = if dir.length() > 0 { dir + "/" + s.0 } else { s.0 }
+    files.push({ name: fname, contents: @utf8.encode(s.1) })
+  }
+  { files: files }
+}
+
+/// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
+/// Returns an array of (filename, source_content) pairs for multi-file output.
+/// Types (structs, enums, decode functions) go into "types.mbt".
+/// Query functions go into "queries.mbt".
+pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(String, String)] {
+  let adapted = convert_request(req)
+  let ir = build_ir(adapted, opts.renames)
+  let types = generate_types(adapted.catalog, ir, adapted.queries, opts.emit_json_tags, opts.emit_db_tags, opts.overrides, opts.column_overrides, opts.nullable_overrides, opts.renames, opts.omit_unused_structs, opts.emit_exact_table_names, opts.json_tags_case_style, opts.initialisms)
+  let parsed_inits = parse_initialisms(opts.initialisms)
+  // TODO: query_parameter_limit is parsed but not yet consumed. Implementing query splitting
+  // requires partitioning the query's IN(...) parameter list at the SQL level, which is
+  // non-trivial — sqlc's own Go plugin handles this via post-processing of the query AST.
+  // For now the option is accepted without error but has no effect. A future PR should:
+  // 1. Detect oversized parameter lists in build_body
+  // 2. Split INTO ... IN(...) clauses across multiple query invocations
+  // 3. Merge results back into a single array
+  let query_fns = generate_query_fns(ir, opts.overrides, opts.nullable_overrides, opts.emit_sql_as_comment, opts.emit_methods_with_db_argument, opts.emit_empty_slices, parsed_inits)
+
+  // types.mbt: package decl + import + types (structs, enums, decode functions)
+  let types_ast: SourceFile = { items: [] }
+  types_ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
+  for t in types { types_ast.items.push(t) }
+  let types_source = emit_package_declaration(opts.package_name) + emit_source_file(types_ast)
+
+  // queries.mbt: package decl + import + query functions
+  let queries_ast: SourceFile = { items: [] }
+  queries_ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
+  for f in query_fns { queries_ast.items.push(f) }
+  let queries_source = emit_package_declaration(opts.package_name) + emit_source_file(queries_ast)
+
+  [("types.mbt", types_source), ("queries.mbt", queries_source)]
 }
 
 /// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
@@ -91,6 +129,8 @@ test "process_request: global_options fallback when plugin_options empty" {
     global_options: b"package_name=fallback_test",
   }
   let resp = process_request(req)
+  inspect(resp.files.length(), content="2")
+  // First file is types.mbt — check package declaration
   let source = @utf8.decode(resp.files[0].contents)
   inspect(source.contains("package fallback_test"), content="true")
 }
@@ -106,6 +146,8 @@ test "process_request: plugin_options takes priority over global_options" {
     global_options: b"package_name=global_opt",
   }
   let resp = process_request(req)
+  inspect(resp.files.length(), content="2")
+  // Both files have the same package declaration; check types.mbt
   let source = @utf8.decode(resp.files[0].contents)
   inspect(source.contains("package plugin_opt"), content="true")
   inspect(source.contains("package global_opt"), content="false")
@@ -122,6 +164,8 @@ test "process_request: both empty uses default empty package" {
     global_options: b"",
   }
   let resp = process_request(req)
+  inspect(resp.files.length(), content="2")
+  // Both files have empty package; check types.mbt
   let source = @utf8.decode(resp.files[0].contents)
   inspect(source.contains("package "), content="false")
 }

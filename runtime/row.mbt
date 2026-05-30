@@ -316,6 +316,38 @@ pub fn Row::decode_nullable_array_bytes(self: Row, index: Int) -> Result[Option[
   }
 }
 
+// === Shared time parsing helper ===
+
+/// Parse a time string in the format HH:MM:SS[.fraction].
+/// The fractional part is right-padded or truncated to 6 digits (microseconds).
+/// Returns (hour, min, sec, micros) on success, TypeError on failure.
+fn parse_time_str(raw: String, index: Int) -> Result[(Int, Int, Int, Int), DBError] {
+  try {
+    let parts = raw.split(":").to_array()
+    if parts.length() < 3 {
+      return Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string()))
+    }
+    let hour = @string.parse_int(parts[0].to_owned())
+    let min = @string.parse_int(parts[1].to_owned())
+    let sec_parts = parts[2].to_owned().split(".").to_array()
+    let sec = @string.parse_int(sec_parts[0].to_owned())
+    let micros = if sec_parts.length() > 1 {
+      let frac = sec_parts[1].to_owned()
+      if frac.length() >= 6 {
+        @string.parse_int(frac[:6].to_owned())
+      } else {
+        // Pad right with zeros to 6 digits
+        let mut padded = frac
+        for _i = frac.length(); _i < 6; _i = _i + 1 {
+          padded = padded + "0"
+        }
+        @string.parse_int(padded)
+      }
+    } else { 0 }
+    Ok((hour, min, sec, micros))
+  } catch { _ => Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string())) }
+}
+
 // === Typed non-nullable getters ===
 
 /// Get an Int64 value by column index.
@@ -399,30 +431,48 @@ pub fn Row::get_duration(self: Row, index: Int) -> Result[Duration, DBError] {
 /// The fractional part is right-padded or truncated to 6 digits (microseconds).
 pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
   let raw = self.get(index)
+  match parse_time_str(raw, index) {
+    Ok((hour, min, sec, micros)) => Ok(Time::new(hour, min, sec, micros))
+    Err(e) => Err(e)
+  }
+}
+
+/// Get a TimeTZ value by column index.
+/// Expects HH:MM:SS[.fraction][±HH:MM] or HH:MM:SS[.fraction]Z format.
+/// The timezone offset is parsed and stored as total seconds from UTC.
+/// The fractional part is right-padded or truncated to 6 digits (microseconds).
+pub fn Row::get_timetz(self: Row, index: Int) -> Result[TimeTZ, DBError] {
+  let raw = self.get(index)
   try {
-    let parts = raw.split(":").to_array()
-    if parts.length() < 3 {
-      return Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string()))
-    }
-    let hour = @string.parse_int(parts[0].to_owned())
-    let min = @string.parse_int(parts[1].to_owned())
-    let sec_parts = parts[2].to_owned().split(".").to_array()
-    let sec = @string.parse_int(sec_parts[0].to_owned())
-    let micros = if sec_parts.length() > 1 {
-      let frac = sec_parts[1].to_owned()
-      if frac.length() >= 6 {
-        @string.parse_int(frac[:6].to_owned())
-      } else {
-        // Pad right with zeros to 6 digits
-        let mut padded = frac
-        for _i = frac.length(); _i < 6; _i = _i + 1 {
-          padded = padded + "0"
-        }
-        @string.parse_int(padded)
+    // Find timezone offset suffix by scanning backwards for '+', '-', or 'Z'
+    let mut tz_start = -1
+    let len = raw.length()
+    let mut i = len - 1
+    while i >= 0 {
+      let c = raw[i]
+      if c == '+' || c == '-' || c == 'Z' {
+        tz_start = i
+        break
       }
-    } else { 0 }
-    Ok(Time::new(hour, min, sec, micros))
-  } catch { _ => Err(TypeError("expected time (HH:MM:SS) at position " + index.to_string())) }
+      i = i - 1
+    }
+    let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
+    let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
+    // Parse timezone offset: +HH:MM, -HH:MM, +HH, -HH, Z, or empty → 0
+    let tz_offset = if tz_str == "" || tz_str == "Z" {
+      0
+    } else {
+      let sign = if tz_str[0] == '-' { -1 } else { 1 }
+      let tz_parts = tz_str[1:].split(":").to_array()
+      let tz_hour = @string.parse_int(tz_parts[0].to_owned())
+      let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
+      sign * (tz_hour * 3600 + tz_min * 60)
+    }
+    match parse_time_str(time_part, index) {
+      Ok((hour, min, sec, micros)) => Ok(TimeTZ::new(hour, min, sec, micros, tz_offset))
+      Err(e) => Err(e)
+    }
+  } catch { _ => Err(TypeError("expected timetz (HH:MM:SS[.fraction][±HH:MM]) at position " + index.to_string())) }
 }
 
 /// Get an IpAddr value by column index.
@@ -534,30 +584,47 @@ pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Durati
 pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBError] {
   let raw = self.get(index)
   if self.is_null(index) { Ok(None) } else {
+    match parse_time_str(raw, index) {
+      Ok((hour, min, sec, micros)) => Ok(Some(Time::new(hour, min, sec, micros)))
+      Err(e) => Err(e)
+    }
+  }
+}
+
+/// Get a nullable TimeTZ value by column index.
+/// NULL is determined by null_mask.
+/// Expects HH:MM:SS[.fraction][±HH:MM] or HH:MM:SS[.fraction]Z format.
+pub fn Row::get_nullable_timetz(self: Row, index: Int) -> Result[Option[TimeTZ], DBError] {
+  let raw = self.get(index)
+  if self.is_null(index) { Ok(None) } else {
     try {
-      let parts = raw.split(":").to_array()
-      if parts.length() < 3 {
-        return Err(TypeError("expected time at position " + index.to_string()))
-      }
-      let hour = @string.parse_int(parts[0].to_owned())
-      let min = @string.parse_int(parts[1].to_owned())
-      let sec_parts = parts[2].to_owned().split(".").to_array()
-      let sec = @string.parse_int(sec_parts[0].to_owned())
-      let micros = if sec_parts.length() > 1 {
-        let frac = sec_parts[1].to_owned()
-        if frac.length() >= 6 {
-          @string.parse_int(frac[:6].to_owned())
-        } else {
-          // Pad right with zeros to 6 digits
-          let mut padded = frac
-          for _i = frac.length(); _i < 6; _i = _i + 1 {
-            padded = padded + "0"
-          }
-          @string.parse_int(padded)
+      let mut tz_start = -1
+      let len = raw.length()
+      let mut i = len - 1
+      while i >= 0 {
+        let c = raw[i]
+        if c == '+' || c == '-' || c == 'Z' {
+          tz_start = i
+          break
         }
-      } else { 0 }
-      Ok(Some(Time::new(hour, min, sec, micros)))
-    } catch { _ => Err(TypeError("expected time at position " + index.to_string())) }
+        i = i - 1
+      }
+      let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
+      let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
+      let tz_offset = if tz_str == "" || tz_str == "Z" {
+        0
+      } else {
+        let sign = if tz_str[0] == '-' { -1 } else { 1 }
+        let tz_parts = tz_str[1:].split(":").to_array()
+        let tz_hour = @string.parse_int(tz_parts[0].to_owned())
+        let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
+        sign * (tz_hour * 3600 + tz_min * 60)
+      }
+      match parse_time_str(time_part, index) {
+        Ok((hour, min, sec, micros)) => Ok(Some(TimeTZ::new(hour, min, sec, micros, tz_offset)))
+        Err(e) => Err(e)
+      }
+    } catch { _ => Err(TypeError("expected timetz at position " + index.to_string())) }
   }
 }
 
@@ -738,6 +805,230 @@ test "Row::get_time: invalid format returns TypeError" {
   let val = row.get_time(0)
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
+}
+
+// === TimeTZ getter tests ===
+
+test "Row::get_timetz: HH:MM:SS+08:00" {
+  let row = Row::new(fn(_i) { "10:30:45+08:00" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="0")
+      inspect(t.tz_offset, content="28800")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS.123456-05:30" {
+  let row = Row::new(fn(_i) { "10:30:45.123456-05:30" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="-19800")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SSZ (Z = UTC)" {
+  let row = Row::new(fn(_i) { "10:30:45Z" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.tz_offset, content="0")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS (no offset = 0)" {
+  let row = Row::new(fn(_i) { "10:30:45" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.tz_offset, content="0")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS.123456+05:30 (fraction with offset)" {
+  let row = Row::new(fn(_i) { "22:15:00.123456+05:30" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="22")
+      inspect(t.min, content="15")
+      inspect(t.sec, content="0")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="19800")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS.1+08:00 (fraction padded)" {
+  let row = Row::new(fn(_i) { "10:30:45.1+08:00" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.micros, content="100000")
+      inspect(t.tz_offset, content="28800")
+    }
+    Err(_) => inspect(0, content="100000")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS.1234567+08:00 (fraction truncated)" {
+  let row = Row::new(fn(_i) { "10:30:45.1234567+08:00" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="28800")
+    }
+    Err(_) => inspect(0, content="123456")
+  }
+}
+
+test "Row::get_timetz: invalid format returns TypeError" {
+  let row = Row::new(fn(_i) { "not_a_timetz" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::get_nullable_timetz: non-empty returns Some" {
+  let row = Row::new(fn(_i) { "10:30:45+08:00" }, Array::make(1, false))
+  let val = row.get_nullable_timetz(0)
+  match val {
+    Ok(Some(t)) => {
+      inspect(t.hour, content="10")
+      inspect(t.tz_offset, content="28800")
+    }
+    _ => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_nullable_timetz: empty string returns None" {
+  let row = Row::new(fn(_i) { "" }, Array::make(1, true))
+  let val = row.get_nullable_timetz(0)
+  match val {
+    Ok(None) => inspect("null", content="null")
+    _ => inspect("not_null", content="null")
+  }
+}
+
+test "Row::get_nullable_timetz: invalid format returns TypeError" {
+  let row = Row::new(fn(_i) { "bad" }, Array::make(1, false))
+  let val = row.get_nullable_timetz(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "Row::get_timetz: HH:MM:SS.123456Z (fraction with Z suffix)" {
+  let row = Row::new(fn(_i) { "10:30:45.123456Z" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="0")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS.123456 (fraction with no offset)" {
+  let row = Row::new(fn(_i) { "10:30:45.123456" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="0")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS+08 (no minutes in offset)" {
+  let row = Row::new(fn(_i) { "10:30:45+08" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="0")
+      inspect(t.tz_offset, content="28800")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_timetz: HH:MM:SS-05 (negative no minutes)" {
+  let row = Row::new(fn(_i) { "10:30:45-05" }, Array::make(1, false))
+  let val = row.get_timetz(0)
+  match val {
+    Ok(t) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="0")
+      inspect(t.tz_offset, content="-18000")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_nullable_timetz: HH:MM:SS.123456Z returns Some" {
+  let row = Row::new(fn(_i) { "10:30:45.123456Z" }, Array::make(1, false))
+  let val = row.get_nullable_timetz(0)
+  match val {
+    Ok(Some(t)) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="0")
+    }
+    _ => inspect("fail", content="pass")
+  }
+}
+
+test "Row::get_nullable_timetz: HH:MM:SS.123456 (no offset) returns Some" {
+  let row = Row::new(fn(_i) { "10:30:45.123456" }, Array::make(1, false))
+  let val = row.get_nullable_timetz(0)
+  match val {
+    Ok(Some(t)) => {
+      inspect(t.hour, content="10")
+      inspect(t.min, content="30")
+      inspect(t.sec, content="45")
+      inspect(t.micros, content="123456")
+      inspect(t.tz_offset, content="0")
+    }
+    _ => inspect("fail", content="pass")
+  }
 }
 
 test "Row::decode_array_string: valid JSON array" {

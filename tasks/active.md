@@ -17,8 +17,8 @@
 |----|------|--------|------|------|------|
 | **P0-057** | 插件选项扩展 (8 新选项) | P0 | feature | done | — |
 | **P0-058** | 类型覆盖扩展 (column + nullable) | P0 | feature | done ✅ | — |
-| **P0-059** | TIMETZ 时区支持 (TimeTZ struct) | P0 | feature | todo | — |
-| **P0-060** | 多文件输出支持 | P0 | feature | todo | — |
+| **P0-059** | TIMETZ 时区支持 (TimeTZ struct) | P0 | feature | done ✅ | — |
+| **P0-060** | 多文件输出支持 | P0 | feature | done ✅ | — |
 | **P0-061** | Codec bounds hardening — skip_field/OOB/error→abort | P0 | bugfix | todo | — |
 | **P0-062** | :one 查询多行静默取第一条 — TooManyRows 错误 | P0 | bugfix | todo | — |
 | **P0-063** | 字段解码按索引而非列名 — 列顺序变化静默错位 | P0 | bugfix | todo | — |

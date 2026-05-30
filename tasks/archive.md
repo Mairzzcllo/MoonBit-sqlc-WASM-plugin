@@ -4,6 +4,21 @@
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
 
+### [P0-060] 多文件输出支持 — 按类型/查询拆分
+- GAP-1: generate_sources() 返回 Array[(String, String)] 拆分 types.mbt + queries.mbt
+- process_request() 为每个文件创建 GenerateResponse.File 条目
+- generate_source() 保留向后兼容
+- 架构: moon check 0 errors, moon test 598/598 passed
+- 创建: 2026-05-29 | 完成: 2026-05-30
+
+### [P0-059] TIMETZ 时区支持 — TimeTZ struct + Value 变体
+- GAP-7: Runtime 新增 TimeTZ{hour, min, sec, micros, tz_offset} struct
+- Value 新增 TimeTZ(TimeTZ) 变体
+- Row 新增 get_timetz / get_nullable_timetz
+- type_map/type_codegen/query_codegen 全链路更新
+- 架构: moon check 0 errors, moon test 597/597 passed (+26)
+- 创建: 2026-05-29 | 完成: 2026-05-30
+
 ### [P0-058] 类型覆盖扩展 — column 级 + nullable 级覆盖
 - 优先级: P0
 - 类型: feature

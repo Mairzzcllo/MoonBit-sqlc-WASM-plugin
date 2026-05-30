@@ -93,6 +93,20 @@ pub fn Time::new(hour: Int, min: Int, sec: Int, micros: Int) -> Time {
   { hour: hour, min: min, sec: sec, micros: micros }
 }
 
+/// TimeTZ value representing SQL timetz (time with timezone offset).
+pub struct TimeTZ {
+  hour: Int
+  min: Int
+  sec: Int
+  micros: Int
+  /// Timezone offset from UTC in seconds (e.g., +8h = 28800, -5h = -18000)
+  tz_offset: Int
+}
+
+pub fn TimeTZ::new(hour: Int, min: Int, sec: Int, micros: Int, tz_offset: Int) -> TimeTZ {
+  { hour: hour, min: min, sec: sec, micros: micros, tz_offset: tz_offset }
+}
+
 /// IpAddr value wrapping an inet/cidr string.
 pub struct IpAddr {
   inner: String
@@ -137,6 +151,7 @@ pub enum Value {
   Uuid(Uuid)
   Duration(Duration)
   Time(Time)
+  TimeTZ(TimeTZ)
   IpAddr(IpAddr)
 }
 
@@ -171,6 +186,26 @@ test "Value::Time construction" {
   inspect(tv.min, content="30")
   inspect(tv.sec, content="45")
   inspect(tv.micros, content="123456")
+}
+
+test "Value::TimeTZ construction" {
+  let t = TimeTZ::new(10, 30, 45, 123456, 28800)
+  let v: Value = TimeTZ(t)
+  let is_timetz_val = match v { TimeTZ(_) => true; _ => false }
+  inspect(is_timetz_val, content="true")
+  let tv = match v { TimeTZ(tv) => tv; _ => TimeTZ::new(0, 0, 0, 0, 0) }
+  inspect(tv.hour, content="10")
+  inspect(tv.min, content="30")
+  inspect(tv.sec, content="45")
+  inspect(tv.micros, content="123456")
+  inspect(tv.tz_offset, content="28800")
+}
+
+test "Value::TimeTZ negative offset" {
+  let t = TimeTZ::new(10, 30, 45, 0, -18000)
+  let v: Value = TimeTZ(t)
+  let tv = match v { TimeTZ(tv) => tv; _ => TimeTZ::new(0, 0, 0, 0, 0) }
+  inspect(tv.tz_offset, content="-18000")
 }
 
 test "Value::IpAddr construction" {
@@ -274,6 +309,24 @@ test "Time::new and field access" {
   inspect(t.min, content="30")
   inspect(t.sec, content="45")
   inspect(t.micros, content="123456")
+}
+
+test "TimeTZ::new and field access" {
+  let t = TimeTZ::new(10, 30, 45, 123456, 28800)
+  inspect(t.hour, content="10")
+  inspect(t.min, content="30")
+  inspect(t.sec, content="45")
+  inspect(t.micros, content="123456")
+  inspect(t.tz_offset, content="28800")
+}
+
+test "TimeTZ::new negative offset" {
+  let t = TimeTZ::new(22, 15, 0, 500000, -18000)
+  inspect(t.hour, content="22")
+  inspect(t.min, content="15")
+  inspect(t.sec, content="0")
+  inspect(t.micros, content="500000")
+  inspect(t.tz_offset, content="-18000")
 }
 
 test "IpAddr::new and to_string roundtrip" {

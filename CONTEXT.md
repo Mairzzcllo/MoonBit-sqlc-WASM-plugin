@@ -4,9 +4,9 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 规划就绪
-- **最新事件**: 2026-05-30 — P0-058 ✅ 类型覆盖扩展 (column + nullable) (571 tests)
-- P0: 58/61 completed ✅ (P0-056/057/058 done, P0-059~060 active)
-- P1: 30/34 completed ✅ (P1-035~038 active)
+- **最新事件**: 2026-05-30 — P0-059 ✅ TIMETZ 时区支持 + P0-060 ✅ 多文件输出 (598 tests)
+- P0: 60/67 completed ✅ (P0-001~060 done, P0-061~067 active)
+- P1: 30/44 completed ✅ (P1-001~034 done, P1-035~048 active)
 - P2: 12/12 completed ✅; P2-001/005/006 superseded
 - 活跃 Phase: **Phase D — 架构差距消除 Sprint**
 
@@ -188,6 +188,21 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 - **golden.mbt**: 7 个新 golden 变体覆盖 emit_sql_as_comment、json_tags_case_style、initialisms、emit_exact_table_names、emit_empty_slices、emit_methods_with_db_argument、omit_unused_structs
 - **测试**: 555/555 pass (+68 from 486), moon check 0 errors
 
+### P0-059 交付内容 ✅
+- runtime/value.mbt: 新增 `TimeTZ { hour: Int, min: Int, sec: Int, micros: Int, tz_offset: Int }` struct + `Value::TimeTZ(TimeTZ)` 变体 + inline test
+- runtime/row.mbt: 新增 `get_timetz(pos) -> Result[TimeTZ, DBError]` 和 `get_nullable_timetz(pos) -> Result[Option[TimeTZ], DBError]`
+- plugin/type_map.mbt: `"timetz"` → `"TimeTZ"` 映射；`type_to_value_constructor` 新增 `"TimeTZ"` → `TimeTZ(...)` 构造函数
+- plugin/type_codegen.mbt: `type_to_getter_suffix` 新增 `"TimeTZ"` → `"timetz"` 映射
+- plugin/query_codegen.mbt: `type_to_value_constructor("TimeTZ")` 返回 `Value::TimeTZ(...)` 表达式
+- 测试: 597/597 pass (+26 from 571)
+
+### P0-060 交付内容 ✅
+- plugin/main.mbt: `generate_sources()` 返回 `Array[(String, String)]`，拆分 types.mbt (structs/enums) 和 queries.mbt (查询函数)
+- `process_request()` 遍历 generate_sources 结果为每个输出文件创建 `GenerateResponse.File` 条目
+- `generate_source()` 保留为向后兼容的单一文件入口
+- plugin/golden.mbt: golden 测试更新为期望 types.mbt + queries.mbt 双文件输出
+- 测试: 598/598 pass (+1 golden test from 597)
+
 ### P0 任务
 
 | ID | GAP | 标题 | 类型 | 状态 | 依赖 |
@@ -195,8 +210,8 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 | **P0-056** | GAP-2 | :execresult 完整语义 — LastInsertId + RowsAffected 结构体 | feature | ✅ done | — |
 | **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | ✅ done | — |
 | **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | todo | — |
-| **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | todo | — |
-| **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | todo | — |
+| **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | ✅ done | — |
+| **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | ✅ done | — |
 
 ### P1 任务
 

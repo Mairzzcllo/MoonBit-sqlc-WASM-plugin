@@ -56,7 +56,8 @@ pub fn map_pg_to_value_constructor_str(name: String) -> String {
     // Date/Time — date→Date, timestamp→DateTime, time→Time
     "date" => "Date"
     "timestamp" | "timestamptz" | "timestamp with time zone" => "DateTime"
-    "time" | "timetz" => "Time"
+    "time" => "Time"
+    "timetz" => "TimeTZ"
     // Interval → Duration (microseconds).
     "interval" => "Duration"
     // Arrays are handled by the caller via Arr(inner)
@@ -458,6 +459,31 @@ test "map_pg_to_value_constructor_str: double precision maps to Double" {
 test "map_pg_to_value_constructor_str: time maps to Time" {
   let s = map_pg_to_value_constructor_str("time")
   debug_inspect(s, content="\"Time\"")
+}
+
+test "map_pg_to_value_constructor_str: timetz maps to TimeTZ" {
+  let s = map_pg_to_value_constructor_str("timetz")
+  debug_inspect(s, content="\"TimeTZ\"")
+}
+
+test "map_pg_to_value_constructor_str: TIMETZ uppercase maps to TimeTZ" {
+  let s = map_pg_to_value_constructor_str("TIMETZ")
+  debug_inspect(s, content="\"TimeTZ\"")
+}
+
+test "map_pg_to_value_constructor_str: pg_catalog.timetz strips schema prefix maps to TimeTZ" {
+  let s = map_pg_to_value_constructor_str("pg_catalog.timetz")
+  debug_inspect(s, content="\"TimeTZ\"")
+}
+
+test "map_pg_name: timetz maps to TimeTZ" {
+  let t = map_pg_name("timetz", [])
+  debug_inspect(t, content="Named(\"TimeTZ\")")
+}
+
+test "map_internal_type: Named timetz maps to TimeTZ" {
+  let t = map_internal_type(Named("timetz"), [])
+  debug_inspect(t, content="Named(\"TimeTZ\")")
 }
 
 test "map_pg_to_value_constructor_str: interval maps to Duration" {

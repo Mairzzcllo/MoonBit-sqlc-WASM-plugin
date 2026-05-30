@@ -1,29 +1,3 @@
-schema_version: "1.0"
-id: P0-060
-state: todo
-deterministic: true
-title: "多文件输出支持 — 按类型/查询拆分生成文件"
-type: feature
-priority: P0
-description: >
-  当前所有生成代码输出到单个 lib.mbt。大型项目需要按表/查询拆分。
-  实现多文件输出：types.mbt（structs/enums）、queries/（查询函数）、
-  batch/copyfrom 等。支持 output_*_file_name 配置选项自定义文件名。
-dependencies: []
-owner: ""
-acquired_at: null
-expires_at: null
-retry_count: 0
-max_retry: 3
-created_at: "2026-05-29"
-updated_at: "2026-05-29"
-artifacts: []
-references:
-  - plugin/main.mbt
-  - plugin/emitter.mbt
-  - adr/ADR-014.md
-execution_notes: >
-  GAP-1 from architecture review. Supersedes P2-005.
-  Modify process_request to produce multiple GenerateResponse.File entries.
-  Split: types.mbt (structs/enums), queries/ (all query functions).
-  ADR-014 documents related plugin options for output file naming.
+# MOVED TO ARCHIVE
+# See: tasks/tasks/archive/P0-060.yaml
+# Completed: 2026-05-30

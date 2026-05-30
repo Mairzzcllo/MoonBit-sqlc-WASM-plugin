@@ -190,6 +190,38 @@ test "golden: omit_unused_structs=true does not crash" {
   inspect(result.contains("pub struct Users"), content="true")
 }
 
+test "golden: multi-file output produces types.mbt and queries.mbt" {
+  let req = make_users_request()
+  let sources = generate_sources(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", query_parameter_limit: 0, emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [] })
+  inspect(sources.length(), content="2")
+  let types_file = sources[0]
+  let queries_file = sources[1]
+  inspect(types_file.0, content="types.mbt")
+  inspect(queries_file.0, content="queries.mbt")
+  // types.mbt contains struct definitions and decode functions
+  inspect(types_file.1.contains("pub struct Users"), content="true")
+  inspect(types_file.1.contains("Users::decode"), content="true")
+  inspect(types_file.1.contains("pub enum UserRole"), content="true")
+  // queries.mbt contains query functions
+  inspect(queries_file.1.contains("pub fn query_list_users"), content="true")
+  inspect(queries_file.1.contains("pub fn query_get_user"), content="true")
+  inspect(queries_file.1.contains("pub fn query_delete_user"), content="true")
+  // types.mbt does NOT contain query functions
+  inspect(types_file.1.contains("pub fn query_"), content="false")
+  // queries.mbt does NOT contain struct definitions
+  inspect(queries_file.1.contains("pub struct "), content="false")
+  // ::decode appears in query function bodies (e.g. ListUsersRow::decode(row))
+  // but NOT as top-level pub fn declarations
+  inspect(queries_file.1.contains("pub fn Users::decode"), content="false")
+  inspect(queries_file.1.contains("pub fn ListUsersRow::decode"), content="false")
+  // Both files have the import statement
+  inspect(types_file.1.contains("import \"Mairzzcllo/moonbit_sqlc_plugin/runtime\""), content="true")
+  inspect(queries_file.1.contains("import \"Mairzzcllo/moonbit_sqlc_plugin/runtime\""), content="true")
+  // Both files have the package declaration
+  inspect(types_file.1.contains("package testdb"), content="true")
+  inspect(queries_file.1.contains("package testdb"), content="true")
+}
+
 test "golden: column_overrides and nullable_overrides affect Users struct" {
   let req = make_users_request()
   let col_overrides: Array[ColumnOverride] = [{ table: "users", column: "id", moonbit_type: "String" }]

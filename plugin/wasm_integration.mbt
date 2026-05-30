@@ -23,8 +23,9 @@ test "wasm: process_message roundtrip produces valid response" {
   let encoded = encode_request(req)
   let response_bytes = process_message(encoded)
   let resp = decode_response(response_bytes)
-  inspect(resp.files.length(), content="1")
-  inspect(resp.files[0].name, content="lib.mbt")
+  inspect(resp.files.length(), content="2")
+  inspect(resp.files[0].name, content="types.mbt")
+  inspect(resp.files[1].name, content="queries.mbt")
 }
 
 test "wasm: process_message output matches golden" {
@@ -32,8 +33,22 @@ test "wasm: process_message output matches golden" {
   let encoded = encode_request(req)
   let response_bytes = process_message(encoded)
   let resp = decode_response(response_bytes)
-  let source = @utf8.decode(resp.files[0].contents)
-  inspect(source, content=GOLDEN_USERS)
+  let types_source = @utf8.decode(resp.files[0].contents)
+  let queries_source = @utf8.decode(resp.files[1].contents)
+  // types.mbt contains struct definitions and decode functions
+  inspect(types_source.contains("pub struct Users"), content="true")
+  inspect(types_source.contains("pub fn Users::decode"), content="true")
+  inspect(types_source.contains("pub fn ListUsersRow::decode"), content="true")
+  inspect(types_source.contains("pub fn GetUserRow::decode"), content="true")
+  inspect(types_source.contains("pub enum UserRole"), content="true")
+  // types.mbt does NOT contain query function declarations
+  inspect(types_source.contains("pub fn query_"), content="false")
+  // queries.mbt contains query functions
+  inspect(queries_source.contains("pub fn query_list_users"), content="true")
+  inspect(queries_source.contains("pub fn query_get_user"), content="true")
+  inspect(queries_source.contains("pub fn query_delete_user"), content="true")
+  // queries.mbt has the runtime import
+  inspect(queries_source.contains("import \"Mairzzcllo/moonbit_sqlc_plugin/runtime\""), content="true")
 }
 
 test "wasm: process_message deterministic output" {
@@ -43,9 +58,17 @@ test "wasm: process_message deterministic output" {
   let r2 = process_message(encoded)
   let resp1 = decode_response(r1)
   let resp2 = decode_response(r2)
-  let src1 = @utf8.decode(resp1.files[0].contents)
-  let src2 = @utf8.decode(resp2.files[0].contents)
-  inspect(src1, content=src2)
+  let combined1 = @utf8.decode(resp1.files[0].contents) + @utf8.decode(resp1.files[1].contents)
+  let combined2 = @utf8.decode(resp2.files[0].contents) + @utf8.decode(resp2.files[1].contents)
+  inspect(combined1, content=combined2)
+}
+
+test "wasm: process_message empty request" {
+  let response_bytes = process_message(b"")
+  let resp = decode_response(response_bytes)
+  inspect(resp.files.length(), content="2")
+  inspect(resp.files[0].name, content="types.mbt")
+  inspect(resp.files[1].name, content="queries.mbt")
 }
 
 test "wasm: encode_request roundtrip with decode_request" {
@@ -58,11 +81,4 @@ test "wasm: encode_request roundtrip with decode_request" {
   inspect(decoded.queries[0].name, content="list_users")
   inspect(decoded.queries[1].name, content="get_user")
   inspect(decoded.queries[2].name, content="delete_user")
-}
-
-test "wasm: process_message empty request" {
-  let response_bytes = process_message(b"")
-  let resp = decode_response(response_bytes)
-  inspect(resp.files.length(), content="1")
-  inspect(resp.files[0].name, content="lib.mbt")
 }
