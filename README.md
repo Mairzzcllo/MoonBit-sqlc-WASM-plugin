@@ -182,7 +182,7 @@ codegen:
 
 ```
 .
-├── plugin/              # WASM 插件主包 (15 .mbt 文件)
+├── plugin/              # WASM 插件主包 (16 .mbt 文件)
 │   ├── main.mbt         # 入口 (fn main → run_io_loop)
 │   ├── wasi_io.mbt      # Native WASI I/O via inline WAT FFI
 │   ├── protocol.mbt     # WASM 插件协议 + process_message
@@ -195,8 +195,10 @@ codegen:
 │   ├── type_map.mbt     # SQL 类型 → MoonBit 类型映射
 │   ├── type_codegen.mbt # 类型代码生成器
 │   ├── query_codegen.mbt# 查询函数代码生成器
-│   └── golden.mbt       # Golden 测试（确定性输出验证）
-├── naming.mbt           # 命名转换 (initialisms, case style) — 顶层共享模块
+│   ├── naming.mbt       # 命名转换 (initialisms, case style)
+│   ├── keyword.mbt      # MoonBit 关键字转义 (55+ keywords)
+│   ├── golden.mbt       # Golden 测试（确定性输出验证）
+│   └── wasm_integration.mbt # WASM 集成测试 (roundtrip + error)
 ├── runtime/             # 生成代码运行时库
 │   ├── db.mbt           # DB concrete struct (exec/execrows/query/query_row/begin)
 │   ├── row.mbt          # Row concrete struct (typed getter 16 种)
@@ -209,7 +211,7 @@ codegen:
 ├── examples/users/      # 完整使用示例 (schema.sql + query.sql + sqlc.yaml)
 ├── tests/               # 集成测试 (basic + wasm)
 ├── docs/                # API 参考与快速开始指南
-├── adr/                 # 架构决策记录 (14 条)
+├── adr/                 # 架构决策记录 (15 条)
 └── tasks/               # 任务追踪 (active.md + archive/)
 ```
 

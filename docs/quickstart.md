@@ -70,7 +70,7 @@ DELETE FROM users WHERE id = $1;
 sqlc generate
 ```
 
-This produces `lib/lib.mbt` with generated types and query functions.
+This produces `types.mbt` (structs, enums, decode functions) and `queries.mbt` (query functions) in the output directory.
 
 ## 5. Add Runtime Dependency
 

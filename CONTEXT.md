@@ -261,8 +261,8 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 
 | ID | 边界情况 # | 标题 | 类型 | 状态 |
 |----|-----------|------|------|------|
-| P0-061 | #5, #9, #11, #13 | Codec bounds hardening — skip_field/OOB/error→abort | bugfix | todo |
-| P0-062 | #84 | :one 多行静默取第一条 — TooManyRows 错误 | bugfix | todo |
+| P0-061 | #5, #9, #11, #13 | Codec bounds hardening — skip_field/OOB/error→abort | bugfix | ✅ done |
+| P0-062 | #84 | :one 多行静默取第一条 — TooManyRows 错误 | bugfix | ✅ done |
 | P0-063 | #60 | 字段解码按索引而非列名 — 列顺序变化静默错位 | bugfix | ✅ done |
 | P0-064 | #89 | 输出路径穿越防护 — out_name 合法性验证 | bugfix | ✅ done |
 | P0-065 | #88 | MoonBit 关键字冲突 — 全部关键字转义 | bugfix | ✅ done |

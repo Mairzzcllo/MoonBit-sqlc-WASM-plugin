@@ -25,9 +25,9 @@ pub struct DB {
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
   begin_fn : (() -> Result[Transaction, DBError])
-  copyfrom_fn : (String) -> Result[Int64, DBError]
-  batch_fn : (String) -> Result[Int64, DBError]
-  execlastid_fn : (String) -> Result[Int64, DBError]
+  copyfrom_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  batch_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execlastid_fn : (String, Array[Value]) -> Result[Int64, DBError]
 }
 
 pub struct Transaction {

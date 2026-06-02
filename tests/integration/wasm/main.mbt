@@ -30,13 +30,13 @@ test "wasm-compile: GetUserRow struct can be constructed" {
 }
 
 test "wasm-compile: query functions are callable" {
-  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) }, begin_fn: fn() { Err(QueryError("no tx")) }, copyfrom_fn: fn(_sql) { Ok(0L) }, batch_fn: fn(_sql) { Ok(0L) }, execlastid_fn: fn(_sql) { Ok(0L) } }
+  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) }, begin_fn: fn() { Err(QueryError("no tx")) }, copyfrom_fn: fn(_sql, _params) { Ok(0L) }, batch_fn: fn(_sql, _params) { Ok(0L) }, execlastid_fn: fn(_sql, _params) { Ok(0L) } }
   let result = query_delete_user(db, 42L)
   inspect(match result { Ok(r) => r.rows_affected; Err(_) => 0L }, content="0")
 }
 
 test "wasm-compile: query_list_users accepts DB" {
-  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) }, begin_fn: fn() { Err(QueryError("no tx")) }, copyfrom_fn: fn(_sql) { Ok(0L) }, batch_fn: fn(_sql) { Ok(0L) }, execlastid_fn: fn(_sql) { Ok(0L) } }
+  let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) }, begin_fn: fn() { Err(QueryError("no tx")) }, copyfrom_fn: fn(_sql, _params) { Ok(0L) }, batch_fn: fn(_sql, _params) { Ok(0L) }, execlastid_fn: fn(_sql, _params) { Ok(0L) } }
   let result = query_list_users(db)
   inspect(match result { Ok(rows) => rows.length(); Err(_) => -1 }, content="0")
 }
