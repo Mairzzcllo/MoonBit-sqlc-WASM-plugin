@@ -20,9 +20,7 @@
 
 /// WASM _start entry point. Delegates to the I/O protocol loop.
 fn main {
-  try {
-    run_io_loop()
-  } catch { _ => () }
+  run_io_loop()
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.

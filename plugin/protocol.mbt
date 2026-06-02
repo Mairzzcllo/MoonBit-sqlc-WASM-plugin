@@ -30,10 +30,22 @@
 
 /// Process a raw protobuf GenerateRequest and return raw GenerateResponse bytes.
 /// This is the ONLY entry point the shim needs. No I/O, no FFI — pure transform.
-pub fn process_message(data: Bytes) -> Bytes raise {
-  let req = decode_request(data)
-  let resp = process_request(req)
-  encode_response(resp)
+///
+/// On application-level errors (path validation failure, config errors), returns an empty
+/// GenerateResponse instead of crashing the WASM process. Codec-level corruption
+/// (e.g., corrupted protobuf) triggers abort() which causes a WASM trap — this
+/// terminates the plugin cleanly rather than producing garbage output.
+pub fn process_message(data: Bytes) -> Bytes {
+  try {
+    let req = decode_request(data)
+    let resp = process_request(req)
+    encode_response(resp)
+  } catch {
+    _ => {
+      let empty_resp: GenerateResponse = { files: [] }
+      encode_response(empty_resp)
+    }
+  }
 }
 
 

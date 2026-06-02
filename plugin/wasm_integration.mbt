@@ -82,3 +82,48 @@ test "wasm: encode_request roundtrip with decode_request" {
   inspect(decoded.queries[1].name, content="get_user")
   inspect(decoded.queries[2].name, content="delete_user")
 }
+
+/// P0-061: process_message returns empty response on error instead of crashing.
+/// When process_request raises an error (e.g., path traversal in out_name),
+/// process_message catches it and returns an empty GenerateResponse.
+test "P0-061: process_message error handling returns empty response" {
+  let base = make_users_request()
+  // Create a request with a path traversal out_name to trigger a raise from validate_output_path
+  let settings_with_traversal = {
+    version: base.settings.version,
+    engine: base.settings.engine,
+    schema: base.settings.schema,
+    queries: base.settings.queries,
+    codegen: {
+      out: "../etc",
+      plugin: base.settings.codegen.plugin,
+      options: base.settings.codegen.options,
+      env: base.settings.codegen.env,
+      process: base.settings.codegen.process,
+      wasm: base.settings.codegen.wasm,
+    },
+  }
+  let req: GenerateRequest = {
+    settings: settings_with_traversal,
+    catalog: base.catalog,
+    queries: base.queries,
+    sqlc_version: base.sqlc_version,
+    plugin_options: b"package_name=test",
+    global_options: b"",
+  }
+  let encoded = encode_request(req)
+  let response_bytes = process_message(encoded)
+  // Should get an empty response (no files) instead of crashing
+  let resp = decode_response(response_bytes)
+  inspect(resp.files.length(), content="0")
+}
+
+/// P0-061: process_message with empty buffer returns valid response.
+/// An empty protobuf buffer decodes to a default GenerateRequest,
+/// which processes normally and produces output files.
+test "P0-061: process_message empty buffer produces response" {
+  let response_bytes = process_message(b"")
+  let resp = decode_response(response_bytes)
+  // Empty request produces both types.mbt and queries.mbt
+  inspect(resp.files.length(), content="2")
+}

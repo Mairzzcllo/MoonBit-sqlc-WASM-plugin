@@ -49,7 +49,7 @@ pub fn Row::is_null(self: Row, index: Int) -> Bool {
   index >= 0 && index < self.null_mask.length() && self.null_mask[index]
 }
 
-pub fn Row::index_of(self: Row, _name: String) -> Result[Int, DBError] { Ok(0) }
+pub fn Row::index_of(_self: Row, _name: String) -> Result[Int, DBError] { Ok(0) }
 
 pub fn Row::get_int64(_self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] { Ok(self.get(index)) }
@@ -62,6 +62,7 @@ pub struct RowIter {
 
 pub fn RowIter::new(rows: Array[Row]) -> RowIter { { rows: rows } }
 pub fn RowIter::collect(self: RowIter) -> Result[Array[Row], DBError] { Ok(self.rows) }
+pub fn RowIter::collect_limited(self: RowIter, _max_rows: Int) -> Result[Array[Row], DBError] { Ok(self.rows) }
 
 /// Value runtime stub for compilation testing.
 pub enum Value { Int64(Int64) }
@@ -191,8 +192,16 @@ pub fn query_list_users(db: DB) -> Result[Array[ListUsersRow], DBError] {
 pub fn query_get_user(db: DB, id: Int64) -> Result[GetUserRow, DBError] {
   let sql = "SELECT id, name, email FROM users WHERE id = $1"
   let params = [Int64(id)]
-  match db.query_row(sql, params) {
-    Ok(row) => GetUserRow::decode(row)
+  match db.query(sql, params) {
+    Ok(rows) => match rows.collect_limited(2) {
+      Ok(collected) => match collected.length() {
+        0 => Err(NoRows)
+        1 => GetUserRow::decode(collected[0])
+        _ => Err(TooManyRows(collected.length(), sql))
+      }
+      Err(TooManyRows(n, _)) => Err(TooManyRows(n, sql))
+      Err(e) => Err(e)
+    }
     Err(e) => Err(e)
   }
 }

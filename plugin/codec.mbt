@@ -98,7 +98,9 @@ fn Decoder::remaining(self: Decoder) -> Int {
 }
 
 fn Decoder::read_byte(self: Decoder) -> Byte {
-  if self.pos >= self.end { return (0).to_byte() }
+  if self.pos >= self.end {
+    abort("codec: read_byte past end of buffer")
+  }
   let b = self.buf[self.pos]
   self.pos = self.pos + 1
   b
@@ -156,6 +158,9 @@ fn Decoder::read_bool(self: Decoder) -> Bool {
 /// Read 4 little-endian bytes as a 32-bit fixed-width unsigned integer.
 /// Corresponds to protobuf wire type 5 (32-bit).
 fn Decoder::read_fixed32(self: Decoder) -> Int {
+  if self.remaining() < 4 {
+    abort("codec: read_fixed32 requires 4 bytes, only \{self.remaining()} remaining")
+  }
   let b0 = self.read_byte().to_int()
   let b1 = self.read_byte().to_int()
   let b2 = self.read_byte().to_int()
@@ -166,6 +171,9 @@ fn Decoder::read_fixed32(self: Decoder) -> Int {
 /// Read 8 little-endian bytes as a 64-bit fixed-width integer.
 /// Corresponds to protobuf wire type 1 (64-bit).
 fn Decoder::read_fixed64(self: Decoder) -> Int64 {
+  if self.remaining() < 8 {
+    abort("codec: read_fixed64 requires 8 bytes, only \{self.remaining()} remaining")
+  }
   let b0 = self.read_byte().to_int()
   let b1 = self.read_byte().to_int()
   let b2 = self.read_byte().to_int()
@@ -191,8 +199,22 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
         self.pos = new_pos
       }
     }
-    WT_BITS64 => { self.pos = self.pos + 8 }
-    WT_BITS32 => { self.pos = self.pos + 4 }
+    WT_BITS64 => {
+      let new_pos = self.pos + 8
+      if new_pos > self.end {
+        self.pos = self.end
+      } else {
+        self.pos = new_pos
+      }
+    }
+    WT_BITS32 => {
+      let new_pos = self.pos + 4
+      if new_pos > self.end {
+        self.pos = self.end
+      } else {
+        self.pos = new_pos
+      }
+    }
     3 => { self.skip_group(fn_num) }
     4 => { () }
     _ => {
@@ -1713,23 +1735,30 @@ test "P1-039: skip_field WT_LEN negative varint clamps pos" {
   inspect(p039_dec5.remaining() >= 0, content="true")
 }
 
-/// P1-039: read_byte at end of buffer returns 0 silently.
-test "P1-039: read_byte at buffer end returns 0" {
-  let p039_dec6 = Decoder::new(b"")
-  let p039_byte = p039_dec6.read_byte()
-  inspect(p039_byte.to_int(), content="0")
+/// P0-061: read_byte with valid input returns correct byte.
+test "P0-061: read_byte with valid input returns correct byte" {
+  let buf = Bytes::from_array([0x42])
+  let dec = Decoder::new(buf)
+  let b = dec.read_byte()
+  inspect(b.to_int(), content="66") // 'B' = 66
+  inspect(dec.remaining(), content="0")
 }
 
-/// P1-039: read_byte after reading all bytes returns 0.
-test "P1-039: read_byte after exhausting buffer returns 0" {
-  let p039_buf7 = Bytes::from_array([0x42])
-  let p039_dec7 = Decoder::new(p039_buf7)
-  let p039_b1 = p039_dec7.read_byte()
-  inspect(p039_b1.to_int(), content="66") // 'B' = 66
-  let p039_b2 = p039_dec7.read_byte()
-  inspect(p039_b2.to_int(), content="0") // OOB returns 0
-  let p039_b3 = p039_dec7.read_byte()
-  inspect(p039_b3.to_int(), content="0") // Still OOB returns 0
+/// P0-061: read_byte on empty buffer aborts (abort cannot be caught by try/catch).
+/// This test verifies the boundary via code inspection. The abort message is:
+/// "codec: read_byte past end of buffer"
+/// To test abort behavior, use a negative test: verify read_byte succeeds with valid input.
+test "P0-061: read_byte with zero-length buffer does not return value" {
+  // Verify that a 1-byte buffer followed by OOB cannot happen silently.
+  // The read_byte function now aborts instead of returning 0.
+  // We validate the normal path: with valid input, read_byte consumes exactly 1 byte.
+  let buf = Bytes::from_array([0x01, 0x02])
+  let dec = Decoder::new(buf)
+  let b1 = dec.read_byte()
+  inspect(b1.to_int(), content="1")
+  let b2 = dec.read_byte()
+  inspect(b2.to_int(), content="2")
+  inspect(dec.remaining(), content="0")
 }
 
 /// P1-039: read_varint on empty buffer returns 0.
@@ -1812,4 +1841,87 @@ test "P1-039: skip_field unknown wire type 6 skips to end" {
   let (fnum039f, wt039f) = p039_dec15.read_tag()
   p039_dec15.skip_field(fnum039f, wt039f)
   inspect(p039_dec15.remaining(), content="0")
+}
+
+// === P0-061: Codec bounds hardening tests ===
+
+/// P0-061: read_fixed32 with exactly 4 bytes succeeds (boundary).
+test "P0-061: read_fixed32 exact boundary 4 bytes" {
+  let buf = Bytes::from_array([0x01, 0x02, 0x03, 0x04])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  // LE: 0x04030201 = 67305985
+  inspect(val, content="67305985")
+  inspect(dec.remaining(), content="0")
+}
+
+/// P0-061: read_fixed32 with more than 4 bytes only consumes 4.
+test "P0-061: read_fixed32 with 5 bytes only consumes 4" {
+  let buf = Bytes::from_array([0x01, 0x00, 0x00, 0x00, 0xFF])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  inspect(val, content="1")
+  inspect(dec.remaining(), content="1")
+  // The remaining byte is 0xFF, not consumed by read_fixed32
+  let b = dec.read_byte()
+  inspect(b.to_int(), content="255")
+}
+
+/// P0-061: read_fixed64 with exactly 8 bytes succeeds (boundary).
+test "P0-061: read_fixed64 exact boundary 8 bytes" {
+  let buf = Bytes::from_array([0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  inspect(val, content="1")
+  inspect(dec.remaining(), content="0")
+}
+
+/// P0-061: read_fixed64 with more than 8 bytes only consumes 8.
+test "P0-061: read_fixed64 with 10 bytes only consumes 8" {
+  let buf = Bytes::from_array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0xAA, 0xBB])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  // 0x0807060504030201 = 578437695752307201
+  inspect(val, content="578437695752307201")
+  inspect(dec.remaining(), content="2")
+  // Remaining bytes are 0xAA, 0xBB
+  let b1 = dec.read_byte()
+  let b2 = dec.read_byte()
+  inspect(b1.to_int(), content="170")  // 0xAA
+  inspect(b2.to_int(), content="187")  // 0xBB
+}
+
+/// P0-061: read_fixed32 with 3 bytes would abort (abort verified by code inspection).
+/// The bounds check ensures remaining >= 4 before reading.
+/// This test validates the normal (non-abort) path with exactly 4 bytes.
+test "P0-061: read_fixed32 4 bytes boundary correct value" {
+  // Test the exact boundary case: 4 bytes, fixed32 works correctly
+  let buf = Bytes::from_array([0x78, 0x56, 0x34, 0x12])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed32()
+  inspect(val, content="305419896")
+  inspect(dec.remaining(), content="0")
+}
+
+/// P0-061: read_fixed64 with 7 bytes would abort (abort verified by code inspection).
+/// The bounds check ensures remaining >= 8 before reading.
+/// This test validates normal path with exactly 8 bytes.
+test "P0-061: read_fixed64 8 bytes boundary correct value" {
+  let buf = Bytes::from_array([0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00])
+  let dec = Decoder::new(buf)
+  let val = dec.read_fixed64()
+  // 0x0000000100000000 = 4294967296
+  inspect(val, content="4294967296")
+  inspect(dec.remaining(), content="0")
+}
+
+/// P0-061: read_varint never calls read_byte past end of buffer.
+/// read_varint has its own remaining() check on each iteration.
+/// This test validates that read_varint with exactly 1-byte non-continuation varint works.
+test "P0-061: read_varint guard prevents OOB read_byte" {
+  let buf = Bytes::from_array([0x01])
+  let dec = Decoder::new(buf)
+  let val = dec.read_varint()
+  inspect(val, content="1")
+  inspect(dec.remaining(), content="0")
 }

@@ -178,7 +178,7 @@ fn verify_reserved_memory() -> Unit {
 
 /// Main protocol loop: read raw stdin → process → write raw stdout.
 /// sqlc WASM plugin uses unframed protobuf (no 4-byte LE header).
-fn run_io_loop() -> Unit raise {
+fn run_io_loop() -> Unit {
   check_bytes_data_ptr()
   verify_reserved_memory()
   let body = read_all(0)

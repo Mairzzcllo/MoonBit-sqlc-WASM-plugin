@@ -80,8 +80,16 @@ fn build_body(query: InternalQuery, result_type: String, conn_name: String, resu
     OneRow => [
       sql_let,
       params_let,
-      Match(Call(conn_name + ".query_row", [Ident("sql"), Ident("params")]), [
-        ("Ok(row)", Call(result_type + "::decode", [Ident("row")])),
+      Match(Call(conn_name + ".query", [Ident("sql"), Ident("params")]), [
+        ("Ok(rows)", Match(Call("rows.collect_limited", [IntLit(2)]), [
+          ("Ok(collected)", Match(Call("collected.length", []), [
+            ("0", Call("Err", [Ident("NoRows")])),
+            ("1", Call(result_type + "::decode", [Index(Ident("collected"), IntLit(0))])),
+            ("_", Call("Err", [Call("TooManyRows", [Call("collected.length", []), Ident("sql")])])),
+          ])),
+          ("Err(TooManyRows(n, _))", Call("Err", [Call("TooManyRows", [Ident("n"), Ident("sql")])])),
+          ("Err(e)", Call("Err", [Ident("e")])),
+        ])),
         ("Err(e)", Call("Err", [Ident("e")])),
       ]),
     ]
@@ -406,7 +414,10 @@ test "generate_query_fn: full function emission matches expected pattern" {
   let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
   let sf: SourceFile = { items: [Fn(fn_def)] }
   let result = emit_source_file(sf)
-  inspect(result.contains("match db.query_row"), content="true")
+  // P0-062: :one queries now use db.query() + collect_limited(2) for TooManyRows detection
+  inspect(result.contains("match db.query(sql, params)"), content="true")
+  inspect(result.contains("match rows.collect_limited(2)"), content="true")
+  inspect(result.contains("TooManyRows"), content="true")
   inspect(result.contains("Err(e) => Err(e)"), content="true")
 }
 
@@ -757,4 +768,76 @@ test "P0-065: get_result_type_name: query named 'int' produces IntRow" {
   }
   let name = get_result_type_name(q, [])
   inspect(name, content="IntRow")
+}
+
+// === P0-062: :one query TooManyRows detection tests ===
+
+/// Helper to generate and emit a :one query function for string-based assertions.
+fn emit_one_query_body() -> String {
+  let q: InternalQuery = {
+    name: "get_user", text: "SELECT id, name FROM users WHERE id = $1", cmd: OneRow, raw_cmd: One,
+    params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
+    result_shape: (None: InternalResultShape),
+    comments: ["Get a user by ID"], filename: "q.sql",
+  }
+  let fn_def = generate_query_fn(q, "db", Named("DB"), [], [], true, false, false, [])
+  let sf: SourceFile = { items: [Fn(fn_def)] }
+  emit_source_file(sf)
+}
+
+/// Helper to generate and emit a :one query function with tx connection for string-based assertions.
+fn emit_one_query_tx_body() -> String {
+  let q: InternalQuery = {
+    name: "get_user", text: "SELECT id, name FROM users WHERE id = $1", cmd: OneRow, raw_cmd: One,
+    params: [{ number: 1, name: "id", ty: Named("int4"), not_null: true }],
+    result_shape: (None: InternalResultShape),
+    comments: ["Get a user by ID"], filename: "q.sql",
+  }
+  let fn_def = generate_query_fn(q, "tx", Named("Transaction"), [], [], true, false, false, [])
+  let sf: SourceFile = { items: [Fn(fn_def)] }
+  emit_source_file(sf)
+}
+
+test "P0-062: :one query uses db.query() instead of db.query_row()" {
+  let result = emit_one_query_body()
+  inspect(result.contains("match db.query(sql, params)"), content="true")
+  inspect(result.contains("db.query_row"), content="false")
+}
+
+test "P0-062: :one query uses collect_limited(2) for row count guard" {
+  let result = emit_one_query_body()
+  inspect(result.contains("collect_limited(2)"), content="true")
+}
+
+test "P0-062: :one query has Err(NoRows) arm for empty result" {
+  let result = emit_one_query_body()
+  inspect(result.contains("0 => Err(NoRows)"), content="true")
+}
+
+test "P0-062: :one query decodes collected[0] for single row" {
+  let result = emit_one_query_body()
+  inspect(result.contains("GetUserRow::decode(collected[0])"), content="true")
+}
+
+test "P0-062: :one query has Err(TooManyRows) arm for 2+ rows" {
+  let result = emit_one_query_body()
+  inspect(result.contains("Err(TooManyRows"), content="true")
+}
+
+test "P0-062: :one query handles TooManyRows from collect_limited (3+ rows)" {
+  let result = emit_one_query_body()
+  inspect(result.contains("Err(TooManyRows(n, _))"), content="true")
+  inspect(result.contains("Err(TooManyRows(n, sql))"), content="true")
+}
+
+test "P0-062: :one query general error propagation preserved" {
+  let result = emit_one_query_body()
+  inspect(result.contains("Err(e) => Err(e)"), content="true")
+}
+
+test "P0-062: :one query tx overload also uses tx.query() with TooManyRows detection" {
+  let result = emit_one_query_tx_body()
+  inspect(result.contains("match tx.query(sql, params)"), content="true")
+  inspect(result.contains("tx.query_row"), content="false")
+  inspect(result.contains("collect_limited(2)"), content="true")
 }
