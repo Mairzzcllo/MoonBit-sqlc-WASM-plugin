@@ -3,12 +3,12 @@
 ## 项目状态
 
 - **项目**: MoonBit sqlc WASM Plugin
-- **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 规划就绪
-- **最新事件**: 2026-05-30 — P0-059 ✅ TIMETZ 时区支持 + P0-060 ✅ 多文件输出 (598 tests)
-- P0: 60/67 completed ✅ (P0-001~060 done, P0-061~067 active)
-- P1: 30/44 completed ✅ (P1-001~034 done, P1-035~048 active)
+- **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 执行中
+- **最新事件**: 2026-06-01 — P1-039~048 全部完成 ✅ (3轮迭代, coder→tester→reviewer, 870 tests)
+- P0: 67/67 completed ✅ (P0-001~067 all done!)
+- P1: 40/44 completed ✅ (P1-001~034, P1-039~048 done; P1-035~038 remaining)
 - P2: 12/12 completed ✅; P2-001/005/006 superseded
-- 活跃 Phase: **Phase D — 架构差距消除 Sprint**
+- 活跃 Phase: **Phase D — 架构差距消除 + 100 边界情况修复 Sprint**
 
 ## Sprint S-1 — Value enum + package_name + Release
 
@@ -203,13 +203,44 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 - plugin/golden.mbt: golden 测试更新为期望 types.mbt + queries.mbt 双文件输出
 - 测试: 598/598 pass (+1 golden test from 597)
 
+### Phase D-1 — 100 边界情况 P0 批次修复 (2026-06-01)
+
+| ID | 边界情况 # | 标题 | 类型 | 状态 |
+|----|-----------|------|------|------|
+| **P0-063** | #60 | 字段解码按列名而非索引 — Row 新增 col_names + index_of()→Result | bugfix | ✅ done |
+| **P0-064** | #89 | 输出路径穿越防护 — validate_output_path 拒绝 `..` 段 + Windows 驱动器检测 | bugfix | ✅ done |
+| **P0-065** | #88 | MoonBit 关键字冲突 — escape_keyword 覆盖 55+ 关键字 + rename_to 也转义 | bugfix | ✅ done |
+| **P0-066** | #31, #35, #36, #53 | 空/无效标识符处理 — snake_to_pascal("")→"Empty", convert_column/query fallback | bugfix | ✅ done |
+| **P0-067** | #10 | iovec 保留内存区间隔离验证 — panic 诊断消息 + startups check 顺序 | bugfix | ✅ done |
+
+**5 任务全部经 3 轮 coder→tester→reviewer 迭代完成。**
+**测试**: 682/682 pass (+13 from 669), moon check 0 errors.
+
+### Phase D-2 — 100 边界情况 P1 批次修复 (2026-06-01)
+
+| ID | 边界情况 # | 标题 | 类型 | 状态 |
+|----|-----------|------|------|------|
+| **P1-039** | #3, #4 | Codec 静默错误传播 — read_string/decode_embedded 错误→abort | bugfix | ✅ done |
+| **P1-040** | #17, #18, #19 | 类型格式验证 — 5 个 parse_* 函数 (Date/DateTime/UUID/IP/Decimal) | feature | ✅ done |
+| **P1-041** | #50, #51, #54-59 | 命名边缘情况加固 — 重复/冲突/特殊字符 | bugfix | ✅ done |
+| **P1-042** | #66-69 | MockDB API — builder 模式 + 按 SQL 匹配 | feature | ✅ done |
+| **P1-043** | #73-79 | Test 覆盖扩展 — 多表/数组/枚举/命令生成器 | test | ✅ done |
+| **P1-044** | #83, #85 | DBError 增强 — TooManyRows(Int, String) + ColumnNotFound(String) | feature | ✅ done |
+| **P1-045** | #87, #90 | 代码生成去重与包名保护 — import 去重 + 空包名 guard | bugfix | ✅ done |
+| **P1-046** | #37, #43, #72 | Row 运行时加固 — check_bounds() + collect_limited() | bugfix | ✅ done |
+| **P1-047** | #52 | 枚举运行时值验证 — 变体匹配检查测试 | bugfix | ✅ done |
+| **P1-048** | #80-82 | 集成测试基础设施加固 — basic/wasm 同步 + 编译隔离 | test | ✅ done |
+
+**10 任务全部经 3 轮 coder→tester→reviewer 迭代完成。**
+**测试**: 870/870 pass (+188 from 682), moon check 0 errors.
+
 ### P0 任务
 
 | ID | GAP | 标题 | 类型 | 状态 | 依赖 |
 |----|-----|------|------|------|------|
 | **P0-056** | GAP-2 | :execresult 完整语义 — LastInsertId + RowsAffected 结构体 | feature | ✅ done | — |
 | **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | ✅ done | — |
-| **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | todo | — |
+| **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | ✅ done | — |
 | **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | ✅ done | — |
 | **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | ✅ done | — |
 
@@ -228,30 +259,30 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 
 ### 新增 P0 任务 (P0-061~P0-067)
 
-| ID | 边界情况 # | 标题 | 类型 |
-|----|-----------|------|------|
-| P0-061 | #5, #9, #11, #13 | Codec bounds hardening — skip_field/OOB/error→abort | bugfix |
-| P0-062 | #84 | :one 多行静默取第一条 — TooManyRows 错误 | bugfix |
-| P0-063 | #60 | 字段解码按索引而非列名 — 列顺序变化静默错位 | bugfix |
-| P0-064 | #89 | 输出路径穿越防护 — out_name 合法性验证 | bugfix |
-| P0-065 | #88 | MoonBit 关键字冲突 — 全部关键字转义 | bugfix |
-| P0-066 | #31, #35, #36, #53 | 空/无效标识符处理 | bugfix |
-| P0-067 | #10 | iovec 保留内存区间隔离验证 | bugfix |
+| ID | 边界情况 # | 标题 | 类型 | 状态 |
+|----|-----------|------|------|------|
+| P0-061 | #5, #9, #11, #13 | Codec bounds hardening — skip_field/OOB/error→abort | bugfix | todo |
+| P0-062 | #84 | :one 多行静默取第一条 — TooManyRows 错误 | bugfix | todo |
+| P0-063 | #60 | 字段解码按索引而非列名 — 列顺序变化静默错位 | bugfix | ✅ done |
+| P0-064 | #89 | 输出路径穿越防护 — out_name 合法性验证 | bugfix | ✅ done |
+| P0-065 | #88 | MoonBit 关键字冲突 — 全部关键字转义 | bugfix | ✅ done |
+| P0-066 | #31, #35, #36, #53 | 空/无效标识符处理 | bugfix | ✅ done |
+| P0-067 | #10 | iovec 保留内存区间隔离验证 | bugfix | ✅ done |
 
 ### 新增 P1 任务 (P1-039~P1-048)
 
-| ID | 边界情况 # | 标题 | 类型 |
-|----|-----------|------|------|
-| P1-039 | #3, #4 | Codec 静默错误传播 | bugfix |
-| P1-040 | #17, #18, #19 | 类型格式验证 | feature |
-| P1-041 | #50, #51, #54-59 | 命名边缘情况加固 | bugfix |
-| P1-042 | #66-69 | MockDB 可用性改进 | feature |
-| P1-043 | #73-79 | Test 覆盖扩展 | test |
-| P1-044 | #83, #85 | DBError 增强 | feature |
-| P1-045 | #87, #90 | 代码生成去重与包名保护 | bugfix |
-| P1-046 | #37, #43, #72 | Row 运行时加固 | bugfix |
-| P1-047 | #52 | 枚举运行时值验证 | bugfix |
-| P1-048 | #80-82 | 集成测试基础设施加固 | test |
+| ID | 边界情况 # | 标题 | 类型 | 状态 |
+|----|-----------|------|------|------|
+| P1-039 | #3, #4 | Codec 静默错误传播 | bugfix | ✅ done |
+| P1-040 | #17, #18, #19 | 类型格式验证 | feature | ✅ done |
+| P1-041 | #50, #51, #54-59 | 命名边缘情况加固 | bugfix | ✅ done |
+| P1-042 | #66-69 | MockDB 可用性改进 | feature | ✅ done |
+| P1-043 | #73-79 | Test 覆盖扩展 | test | ✅ done |
+| P1-044 | #83, #85 | DBError 增强 | feature | ✅ done |
+| P1-045 | #87, #90 | 代码生成去重与包名保护 | bugfix | ✅ done |
+| P1-046 | #37, #43, #72 | Row 运行时加固 | bugfix | ✅ done |
+| P1-047 | #52 | 枚举运行时值验证 | bugfix | ✅ done |
+| P1-048 | #80-82 | 集成测试基础设施加固 | test | ✅ done |
 
 ### 设计决策保留 (不修复)
 

@@ -1,31 +1,3 @@
-schema_version: "1.0"
-id: P0-067
-state: todo
-deterministic: true
-title: "iovec 保留内存区间隔离验证与加固"
-type: bugfix
-priority: P0
-description: >
-  iovec 内存区间 [1024,1035] 和暂存区 [1036,65536] 是硬编码
-  的保留内存地址，MoonBit 分配器变化可能导致重叠。
-  当前 check_bytes_data_ptr 验证 Bytes 对象偏移 (+8)，
-  但未验证保留区间与 MoonBit .data 段/TLSF 之间无重叠。
-  需增强启动时验证：确认 1036+ 区域未被分配器使用，
-  并在 memory_grow 后重新验证隔离边界。
-dependencies: []
-owner: ""
-acquired_at: null
-expires_at: null
-retry_count: 0
-max_retry: 3
-created_at: "2026-05-30"
-updated_at: "2026-05-30"
-artifacts: []
-references:
-  - plugin/wasi_io.mbt
-execution_notes: >
-  Edge case #10 from boundary analysis. Add runtime assertion
-  at startup: verify that Bytes::new(1) returns pointer > 65536
-  (above reserved region). Also verify after memory_grow.
-  This is a safety net — actual collision risk is low because
-  MoonBit .data starts at 10000+ and TLSF at 13136+.
+# MOVED TO ARCHIVE
+# See: tasks/tasks/archive/P0-067.yaml
+# Completed: 2026-06-01 (round 2 — panic diagnostic messages, startups check order preserved)

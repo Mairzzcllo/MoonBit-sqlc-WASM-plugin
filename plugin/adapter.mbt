@@ -409,9 +409,25 @@ fn convert_identifier(id: Identifier) -> AdaptIdentifier {
   { catalog: id.catalog, schema: id.schema, name: id.name }
 }
 
+/// Trim leading and trailing whitespace from a string.
+/// MoonBit String currently lacks a @builtin trim, so we implement it manually.
+fn trim_str(s: String) -> String {
+  let mut start = 0
+  let n = s.length()
+  while start < n && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+    start = start + 1
+  }
+  let mut end = n
+  while end > start && (s[end - 1] == ' ' || s[end - 1] == '\t' || s[end - 1] == '\n' || s[end - 1] == '\r') {
+    end = end - 1
+  }
+  s[start:end].to_owned()
+}
+
 fn convert_column(col: Column) -> AdaptColumn {
+  let col_name = if trim_str(col.name).length() == 0 { "column_unnamed" } else { col.name }
   {
-    name: col.name,
+    name: col_name,
     not_null: col.not_null,
     is_array: col.is_array,
     ty: convert_identifier(col.ty),
@@ -460,9 +476,10 @@ fn convert_settings(s: Settings) -> AdaptSettings {
 }
 
 fn convert_query(q: Query) -> AdaptQuery {
+  let q_name = if trim_str(q.name).length() == 0 { "unnamed_query" } else { q.name }
   {
     text: q.text,
-    name: q.name,
+    name: q_name,
     cmd: parse_query_cmd(q.cmd),
     columns: q.columns.map(convert_column),
     params: q.params.map(convert_parameter),
@@ -1063,4 +1080,35 @@ test "parse_plugin_options: override_column_ combined with other options" {
   inspect(opts.overrides.length(), content="1")
   inspect(opts.overrides[0].0, content="numeric")
   inspect(opts.overrides[0].1, content="Decimal")
+}
+
+// === P0-066: Empty identifier fallback tests ===
+
+test "P0-066: convert_column handles empty name" {
+  let id: Identifier = { catalog: "", schema: "", name: "int4" }
+  let tbl: Identifier = { catalog: "", schema: "public", name: "test_tbl" }
+  let embed_tbl: Identifier = { catalog: "", schema: "", name: "" }
+  let col = { name: "", not_null: true, is_array: false, comment: "", length: 0, is_named_param: false, is_func_call: false, scope: "", table: tbl, table_alias: "", ty: id, is_sqlc_slice: false, embed_table: embed_tbl, original_name: "", unsigned: false, array_dims: 0 }
+  let adapted = convert_column(col)
+  inspect(adapted.name.length() > 0, content="true")
+}
+
+test "P0-066: convert_query handles empty name" {
+  let id: Identifier = { catalog: "", schema: "", name: "int4" }
+  let tbl: Identifier = { catalog: "", schema: "", name: "test_tbl" }
+  let embed_tbl: Identifier = { catalog: "", schema: "", name: "" }
+  let insert_tbl: Identifier = { catalog: "", schema: "", name: "" }
+  let col = { name: "id", not_null: true, is_array: false, comment: "", length: 0, is_named_param: false, is_func_call: false, scope: "", table: tbl, table_alias: "", ty: id, is_sqlc_slice: false, embed_table: embed_tbl, original_name: "id", unsigned: false, array_dims: 0 }
+  let q = { text: "SELECT id FROM t", name: "", cmd: ":many", columns: [col], params: [], comments: [], filename: "test.sql", insert_into_table: insert_tbl }
+  let adapted = convert_query(q)
+  inspect(adapted.name.length() > 0, content="true")
+}
+
+test "P0-066: convert_column handles whitespace-only name" {
+  let id: Identifier = { catalog: "", schema: "", name: "int4" }
+  let tbl: Identifier = { catalog: "", schema: "public", name: "test_tbl" }
+  let embed_tbl: Identifier = { catalog: "", schema: "", name: "" }
+  let col = { name: "   ", not_null: true, is_array: false, comment: "", length: 0, is_named_param: false, is_func_call: false, scope: "", table: tbl, table_alias: "", ty: id, is_sqlc_slice: false, embed_table: embed_tbl, original_name: "   ", unsigned: false, array_dims: 0 }
+  let adapted = convert_column(col)
+  inspect(adapted.name.length() > 0, content="true")
 }

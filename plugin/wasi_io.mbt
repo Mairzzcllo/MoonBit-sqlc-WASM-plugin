@@ -53,6 +53,7 @@ fn check_bytes_data_ptr() -> Unit {
   while i < 4 {
     let val = load_u8(ptr + i)
     if val != 0xDE {
+      // P0-067: Bytes object layout changed — offset +8 no longer points to data payload
       panic()
     }
     i = i + 1
@@ -100,6 +101,7 @@ fn read_all(fd : Int) -> Bytes {
       let result = memory_grow(1)
       if result < 0 { break }
       current_end = current_end + GROW_STEP
+      verify_reserved_memory()
     }
     store_i32(IOV_BUF, scratch + total)
     store_i32(IOV_LEN, current_end - scratch - total)
@@ -136,16 +138,173 @@ fn write_all(fd : Int, data : Bytes) -> Unit {
   }
 }
 
+/// Verify that reserved memory [1024,65535] is not corrupted by GC allocations.
+///
+/// Writes sentinel values to iovec region [1024,1035], triggers GC allocation,
+/// then verifies: (1) sentinels are intact (no overlap), and
+/// (2) allocated object pointer is >= SCRATCH_END.
+///
+/// Called at startup in run_io_loop() and after each memory_grow in read_all().
+fn verify_reserved_memory() -> Unit {
+  // Phase 1: Write sentinel values to reserved iovec region
+  store_i32(IOV_BUF, 0xDEADBEEF)
+  store_i32(IOV_LEN, 0xCAFEBABE)
+  store_i32(ROF_LEN, 0xFEEDFACE)
+
+  // Phase 2: Trigger GC allocation (forces allocator to give us memory)
+  let b = Bytes::new(256)
+  let ptr = bytes_data_ptr(b)
+
+  // Phase 3: Verify allocator did not give us reserved memory
+  if ptr < SCRATCH_END {
+    // P0-067: GC allocator returned pointer in reserved memory region [1024,65535] — corruption risk
+    panic()
+  }
+
+  // Phase 4: Verify sentinels are intact (allocator didn't overwrite reserved region)
+  if load_i32(IOV_BUF) != 0xDEADBEEF {
+    // P0-067: IOV_BUF sentinel corruption — GC allocator overwrote reserved iovec region at offset 1024
+    panic()
+  }
+  if load_i32(IOV_LEN) != 0xCAFEBABE {
+    // P0-067: IOV_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1028
+    panic()
+  }
+  if load_i32(ROF_LEN) != 0xFEEDFACE {
+    // P0-067: ROF_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1032
+    panic()
+  }
+}
+
 /// Main protocol loop: read raw stdin → process → write raw stdout.
 /// sqlc WASM plugin uses unframed protobuf (no 4-byte LE header).
 fn run_io_loop() -> Unit raise {
   check_bytes_data_ptr()
+  verify_reserved_memory()
   let body = read_all(0)
   if body.length() == 0 { return () }
   let resp = process_message(body)
   write_all(1, resp)
 }
 
+// === Tests: P0-067 — iovec reserved memory region isolation verification ===
+// NOTE: verify_reserved_memory() and check_bytes_data_ptr() use inline WAT FFI
+// that targets the WASM MVP linear memory model. The moonrun test runner uses
+// wasm-gc which has a different object model (GC refs instead of linear memory
+// pointers), so these functions cannot be directly invoked in tests.
+//
+// Runtime verification of the sentinel pattern and boundary checks occurs
+// at startup in the actual wasmtime deployment (run_io_loop → check_bytes_data_ptr
+// → verify_reserved_memory, and after each memory_grow in read_all).
+//
+// Test coverage here focuses on compile-time validation (constants, type checking)
+// and basic non-WAT-dependent behavior that works across all targets.
 
+/// Verify all reserved memory constants have correct values.
+/// These must match the documented reservation scheme:
+///   iovec at [1024,1035], scratch at [1036,65535]
+test "P0-067: reserved memory constants are correct" {
+  inspect(IOV_BASE, content="1024")
+  inspect(IOV_BUF, content="1024")
+  inspect(IOV_LEN, content="1028")
+  inspect(ROF_LEN, content="1032")
+  inspect(SCRATCH, content="1036")
+  inspect(SCRATCH_END, content="65536")
+  inspect(GROW_STEP, content="65536")
+}
+
+/// Verify correct offsets between reserved memory regions.
+/// IOV_BUF, IOV_LEN, ROF_LEN must all be within [1024, 1035].
+/// SCRATCH must be at 1036, immediately after iovec.
+/// SCRATCH_END must be >= 65536 (one wasm page above scratch start).
+test "P0-067: reserved memory layout is contiguous and non-overlapping" {
+  // iovec region: 1024..1035 (12 bytes: 2 i32 fields + 1 i32 rof_len)
+  inspect(IOV_BUF, content="1024")
+  inspect(IOV_LEN, content="1028")
+  inspect(ROF_LEN, content="1032")
+  // iovec occupies exactly 12 bytes [1024, 1035]
+  // scratch starts immediately after at 1036
+  inspect(IOV_LEN - IOV_BUF, content="4")   // 4 bytes per i32
+  inspect(ROF_LEN - IOV_LEN, content="4")   // 4 bytes per i32
+  inspect(SCRATCH - ROF_LEN, content="4")   // scratch starts right after iovec
+  // scratch region is [1036, 65535]
+  inspect(SCRATCH, content="1036")
+  inspect(SCRATCH_END - SCRATCH, content="64500")  // 65536 - 1036 = 64500
+  // GROW_STEP matches page size
+  inspect(GROW_STEP, content="65536")
+}
+
+/// SCRATCH_END must be a multiple of 65536 (one wasm page).
+/// This ensures the reserved region ends at a page boundary.
+test "P0-067: SCRATCH_END is page-aligned" {
+  inspect(SCRATCH_END % 65536, content="0")
+  inspect(SCRATCH_END / 65536, content="1")
+}
+
+/// IOV_BASE (1024) is page-aligned within the zero page [0,65535].
+/// The zero page contains: stack, globals, iovec [1024,1035], scratch [1036,65535].
+test "P0-067: IOV_BASE is within valid zero-page range" {
+  inspect(IOV_BASE >= 0, content="true")
+  inspect(IOV_BASE < 65536, content="true")
+  // iovec fits entirely within zero page
+  inspect(ROF_LEN + 4 <= 65536, content="true") // 1032 + 4 = 1036 < 65536
+}
+
+/// Bytes::new creates correctly-sized buffers (non-WAT, pure verification).
+/// This validates that the allocation path used in verify_reserved_memory
+/// works at the MoonBit level independent of the inline WAT layer.
+test "P0-067: Bytes::new allocation works correctly" {
+  let b0 = Bytes::new(0)
+  inspect(b0.length(), content="0")
+  let b1 = Bytes::new(1)
+  inspect(b1.length(), content="1")
+  let b256 = Bytes::new(256)
+  inspect(b256.length(), content="256")
+  let b1024 = Bytes::new(1024)
+  inspect(b1024.length(), content="1024")
+}
+
+/// Multiple interleaved allocations do not corrupt state.
+test "P0-067: multiple Bytes::new calls are safe" {
+  let b1 = Bytes::new(128)
+  inspect(b1.length(), content="128")
+  let b2 = Bytes::new(512)
+  inspect(b2.length(), content="512")
+  let b3 = Bytes::new(1024)
+  inspect(b3.length(), content="1024")
+  // Verify earlier allocations are still valid
+  inspect(b1.length(), content="128")
+  inspect(b2.length(), content="512")
+}
+
+/// Bytes::make with sentinel pattern works correctly.
+/// This is the same pattern used by check_bytes_data_ptr.
+test "P0-067: Bytes::make with sentinel pattern works" {
+  let b = Bytes::make(4, 0xDE)
+  inspect(b.length(), content="4")
+  // b[0], b[1], b[2], b[3] should all be 0xDE
+  // (Access via Bytes indexing is target-independent)
+  inspect(b[0].to_int(), content="222")  // 0xDE = 222
+  inspect(b[1].to_int(), content="222")
+  inspect(b[2].to_int(), content="222")
+  inspect(b[3].to_int(), content="222")
+}
+
+/// Bytes::make with different sentinel values to verify no crossover.
+test "P0-067: Bytes::make sentinel isolation" {
+  let b1 = Bytes::make(4, 0xAB)
+  let b2 = Bytes::make(4, 0xCD)
+  // Each buffer should contain only its own sentinel
+  inspect(b1[0].to_int(), content="171")  // 0xAB
+  inspect(b1[3].to_int(), content="171")
+  inspect(b2[0].to_int(), content="205")  // 0xCD
+  inspect(b2[3].to_int(), content="205")
+}
+
+/// The GROW_STEP constant equals exactly one wasm page (64 KB).
+test "P0-067: GROW_STEP is exactly one wasm page" {
+  inspect(GROW_STEP, content="65536")
+  inspect(GROW_STEP == 65536, content="true")
+}
 
 

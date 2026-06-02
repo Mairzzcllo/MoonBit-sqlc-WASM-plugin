@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: P0-066
+state: done
+deterministic: true
+title: "空/无效标识符处理 — 空名称、空类型、空查询名防护"
+type: bugfix
+priority: P0
+description: >
+  3 个空/无效标识符边界：查询名为空时 snake_to_pascal("")
+  返回 ""，类型名变为空字符串 "Row"，生成无效代码；
+  列名为空时字段名为 ""，产生无效 struct 定义；列数据
+  类型为空字符串时静默回退到 String。需在 adapter 层
+  验证非空性，空值时使用 fallback 或报错。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 3
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-06-01"
+artifacts:
+  - plugin/naming.mbt
+  - plugin/adapter.mbt
+  - plugin/type_codegen.mbt
+  - plugin/query_codegen.mbt
+references:
+  - plugin/type_codegen.mbt
+  - plugin/query_codegen.mbt
+  - plugin/adapter.mbt
+execution_notes: >
+  Final (round 3, coder→tester→reviewer→coder→tester→reviewer): 
+  Round 1: coder agent 报告完成但 reviewer 发现实际代码未落地 (FAILED, retry_count 1)。
+  Round 2: 重新实现但仍有部分问题。
+  Round 3: 完整实现。snake_to_pascal("") → "Empty"（plugin/naming.mbt）。
+  adapter.mbt: convert_column 列名空时回退为 "unnamed_column_N"（基于列序号）。
+  convert_query 查询名为空时回退为 "unnamed_query_N"（基于查询序号）。
+  type_codegen.mbt: 生成 struct/enum 名前检查非空性，空名 → "EmptyType"。
+  Edge cases #31, #35, #36, #53 全部覆盖。
+  moon check 0 errors, moon test 682/682 passed.

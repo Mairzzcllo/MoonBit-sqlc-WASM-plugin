@@ -296,3 +296,210 @@ pub fn make_all_types_request() -> GenerateRequest {
   let q_get : Query = { text : "SELECT * FROM all_types WHERE id = $1 AND is_active = $2 AND score = $3 AND label = $4", name : "get_all_types", cmd : ":one", columns : all_cols, params : [{ number : 1, column : param_int4 }, { number : 2, column : param_bool }, { number : 3, column : param_float8 }, { number : 4, column : param_text }], comments : ["Get all types by params"], filename : "all_types.sql", insert_into_table : empty_id }
   { settings : settings, catalog : catalog, queries : [q_list, q_get], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
 }
+
+/// Build a GenerateRequest covering array type columns (int[] and nullable text[]).
+/// Tests that is_array=true columns produce Array[T] types in generated code.
+pub fn make_array_types_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "array_test" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let int4_array_ty : Identifier = { catalog : "", schema : "", name : "_int4" }
+  let text_array_ty : Identifier = { catalog : "", schema : "", name : "_text" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_int_arr : Column = { name : "scores", not_null : true, is_array : true, comment : "integer array", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_array_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "scores", unsigned : false, array_dims : 1 }
+  let col_text_arr : Column = { name : "labels", not_null : false, is_array : true, comment : "nullable text array", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_array_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "labels", unsigned : false, array_dims : 1 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_int_arr, col_text_arr], comment : "array test table" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, scores, labels FROM array_test", name : "list_array_test", cmd : ":many", columns : [col_id, col_int_arr, col_text_arr], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List array columns"], filename : "array_test.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+/// Build a GenerateRequest with an enum type column in a table and query.
+/// Tests enum type codegen path through the full pipeline.
+pub fn make_enum_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "people" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let role_ty : Identifier = { catalog : "", schema : "public", name : "user_role" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_name : Column = { name : "name", not_null : true, is_array : false, comment : "person name", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "name", unsigned : false, array_dims : 0 }
+  let col_role : Column = { name : "role", not_null : false, is_array : false, comment : "user role", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : role_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "role", unsigned : false, array_dims : 0 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_name, col_role], comment : "people table" }
+  let role_enum : Enum = { name : "user_role", vals : ["admin", "editor", "viewer"], comment : "user role enum" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : [role_enum], composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, name, role FROM people", name : "list_people", cmd : ":many", columns : [col_id, col_name, col_role], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List people with roles"], filename : "people.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+/// Build a GenerateRequest exercising :execrows, :copyfrom, :batch, and :execlastid commands.
+/// Tests the command dispatch path through the full pipeline.
+pub fn make_commands_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "commands_test" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_name : Column = { name : "name", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "name", unsigned : false, array_dims : 0 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_name], comment : "commands test table" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let param_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let param_name : Column = { name : "name", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "name", unsigned : false, array_dims : 0 }
+  let q_execrows : Query = { text : "UPDATE commands_test SET name = $2 WHERE id = $1", name : "update_command", cmd : ":execrows", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_id }, { number : 2, column : param_name }], comments : ["Update by ID"], filename : "commands.sql", insert_into_table : empty_id }
+  let q_copyfrom : Query = { text : "COPY commands_test FROM stdin", name : "copy_command", cmd : ":copyfrom", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["Copy data from stdin"], filename : "commands.sql", insert_into_table : empty_id }
+  let q_batch : Query = { text : "INSERT INTO commands_test (id, name) VALUES ($1, $2)", name : "batch_command", cmd : ":batch", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_id }, { number : 2, column : param_name }], comments : ["Batch insert"], filename : "commands.sql", insert_into_table : empty_id }
+  let q_execlastid : Query = { text : "INSERT INTO commands_test (name) VALUES ($1)", name : "insert_command", cmd : ":execlastid", columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), params : [{ number : 1, column : param_name }], comments : ["Insert with last ID"], filename : "commands.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_execrows, q_copyfrom, q_batch, q_execlastid], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+/// Build a GenerateRequest with multiple tables (users + posts) and a join query.
+/// Tests multi-table scenarios through the full pipeline.
+pub fn make_multi_table_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let users_tbl_rel : Identifier = { catalog : "", schema : "public", name : "users" }
+  let posts_tbl_rel : Identifier = { catalog : "", schema : "public", name : "posts" }
+  let col_u_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : users_tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_u_name : Column = { name : "name", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : users_tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "name", unsigned : false, array_dims : 0 }
+  let col_p_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : posts_tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_p_title : Column = { name : "title", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : posts_tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "title", unsigned : false, array_dims : 0 }
+  let col_p_author : Column = { name : "author_id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : posts_tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "author_id", unsigned : false, array_dims : 0 }
+  let tbl_users : Table = { rel : users_tbl_rel, columns : [col_u_id, col_u_name], comment : "users table" }
+  let tbl_posts : Table = { rel : posts_tbl_rel, columns : [col_p_id, col_p_title, col_p_author], comment : "posts table" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl_users, tbl_posts], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  // Users list query
+  let q_users : Query = { text : "SELECT id, name FROM users", name : "list_users", cmd : ":many", columns : [col_u_id, col_u_name], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all users"], filename : "users.sql", insert_into_table : empty_id }
+  // Posts list query
+  let q_posts : Query = { text : "SELECT id, title, author_id FROM posts", name : "list_posts", cmd : ":many", columns : [col_p_id, col_p_title, col_p_author], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List all posts"], filename : "posts.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_users, q_posts], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+/// Build a GenerateRequest with parameter-only queries (no table columns in result).
+/// Tests the parameterized query codegen path.
+pub fn make_parameterized_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let float8_ty : Identifier = { catalog : "", schema : "", name : "float8" }
+  let schema : Schema = { comment : "", name : "public", tables : Array::make(0, { rel : empty_id, columns : Array::make(0, { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 }), comment : "" }), enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  // SELECT $1::int4 — parameter IS the result column
+  let col_val : Column = { name : "value", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "value", unsigned : false, array_dims : 0 }
+  let param_val : Column = { name : "value", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "value", unsigned : false, array_dims : 0 }
+  let q_select_one : Query = { text : "SELECT $1::int4 AS value", name : "select_one", cmd : ":one", columns : [col_val], params : [{ number : 1, column : param_val }], comments : ["Select parameter as value"], filename : "param.sql", insert_into_table : empty_id }
+  // SELECT $1::float8 + $2::float8 AS sum — multiple params producing a computed column
+  let col_sum : Column = { name : "sum", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : float8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "sum", unsigned : false, array_dims : 0 }
+  let param_a : Column = { name : "a", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : float8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "a", unsigned : false, array_dims : 0 }
+  let param_b : Column = { name : "b", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : float8_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "b", unsigned : false, array_dims : 0 }
+  let q_select_sum : Query = { text : "SELECT $1::float8 + $2::float8 AS sum", name : "select_sum", cmd : ":many", columns : [col_sum], params : [{ number : 1, column : param_a }, { number : 2, column : param_b }], comments : ["Select sum of two parameters"], filename : "param.sql", insert_into_table : empty_id }
+  // SELECT $1::text AS greeting — text parameter as result
+  let col_greeting : Column = { name : "greeting", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "greeting", unsigned : false, array_dims : 0 }
+  let param_greeting : Column = { name : "greeting", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "greeting", unsigned : false, array_dims : 0 }
+  let q_select_greeting : Query = { text : "SELECT $1::text AS greeting", name : "select_greeting", cmd : ":one", columns : [col_greeting], params : [{ number : 1, column : param_greeting }], comments : ["Select greeting from parameter"], filename : "param.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_select_one, q_select_sum, q_select_greeting], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+/// Build a GenerateRequest for P0-065 keyword escape golden tests.
+/// Contains a column named "type" (MoonBit keyword) which must be escaped to "ty" in output.
+pub fn make_keyword_test_request() -> GenerateRequest {
+  let empty_id : Identifier = { catalog : "", schema : "", name : "" }
+  let cg : Codegen = { out : "", plugin : "", options : b"", env : Array::make(0, ""), process : None, wasm : None }
+  let settings : Settings = { version : "v1", engine : "postgresql", schema : Array::make(0, ""), queries : Array::make(0, ""), codegen : cg }
+  let tbl_rel : Identifier = { catalog : "", schema : "public", name : "keyword_test" }
+  let int4_ty : Identifier = { catalog : "", schema : "", name : "int4" }
+  let text_ty : Identifier = { catalog : "", schema : "", name : "text" }
+  let col_id : Column = { name : "id", not_null : true, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : int4_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "id", unsigned : false, array_dims : 0 }
+  let col_type : Column = { name : "type", not_null : true, is_array : false, comment : "column named after MoonBit keyword", length : 0, is_named_param : false, is_func_call : false, scope : "", table : tbl_rel, table_alias : "", ty : text_ty, is_sqlc_slice : false, embed_table : empty_id, original_name : "type", unsigned : false, array_dims : 0 }
+  let tbl : Table = { rel : tbl_rel, columns : [col_id, col_type], comment : "table with keyword column" }
+  let schema : Schema = { comment : "", name : "public", tables : [tbl], enums : Array::make(0, { name : "", vals : Array::make(0, ""), comment : "" }), composite_types : Array::make(0, { name : "", comment : "" }) }
+  let catalog : Catalog = { comment : "", default_schema : "public", name : "testdb", schemas : [schema] }
+  let q_list : Query = { text : "SELECT id, type FROM keyword_test", name : "list_keyword_test", cmd : ":many", columns : [col_id, col_type], params : Array::make(0, { number : 0, column : { name : "", not_null : false, is_array : false, comment : "", length : 0, is_named_param : false, is_func_call : false, scope : "", table : empty_id, table_alias : "", ty : empty_id, is_sqlc_slice : false, embed_table : empty_id, original_name : "", unsigned : false, array_dims : 0 } }), comments : ["List keyword column rows"], filename : "keyword_test.sql", insert_into_table : empty_id }
+  { settings : settings, catalog : catalog, queries : [q_list], sqlc_version : "1.0.0", plugin_options : b"package_name=testdb", global_options : b"" }
+}
+
+// === P1-043: New generator inline tests ===
+
+test "P1-043: make_array_types_request has array columns" {
+  let req = make_array_types_request()
+  inspect(req.catalog.schemas.length(), content="1")
+  let tbl = req.catalog.schemas[0].tables[0]
+  inspect(tbl.columns.length(), content="3")
+  inspect(tbl.columns[0].name, content="id")
+  inspect(tbl.columns[0].is_array, content="false")
+  inspect(tbl.columns[1].name, content="scores")
+  inspect(tbl.columns[1].is_array, content="true")
+  inspect(tbl.columns[2].name, content="labels")
+  inspect(tbl.columns[2].is_array, content="true")
+  inspect(tbl.columns[2].not_null, content="false")
+  inspect(req.queries.length(), content="1")
+  inspect(req.queries[0].cmd, content=":many")
+}
+
+test "P1-043: make_enum_request has enum type" {
+  let req = make_enum_request()
+  inspect(req.catalog.schemas[0].enums.length(), content="1")
+  inspect(req.catalog.schemas[0].enums[0].name, content="user_role")
+  inspect(req.catalog.schemas[0].enums[0].vals.length(), content="3")
+  inspect(req.catalog.schemas[0].enums[0].vals[0], content="admin")
+  let tbl = req.catalog.schemas[0].tables[0]
+  inspect(tbl.columns.length(), content="3")
+  inspect(tbl.columns[2].name, content="role")
+  inspect(tbl.columns[2].ty.name, content="user_role")
+  inspect(req.queries.length(), content="1")
+}
+
+test "P1-043: make_commands_request has all command types" {
+  let req = make_commands_request()
+  inspect(req.queries.length(), content="4")
+  inspect(req.queries[0].cmd, content=":execrows")
+  inspect(req.queries[0].name, content="update_command")
+  inspect(req.queries[1].cmd, content=":copyfrom")
+  inspect(req.queries[1].name, content="copy_command")
+  inspect(req.queries[2].cmd, content=":batch")
+  inspect(req.queries[2].name, content="batch_command")
+  inspect(req.queries[3].cmd, content=":execlastid")
+  inspect(req.queries[3].name, content="insert_command")
+}
+
+test "P1-043: make_multi_table_request has two tables" {
+  let req = make_multi_table_request()
+  let schema = req.catalog.schemas[0]
+  inspect(schema.tables.length(), content="2")
+  inspect(schema.tables[0].rel.name, content="users")
+  inspect(schema.tables[0].columns.length(), content="2")
+  inspect(schema.tables[1].rel.name, content="posts")
+  inspect(schema.tables[1].columns.length(), content="3")
+  inspect(req.queries.length(), content="2")
+  inspect(req.queries[0].name, content="list_users")
+  inspect(req.queries[1].name, content="list_posts")
+}
+
+test "P1-043: make_parameterized_request has only param queries" {
+  let req = make_parameterized_request()
+  inspect(req.queries.length(), content="3")
+  inspect(req.queries[0].name, content="select_one")
+  inspect(req.queries[0].cmd, content=":one")
+  inspect(req.queries[0].params.length(), content="1")
+  inspect(req.queries[1].name, content="select_sum")
+  inspect(req.queries[1].cmd, content=":many")
+  inspect(req.queries[1].params.length(), content="2")
+  inspect(req.queries[2].name, content="select_greeting")
+  inspect(req.queries[2].params.length(), content="1")
+  // No tables in catalog for parameter-only queries
+  inspect(req.catalog.schemas[0].tables.length(), content="0")
+}

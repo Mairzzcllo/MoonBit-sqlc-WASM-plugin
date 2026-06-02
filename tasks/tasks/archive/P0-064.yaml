@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: P0-064
+state: done
+deterministic: true
+title: "输出路径路径穿越防护 — out_name 合法性验证"
+type: bugfix
+priority: P0
+description: >
+  process_request 中 filename 直接拼接 codegen.out + "/lib.mbt"。
+  如果 out_name 包含 ".."（例如 "../../etc"）或绝对路径
+  （"/tmp/foo"），生成文件可能写到当前工作目录外，属于
+  路径穿越安全漏洞。需对 out_name 进行合法性校验，
+  拒绝包含 ".." 或以 "/" 开头的路径。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 2
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-06-01"
+artifacts:
+  - plugin/main.mbt
+references:
+  - plugin/main.mbt
+execution_notes: >
+  Final (round 2, coder→tester→reviewer): plugin/main.mbt validate_output_path 函数。
+  拒绝 .. 段（segment-aware 检测，不误报 foo..bar）。
+  新增 Windows 驱动器字母绝对路径检测（C:\... 等）。
+  修复 root path "//" bypass（双斜杠绕过检测）。
+  moon check 0 errors, moon test 682/682 passed.

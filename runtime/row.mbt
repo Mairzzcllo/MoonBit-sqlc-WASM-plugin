@@ -21,10 +21,48 @@
 pub struct Row {
   get_fn : (Int) -> String
   null_mask : Array[Bool]
+  col_names : Array[String]
+  num_cols : Int
 }
 
 pub fn Row::new(get_fn: (Int) -> String, null_mask: Array[Bool]) -> Row {
-  { get_fn: get_fn, null_mask: null_mask }
+  { get_fn: get_fn, null_mask: null_mask, col_names: [], num_cols: null_mask.length() }
+}
+
+/// Create a Row with known column names for name-based lookup.
+///
+/// null_mask.length() MUST equal col_names.length(). num_cols is derived from
+/// null_mask, and a mismatch will cause name-based lookups to silently index
+/// the wrong column or OOB.
+pub fn Row::new_with_names(get_fn: (Int) -> String, null_mask: Array[Bool], col_names: Array[String]) -> Row {
+  { get_fn: get_fn, null_mask: null_mask, col_names: col_names, num_cols: null_mask.length() }
+}
+
+/// Get the number of columns in this row.
+pub fn Row::column_count(self: Row) -> Int {
+  self.num_cols
+}
+
+/// Check that an index is within column bounds. Returns TypeError if out of bounds.
+fn Row::check_bounds(self: Row, index: Int) -> Result[Int, DBError] {
+  if index < 0 || index >= self.num_cols {
+    Err(TypeError("column index " + index.to_string() + " out of bounds (0.." + (self.num_cols - 1).to_string() + ")"))
+  } else {
+    Ok(index)
+  }
+}
+
+/// Find the column index by name. Returns Err(ColumnNotFound) if not found.
+/// O(n) linear scan — callers may cache the result.
+pub fn Row::index_of(self: Row, name: String) -> Result[Int, DBError] {
+  let mut i = 0
+  while i < self.col_names.length() {
+    if self.col_names[i] == name {
+      return Ok(i)
+    }
+    i = i + 1
+  }
+  Err(ColumnNotFound("column '" + name + "' not found"))
 }
 
 /// Get raw string value by column index.
@@ -33,6 +71,9 @@ pub fn Row::get(self: Row, index: Int) -> String {
 }
 
 /// Check if the column at index is NULL.
+/// Note: this method intentionally does NOT perform bounds checking.
+/// It is meant for internal use where the index is known to be valid.
+/// External callers should use getter methods which include bounds checks.
 pub fn Row::is_null(self: Row, index: Int) -> Bool {
   index >= 0 && index < self.null_mask.length() && self.null_mask[index]
 }
@@ -126,193 +167,273 @@ fn parse_array_bytes_elems(arr: Array[Json], index: Int) -> Result[Array[Array[B
 
 /// Decode a JSON array string into Array[String].
 pub fn Row::decode_array_string(self: Row, index: Int) -> Result[Array[String], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, "")) }
-  match parse_json_array(raw, index, "string") {
-    Ok(arr) => parse_array_str_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, "")) }
+      match parse_json_array(raw, index, "string") {
+        Ok(arr) => parse_array_str_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Int64].
 pub fn Row::decode_array_int64(self: Row, index: Int) -> Result[Array[Int64], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, 0L)) }
-  match parse_json_array(raw, index, "int64") {
-    Ok(arr) => parse_array_int64_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, 0L)) }
+      match parse_json_array(raw, index, "int64") {
+        Ok(arr) => parse_array_int64_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Bool].
 pub fn Row::decode_array_bool(self: Row, index: Int) -> Result[Array[Bool], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, false)) }
-  match parse_json_array(raw, index, "bool") {
-    Ok(arr) => parse_array_bool_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, false)) }
+      match parse_json_array(raw, index, "bool") {
+        Ok(arr) => parse_array_bool_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Double].
 pub fn Row::decode_array_double(self: Row, index: Int) -> Result[Array[Double], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, 0.0)) }
-  match parse_json_array(raw, index, "double") {
-    Ok(arr) => parse_array_double_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, 0.0)) }
+      match parse_json_array(raw, index, "double") {
+        Ok(arr) => parse_array_double_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Date].
 pub fn Row::decode_array_date(self: Row, index: Int) -> Result[Array[Date], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Date::new(""))) }
-  match parse_json_array(raw, index, "date") {
-    Ok(arr) => parse_array_date_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, Date::new(""))) }
+      match parse_json_array(raw, index, "date") {
+        Ok(arr) => parse_array_date_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[DateTime].
 pub fn Row::decode_array_datetime(self: Row, index: Int) -> Result[Array[DateTime], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, DateTime::new(""))) }
-  match parse_json_array(raw, index, "datetime") {
-    Ok(arr) => parse_array_datetime_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, DateTime::new(""))) }
+      match parse_json_array(raw, index, "datetime") {
+        Ok(arr) => parse_array_datetime_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Decimal].
 pub fn Row::decode_array_decimal(self: Row, index: Int) -> Result[Array[Decimal], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Decimal::new(""))) }
-  match parse_json_array(raw, index, "decimal") {
-    Ok(arr) => parse_array_decimal_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, Decimal::new(""))) }
+      match parse_json_array(raw, index, "decimal") {
+        Ok(arr) => parse_array_decimal_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a JSON array string into Array[Array[Byte]].
 pub fn Row::decode_array_bytes(self: Row, index: Int) -> Result[Array[Array[Byte]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(Array::make(0, Array::make(0, (0).to_byte()))) }
-  match parse_json_array(raw, index, "bytes") {
-    Ok(arr) => parse_array_bytes_elems(arr, index)
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(Array::make(0, Array::make(0, (0).to_byte()))) }
+      match parse_json_array(raw, index, "bytes") {
+        Ok(arr) => parse_array_bytes_elems(arr, index)
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[String]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_string(self: Row, index: Int) -> Result[Option[Array[String]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "string") {
-    Ok(arr) => match parse_array_str_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "string") {
+        Ok(arr) => match parse_array_str_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Int64]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_int64(self: Row, index: Int) -> Result[Option[Array[Int64]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "int64") {
-    Ok(arr) => match parse_array_int64_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "int64") {
+        Ok(arr) => match parse_array_int64_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Bool]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_bool(self: Row, index: Int) -> Result[Option[Array[Bool]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "bool") {
-    Ok(arr) => match parse_array_bool_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "bool") {
+        Ok(arr) => match parse_array_bool_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Double]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_double(self: Row, index: Int) -> Result[Option[Array[Double]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "double") {
-    Ok(arr) => match parse_array_double_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "double") {
+        Ok(arr) => match parse_array_double_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Date]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_date(self: Row, index: Int) -> Result[Option[Array[Date]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "date") {
-    Ok(arr) => match parse_array_date_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "date") {
+        Ok(arr) => match parse_array_date_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[DateTime]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_datetime(self: Row, index: Int) -> Result[Option[Array[DateTime]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "datetime") {
-    Ok(arr) => match parse_array_datetime_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "datetime") {
+        Ok(arr) => match parse_array_datetime_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Decimal]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_decimal(self: Row, index: Int) -> Result[Option[Array[Decimal]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "decimal") {
-    Ok(arr) => match parse_array_decimal_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "decimal") {
+        Ok(arr) => match parse_array_decimal_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
 /// Decode a nullable JSON array string into Option[Array[Array[Byte]]].
 /// Empty string is treated as NULL (None).
 pub fn Row::decode_nullable_array_bytes(self: Row, index: Int) -> Result[Option[Array[Array[Byte]]], DBError] {
-  let raw = self.get(index)
-  if raw == "" { return Ok(None) }
-  match parse_json_array(raw, index, "bytes") {
-    Ok(arr) => match parse_array_bytes_elems(arr, index) {
-      Ok(result) => Ok(Some(result))
-      Err(e) => Err(e)
-    }
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if raw == "" { return Ok(None) }
+      match parse_json_array(raw, index, "bytes") {
+        Ok(arr) => match parse_array_bytes_elems(arr, index) {
+          Ok(result) => Ok(Some(result))
+          Err(e) => Err(e)
+        }
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
@@ -352,88 +473,148 @@ fn parse_time_str(raw: String, index: Int) -> Result[(Int, Int, Int, Int), DBErr
 
 /// Get an Int64 value by column index.
 pub fn Row::get_int64(self: Row, index: Int) -> Result[Int64, DBError] {
-  let raw = self.get(index)
-  try { Ok(@string.parse_int64(raw)) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try { Ok(@string.parse_int64(raw)) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+    }
+  }
 }
 
 /// Get a String value by column index.
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected string at position " + index.to_string())) }
-  Ok(raw)
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected string at position " + index.to_string())) }
+      Ok(raw)
+    }
+  }
 }
 
 /// Get a Bool value by column index.
 pub fn Row::get_bool(self: Row, index: Int) -> Result[Bool, DBError] {
-  let raw = self.get(index)
-  try { Ok(@string.parse_bool(raw)) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try { Ok(@string.parse_bool(raw)) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+    }
+  }
 }
 
 /// Get a Double value by column index.
 pub fn Row::get_double(self: Row, index: Int) -> Result[Double, DBError] {
-  let raw = self.get(index)
-  try { Ok(@string.parse_double(raw)) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try { Ok(@string.parse_double(raw)) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+    }
+  }
 }
 
 /// Get a Bytes (Array[Byte]) value by column index.
 pub fn Row::get_bytes(self: Row, index: Int) -> Result[Array[Byte], DBError] {
-  let raw = self.get(index)
-  let n = raw.length()
-  let bytes: Array[Byte] = Array::make(n, (0).to_byte())
-  for i in 0..<n {
-    bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      let n = raw.length()
+      let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+      for i in 0..<n {
+        bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
+      }
+      Ok(bytes)
+    }
   }
-  Ok(bytes)
 }
 
 /// Get a Date value by column index.
 pub fn Row::get_date(self: Row, index: Int) -> Result[Date, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected date at position " + index.to_string())) }
-  Ok(Date::new(raw))
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected date at position " + index.to_string())) }
+      Ok(Date::new(raw))
+    }
+  }
 }
 
 /// Get a DateTime value by column index.
 pub fn Row::get_datetime(self: Row, index: Int) -> Result[DateTime, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected datetime at position " + index.to_string())) }
-  Ok(DateTime::new(raw))
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected datetime at position " + index.to_string())) }
+      Ok(DateTime::new(raw))
+    }
+  }
 }
 
 /// Get a Json value by column index.
 pub fn Row::get_json(self: Row, index: Int) -> Result[Json, DBError] {
-  let raw = self.get(index)
-  try { Ok(@json.parse(raw[:])) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try { Ok(@json.parse(raw[:])) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+    }
+  }
 }
 
 /// Get a Decimal value by column index.
 pub fn Row::get_decimal(self: Row, index: Int) -> Result[Decimal, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected decimal at position " + index.to_string())) }
-  Ok(Decimal::new(raw))
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected decimal at position " + index.to_string())) }
+      Ok(Decimal::new(raw))
+    }
+  }
 }
 
 /// Get a Uuid value by column index.
 pub fn Row::get_uuid(self: Row, index: Int) -> Result[Uuid, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected uuid at position " + index.to_string())) }
-  Ok(Uuid::new(raw))
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected uuid at position " + index.to_string())) }
+      Ok(Uuid::new(raw))
+    }
+  }
 }
 
 /// Get a Duration value by column index.
 pub fn Row::get_duration(self: Row, index: Int) -> Result[Duration, DBError] {
-  let raw = self.get(index)
-  try { Ok(Duration::new(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected duration (micros) at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try { Ok(Duration::new(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected duration (micros) at position " + index.to_string())) }
+    }
+  }
 }
 
 /// Get a Time value by column index.
 /// Expects HH:MM:SS[.fraction] format with variable-precision fractional seconds.
 /// The fractional part is right-padded or truncated to 6 digits (microseconds).
 pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
-  let raw = self.get(index)
-  match parse_time_str(raw, index) {
-    Ok((hour, min, sec, micros)) => Ok(Time::new(hour, min, sec, micros))
+  match self.check_bounds(index) {
     Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      match parse_time_str(raw, index) {
+        Ok((hour, min, sec, micros)) => Ok(Time::new(hour, min, sec, micros))
+        Err(e) => Err(e)
+      }
+    }
   }
 }
 
@@ -442,44 +623,54 @@ pub fn Row::get_time(self: Row, index: Int) -> Result[Time, DBError] {
 /// The timezone offset is parsed and stored as total seconds from UTC.
 /// The fractional part is right-padded or truncated to 6 digits (microseconds).
 pub fn Row::get_timetz(self: Row, index: Int) -> Result[TimeTZ, DBError] {
-  let raw = self.get(index)
-  try {
-    // Find timezone offset suffix by scanning backwards for '+', '-', or 'Z'
-    let mut tz_start = -1
-    let len = raw.length()
-    let mut i = len - 1
-    while i >= 0 {
-      let c = raw[i]
-      if c == '+' || c == '-' || c == 'Z' {
-        tz_start = i
-        break
-      }
-      i = i - 1
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      try {
+        // Find timezone offset suffix by scanning backwards for '+', '-', or 'Z'
+        let mut tz_start = -1
+        let len = raw.length()
+        let mut i = len - 1
+        while i >= 0 {
+          let c = raw[i]
+          if c == '+' || c == '-' || c == 'Z' {
+            tz_start = i
+            break
+          }
+          i = i - 1
+        }
+        let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
+        let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
+        // Parse timezone offset: +HH:MM, -HH:MM, +HH, -HH, Z, or empty → 0
+        let tz_offset = if tz_str == "" || tz_str == "Z" {
+          0
+        } else {
+          let sign = if tz_str[0] == '-' { -1 } else { 1 }
+          let tz_parts = tz_str[1:].split(":").to_array()
+          let tz_hour = @string.parse_int(tz_parts[0].to_owned())
+          let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
+          sign * (tz_hour * 3600 + tz_min * 60)
+        }
+        match parse_time_str(time_part, index) {
+          Ok((hour, min, sec, micros)) => Ok(TimeTZ::new(hour, min, sec, micros, tz_offset))
+          Err(e) => Err(e)
+        }
+      } catch { _ => Err(TypeError("expected timetz (HH:MM:SS[.fraction][±HH:MM]) at position " + index.to_string())) }
     }
-    let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
-    let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
-    // Parse timezone offset: +HH:MM, -HH:MM, +HH, -HH, Z, or empty → 0
-    let tz_offset = if tz_str == "" || tz_str == "Z" {
-      0
-    } else {
-      let sign = if tz_str[0] == '-' { -1 } else { 1 }
-      let tz_parts = tz_str[1:].split(":").to_array()
-      let tz_hour = @string.parse_int(tz_parts[0].to_owned())
-      let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
-      sign * (tz_hour * 3600 + tz_min * 60)
-    }
-    match parse_time_str(time_part, index) {
-      Ok((hour, min, sec, micros)) => Ok(TimeTZ::new(hour, min, sec, micros, tz_offset))
-      Err(e) => Err(e)
-    }
-  } catch { _ => Err(TypeError("expected timetz (HH:MM:SS[.fraction][±HH:MM]) at position " + index.to_string())) }
+  }
 }
 
 /// Get an IpAddr value by column index.
 pub fn Row::get_ipaddr(self: Row, index: Int) -> Result[IpAddr, DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { return Err(TypeError("expected ipaddr at position " + index.to_string())) }
-  Ok(IpAddr::new(raw))
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { return Err(TypeError("expected ipaddr at position " + index.to_string())) }
+      Ok(IpAddr::new(raw))
+    }
+  }
 }
 
 // === Typed nullable getters ===
@@ -487,94 +678,149 @@ pub fn Row::get_ipaddr(self: Row, index: Int) -> Result[IpAddr, DBError] {
 /// Get a nullable Int64 value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_int64(self: Row, index: Int) -> Result[Option[Int64], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try { Ok(Some(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try { Ok(Some(@string.parse_int64(raw))) } catch { _ => Err(TypeError("expected int64 at position " + index.to_string())) }
+      }
+    }
   }
 }
 
 /// Get a nullable String value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_string(self: Row, index: Int) -> Result[Option[String], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(raw)) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(raw)) }
+    }
+  }
 }
 
 /// Get a nullable Bool value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_bool(self: Row, index: Int) -> Result[Option[Bool], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try { Ok(Some(@string.parse_bool(raw))) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try { Ok(Some(@string.parse_bool(raw))) } catch { _ => Err(TypeError("expected bool at position " + index.to_string())) }
+      }
+    }
   }
 }
 
 /// Get a nullable Double value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_double(self: Row, index: Int) -> Result[Option[Double], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try { Ok(Some(@string.parse_double(raw))) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try { Ok(Some(@string.parse_double(raw))) } catch { _ => Err(TypeError("expected double at position " + index.to_string())) }
+      }
+    }
   }
 }
 
 /// Get a nullable Bytes value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_bytes(self: Row, index: Int) -> Result[Option[Array[Byte]], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    let n = raw.length()
-    let bytes: Array[Byte] = Array::make(n, (0).to_byte())
-    for i in 0..<n {
-      bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        let n = raw.length()
+        let bytes: Array[Byte] = Array::make(n, (0).to_byte())
+        for i in 0..<n {
+          bytes[i] = (raw[i].to_int() & 0xFF).to_byte()
+        }
+        Ok(Some(bytes))
+      }
     }
-    Ok(Some(bytes))
   }
 }
 
 /// Get a nullable Date value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_date(self: Row, index: Int) -> Result[Option[Date], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(Date::new(raw))) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(Date::new(raw))) }
+    }
+  }
 }
 
 /// Get a nullable DateTime value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_datetime(self: Row, index: Int) -> Result[Option[DateTime], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(DateTime::new(raw))) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(DateTime::new(raw))) }
+    }
+  }
 }
 
 /// Get a nullable Json value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_json(self: Row, index: Int) -> Result[Option[Json], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try { Ok(Some(@json.parse(raw[:]))) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try { Ok(Some(@json.parse(raw[:]))) } catch { _ => Err(TypeError("expected json at position " + index.to_string())) }
+      }
+    }
   }
 }
 
 /// Get a nullable Decimal value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_decimal(self: Row, index: Int) -> Result[Option[Decimal], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(Decimal::new(raw))) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(Decimal::new(raw))) }
+    }
+  }
 }
 
 /// Get a nullable Uuid value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_uuid(self: Row, index: Int) -> Result[Option[Uuid], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(Uuid::new(raw))) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(Uuid::new(raw))) }
+    }
+  }
 }
 
 /// Get a nullable Duration value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Duration], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try { Ok(Some(Duration::new(@string.parse_int64(raw)))) } catch { _ => Err(TypeError("expected duration at position " + index.to_string())) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try { Ok(Some(Duration::new(@string.parse_int64(raw)))) } catch { _ => Err(TypeError("expected duration at position " + index.to_string())) }
+      }
+    }
   }
 }
 
@@ -582,11 +828,16 @@ pub fn Row::get_nullable_duration(self: Row, index: Int) -> Result[Option[Durati
 /// NULL is determined by null_mask.
 /// Expects HH:MM:SS[.fraction] format with variable-precision fractional seconds.
 pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    match parse_time_str(raw, index) {
-      Ok((hour, min, sec, micros)) => Ok(Some(Time::new(hour, min, sec, micros)))
-      Err(e) => Err(e)
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        match parse_time_str(raw, index) {
+          Ok((hour, min, sec, micros)) => Ok(Some(Time::new(hour, min, sec, micros)))
+          Err(e) => Err(e)
+        }
+      }
     }
   }
 }
@@ -595,44 +846,54 @@ pub fn Row::get_nullable_time(self: Row, index: Int) -> Result[Option[Time], DBE
 /// NULL is determined by null_mask.
 /// Expects HH:MM:SS[.fraction][±HH:MM] or HH:MM:SS[.fraction]Z format.
 pub fn Row::get_nullable_timetz(self: Row, index: Int) -> Result[Option[TimeTZ], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else {
-    try {
-      let mut tz_start = -1
-      let len = raw.length()
-      let mut i = len - 1
-      while i >= 0 {
-        let c = raw[i]
-        if c == '+' || c == '-' || c == 'Z' {
-          tz_start = i
-          break
-        }
-        i = i - 1
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else {
+        try {
+          let mut tz_start = -1
+          let len = raw.length()
+          let mut i = len - 1
+          while i >= 0 {
+            let c = raw[i]
+            if c == '+' || c == '-' || c == 'Z' {
+              tz_start = i
+              break
+            }
+            i = i - 1
+          }
+          let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
+          let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
+          let tz_offset = if tz_str == "" || tz_str == "Z" {
+            0
+          } else {
+            let sign = if tz_str[0] == '-' { -1 } else { 1 }
+            let tz_parts = tz_str[1:].split(":").to_array()
+            let tz_hour = @string.parse_int(tz_parts[0].to_owned())
+            let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
+            sign * (tz_hour * 3600 + tz_min * 60)
+          }
+          match parse_time_str(time_part, index) {
+            Ok((hour, min, sec, micros)) => Ok(Some(TimeTZ::new(hour, min, sec, micros, tz_offset)))
+            Err(e) => Err(e)
+          }
+        } catch { _ => Err(TypeError("expected timetz at position " + index.to_string())) }
       }
-      let time_part = if tz_start >= 0 { raw[:tz_start].to_owned() } else { raw }
-      let tz_str = if tz_start >= 0 { raw[tz_start:].to_owned() } else { "" }
-      let tz_offset = if tz_str == "" || tz_str == "Z" {
-        0
-      } else {
-        let sign = if tz_str[0] == '-' { -1 } else { 1 }
-        let tz_parts = tz_str[1:].split(":").to_array()
-        let tz_hour = @string.parse_int(tz_parts[0].to_owned())
-        let tz_min = if tz_parts.length() > 1 { @string.parse_int(tz_parts[1].to_owned()) } else { 0 }
-        sign * (tz_hour * 3600 + tz_min * 60)
-      }
-      match parse_time_str(time_part, index) {
-        Ok((hour, min, sec, micros)) => Ok(Some(TimeTZ::new(hour, min, sec, micros, tz_offset)))
-        Err(e) => Err(e)
-      }
-    } catch { _ => Err(TypeError("expected timetz at position " + index.to_string())) }
+    }
   }
 }
 
 /// Get a nullable IpAddr value by column index.
 /// NULL is determined by null_mask.
 pub fn Row::get_nullable_ipaddr(self: Row, index: Int) -> Result[Option[IpAddr], DBError] {
-  let raw = self.get(index)
-  if self.is_null(index) { Ok(None) } else { Ok(Some(IpAddr::new(raw))) }
+  match self.check_bounds(index) {
+    Err(e) => Err(e)
+    Ok(_) => {
+      let raw = self.get(index)
+      if self.is_null(index) { Ok(None) } else { Ok(Some(IpAddr::new(raw))) }
+    }
+  }
 }
 
 // === Tests ===
@@ -1384,3 +1645,223 @@ test "Row::decode_array_datetime: not a JSON array returns TypeError" {
   let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
   inspect(is_type_err, content="true")
 }
+
+// === P0-063: index_of tests ===
+
+test "Row::index_of: finds existing column by name" {
+  let row = Row::new_with_names(fn(i) { if i == 0 { "1" } else if i == 1 { "Alice" } else { "" } }, Array::make(2, false), ["id", "name"])
+  match row.index_of("id") {
+    Ok(idx) => inspect(idx, content="0")
+    Err(_) => inspect("fail", content="0")
+  }
+  match row.index_of("name") {
+    Ok(idx2) => inspect(idx2, content="1")
+    Err(_) => inspect("fail", content="1")
+  }
+}
+
+test "Row::index_of: returns ColumnNotFound for non-existent column" {
+  let row = Row::new_with_names(fn(_i) { "" }, Array::make(1, false), ["id"])
+  let idx = row.index_of("nonexistent")
+  let is_col_not_found = match idx { Err(ColumnNotFound(_)) => true; _ => false }
+  inspect(is_col_not_found, content="true")
+}
+
+test "Row::index_of: empty col_names returns ColumnNotFound" {
+  let row = Row::new(fn(_i) { "" }, Array::make(1, false))
+  let idx = row.index_of("id")
+  let is_col_not_found = match idx { Err(ColumnNotFound(_)) => true; _ => false }
+  inspect(is_col_not_found, content="true")
+}
+
+test "Row::index_of: finds column in different order" {
+  // Column order: name, id, email (id is at index 1, not 0)
+  let row = Row::new_with_names(
+    fn(i) {
+      if i == 0 { "Alice" }
+      else if i == 1 { "42" }
+      else { "alice@test.com" }
+    },
+    Array::make(3, false),
+    ["name", "id", "email"],
+  )
+  let id_idx = match row.index_of("id") { Ok(i) => i; _ => -1 }
+  let name_idx = match row.index_of("name") { Ok(i) => i; _ => -1 }
+  let email_idx = match row.index_of("email") { Ok(i) => i; _ => -1 }
+  inspect(id_idx, content="1")
+  inspect(name_idx, content="0")
+  inspect(email_idx, content="2")
+  // With index_of, we can look up values by name regardless of column order
+  let id_val = row.get_int64(id_idx)
+  let name_val = row.get_string(name_idx)
+  match id_val {
+    Ok(n) => inspect(n, content="42")
+    Err(_) => inspect(0L, content="42")
+  }
+  match name_val {
+    Ok(s) => inspect(s, content="Alice")
+    Err(_) => inspect("", content="Alice")
+  }
+}
+
+test "Row::index_of: multiple columns with same name returns first match" {
+  let row = Row::new_with_names(
+    fn(i) { if i == 0 { "first" } else if i == 1 { "second" } else { "" } },
+    Array::make(2, false),
+    ["col", "col"],
+  )
+  match row.index_of("col") {
+    Ok(idx) => inspect(idx, content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+}
+
+test "Row::index_of: empty string column name lookup" {
+  let row = Row::new_with_names(
+    fn(_i) { "" },
+    Array::make(1, false),
+    [""],
+  )
+  match row.index_of("") {
+    Ok(idx) => inspect(idx, content="0")
+    Err(_) => inspect(-1, content="0")
+  }
+  let result2 = row.index_of("nonempty")
+  let is_err = match result2 { Err(ColumnNotFound(_)) => true; _ => false }
+  inspect(is_err, content="true")
+}
+
+test "Row::new_with_names: preserves col_names" {
+  let row = Row::new_with_names(fn(_i) { "" }, Array::make(2, false), ["a", "b"])
+  match row.index_of("a") { Ok(idx) => inspect(idx, content="0"); Err(_) => inspect(-1, content="0") }
+  match row.index_of("b") { Ok(idx) => inspect(idx, content="1"); Err(_) => inspect(-1, content="1") }
+  let result3 = row.index_of("c")
+  let is_err3 = match result3 { Err(ColumnNotFound(_)) => true; _ => false }
+  inspect(is_err3, content="true")
+}
+
+// === P1-046: Row runtime hardening tests ===
+
+test "P1-046: column_count returns number of columns" {
+  let row = Row::new(fn(_i) { "" }, Array::make(3, false))
+  let count = row.column_count()
+  inspect(count, content="3")
+}
+
+test "P1-046: column_count with empty row returns 0" {
+  let row = Row::new(fn(_i) { "" }, Array::make(0, false))
+  let count = row.column_count()
+  inspect(count, content="0")
+}
+
+test "P1-046: bounds check returns TypeError for negative index" {
+  let row = Row::new(fn(_i) { "test" }, Array::make(2, false))
+  let val = row.get_int64(-1)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check returns TypeError for index equals num_cols" {
+  let row = Row::new(fn(_i) { "test" }, Array::make(2, false))
+  let val = row.get_string(2)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check returns TypeError for index beyond num_cols" {
+  let row = Row::new(fn(_i) { "test" }, Array::make(1, false))
+  let val = row.get_bool(5)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on nullable getter" {
+  let row = Row::new(fn(_i) { "42" }, Array::make(1, false))
+  let val = row.get_nullable_int64(1)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on array decoder" {
+  let row = Row::new(fn(_i) { "[]" }, Array::make(1, false))
+  let val = row.decode_array_string(3)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on nullable array decoder" {
+  let row = Row::new(fn(_i) { "[]" }, Array::make(1, false))
+  let val = row.decode_nullable_array_int64(2)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on bytes getter" {
+  let row = Row::new(fn(_i) { "abc" }, Array::make(1, false))
+  let val = row.get_bytes(10)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on JSON getter" {
+  let row = Row::new(fn(_i) { "{}" }, Array::make(1, false))
+  let val = row.get_json(99)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: JSON on non-JSON column returns TypeError" {
+  let row = Row::new(fn(_i) { "not_json_at_all" }, Array::make(1, false))
+  let val = row.get_json(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: JSON on non-JSON nullable column returns TypeError" {
+  let row = Row::new(fn(_i) { "plain_text" }, Array::make(1, false))
+  let val = row.get_nullable_json(0)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on time getter" {
+  let row = Row::new(fn(_i) { "10:30:45" }, Array::make(1, false))
+  let val = row.get_time(5)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on timetz getter" {
+  let row = Row::new(fn(_i) { "10:30:45+08:00" }, Array::make(1, false))
+  let val = row.get_timetz(10)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: bounds check on double getter" {
+  let row = Row::new(fn(_i) { "3.14" }, Array::make(1, false))
+  let val = row.get_double(2)
+  let is_type_err = match val { Err(TypeError(_)) => true; _ => false }
+  inspect(is_type_err, content="true")
+}
+
+test "P1-046: column_count with new_with_names preserves num_cols" {
+  let row = Row::new_with_names(fn(_i) { "" }, Array::make(4, false), ["a", "b", "c", "d"])
+  let count = row.column_count()
+  inspect(count, content="4")
+}
+
+test "P1-046: in-bounds access still works after hardening" {
+  let row = Row::new(fn(i) { if i == 0 { "42" } else { "hello" } }, Array::make(2, false))
+  let val = row.get_int64(0)
+  match val {
+    Ok(n) => inspect(n, content="42")
+    Err(_) => inspect(0L, content="42")
+  }
+  let s = row.get_string(1)
+  match s {
+    Ok(str) => inspect(str, content="hello")
+    Err(_) => inspect("", content="hello")
+  }
+}
+

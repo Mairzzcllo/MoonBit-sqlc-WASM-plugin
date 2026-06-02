@@ -1,5 +1,5 @@
 ///|
-/// sqlc WASM plugin — pure codegen pipeline.
+/// sqlc WASM plugin �?pure codegen pipeline.
 /// I/O protocol over WASI fd_read/fd_write via inline WAT FFI (wasi_io.mbt).
 /// process_message is the pure computation entry point (protocol.mbt).
 //
@@ -20,7 +20,9 @@
 
 /// WASM _start entry point. Delegates to the I/O protocol loop.
 fn main {
-  try run_io_loop() catch { _ => () }
+  try {
+    run_io_loop()
+  } catch { _ => () }
 }
 
 /// Process a GenerateRequest and produce a GenerateResponse.
@@ -50,7 +52,11 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
   let sources = generate_sources(req, opts)
   let out_name = req.settings.codegen.out
   let dir = if out_name.length() > 0 {
+    validate_output_path(out_name)
     let dir_str = if out_name[out_name.length() - 1] == '/' { out_name[0:out_name.length() - 1].to_owned() } else { out_name }
+    if dir_str.length() == 0 {
+      reject_absolute(out_name)
+    }
     dir_str
   } else {
     ""
@@ -61,6 +67,84 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
     files.push({ name: fname, contents: @utf8.encode(s.1) })
   }
   { files: files }
+}
+
+/// Validate an output directory path for path traversal and absolute path attacks.
+/// Returns Unit on success, raises Failure error on invalid paths.
+/// Rejects:
+/// - Paths containing ".." as a complete path segment (path traversal)
+/// - Paths starting with "/" or "\\" (Unix absolute paths)
+/// - Windows drive-letter paths (e.g., C:\foo, D:/bar)
+/// Note: ".." embedded in a filename (e.g. "foo..bar") is NOT traversal and is allowed.
+fn validate_output_path(path: String) -> Unit raise {
+  if path.length() == 0 { return () }
+  // Reject Unix absolute paths
+  if path[0] == '/' { reject_absolute(path) }
+  if path[0] == '\\' { reject_absolute(path) }
+  // Reject Windows drive-letter absolute paths (e.g., C:\foo, D:/bar)
+  // path[1] == ':' catches X:... patterns. X:..\.. is also dangerous
+  // (relative on Windows but traverses within the drive).
+  if path.length() >= 2 && path[1] == ':' {
+    reject_absolute(path)
+  }
+  // Reject path traversal via ".." as a complete path segment.
+  // A ".." is a traversal segment only when it is a complete directory name
+  // (bounded by path separators or string boundaries), not when it is
+  // part of a larger filename like "foo..bar".
+  if path == ".." {
+    reject_traversal(path)
+  }
+  if path.has_prefix("../") || path.has_prefix("..\\") {
+    reject_traversal(path)
+  }
+  if path.has_suffix("/..") || path.has_suffix("\\..") {
+    reject_traversal(path)
+  }
+  if path.contains("/../") || path.contains("\\..\\") || path.contains("/..\\") || path.contains("\\../") {
+    reject_traversal(path)
+  }
+  ()
+}
+
+/// Helper: raise absolute path rejection error.
+fn reject_absolute(path: String) -> Unit raise {
+  let msg = "output path must not be absolute: \{path}"
+  raise Failure::Failure(msg)
+}
+
+/// Helper: raise path traversal rejection error.
+fn reject_traversal(path: String) -> Unit raise {
+  let msg = "output path contains traversal segment \"..\": \{path}"
+  raise Failure::Failure(msg)
+}
+
+
+
+/// Deduplicate import items in a TopLevel array.
+/// Keeps only the first import for each unique path.
+/// Non-import items pass through unchanged.
+fn dedup_imports(items: Array[TopLevel]) -> Array[TopLevel] {
+  let seen: Array[String] = []
+  let result: Array[TopLevel] = []
+  for item in items {
+    match item {
+      Import(def) => {
+        let mut is_dup = false
+        for s in seen {
+          if s == def.path {
+            is_dup = true
+            break
+          }
+        }
+        if !is_dup {
+          seen.push(def.path)
+          result.push(item)
+        }
+      }
+      _ => result.push(item)
+    }
+  }
+  result
 }
 
 /// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
@@ -74,7 +158,7 @@ pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(Str
   let parsed_inits = parse_initialisms(opts.initialisms)
   // TODO: query_parameter_limit is parsed but not yet consumed. Implementing query splitting
   // requires partitioning the query's IN(...) parameter list at the SQL level, which is
-  // non-trivial — sqlc's own Go plugin handles this via post-processing of the query AST.
+  // non-trivial �?sqlc's own Go plugin handles this via post-processing of the query AST.
   // For now the option is accepted without error but has no effect. A future PR should:
   // 1. Detect oversized parameter lists in build_body
   // 2. Split INTO ... IN(...) clauses across multiple query invocations
@@ -82,21 +166,21 @@ pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(Str
   let query_fns = generate_query_fns(ir, opts.overrides, opts.nullable_overrides, opts.emit_sql_as_comment, opts.emit_methods_with_db_argument, opts.emit_empty_slices, parsed_inits)
 
   // types.mbt: package decl + import + types (structs, enums, decode functions)
-  let types_ast: SourceFile = { items: [] }
-  types_ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
-  for t in types { types_ast.items.push(t) }
+  let types_items: Array[TopLevel] = [Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None })]
+  for t in types { types_items.push(t) }
+  let types_ast: SourceFile = { items: dedup_imports(types_items) }
   let types_source = emit_package_declaration(opts.package_name) + emit_source_file(types_ast)
 
   // queries.mbt: package decl + import + query functions
-  let queries_ast: SourceFile = { items: [] }
-  queries_ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
-  for f in query_fns { queries_ast.items.push(f) }
+  let queries_items: Array[TopLevel] = [Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None })]
+  for f in query_fns { queries_items.push(f) }
+  let queries_ast: SourceFile = { items: dedup_imports(queries_items) }
   let queries_source = emit_package_declaration(opts.package_name) + emit_source_file(queries_ast)
 
   [("types.mbt", types_source), ("queries.mbt", queries_source)]
 }
 
-/// Run the full codegen pipeline: adapter → IR → type_gen → query_gen → emitter.
+/// Run the full codegen pipeline: adapter �?IR �?type_gen �?query_gen �?emitter.
 /// Accepts parsed PluginOptions for codegen configuration (package_name, etc.).
 pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
   let adapted = convert_request(req)
@@ -105,17 +189,123 @@ pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
   let parsed_inits = parse_initialisms(opts.initialisms)
   // TODO: query_parameter_limit is parsed but not yet consumed. Implementing query splitting
   // requires partitioning the query's IN(...) parameter list at the SQL level, which is
-  // non-trivial — sqlc's own Go plugin handles this via post-processing of the query AST.
+  // non-trivial �?sqlc's own Go plugin handles this via post-processing of the query AST.
   // For now the option is accepted without error but has no effect. A future PR should:
   // 1. Detect oversized parameter lists in build_body
   // 2. Split INTO ... IN(...) clauses across multiple query invocations
   // 3. Merge results back into a single array
   let query_fns = generate_query_fns(ir, opts.overrides, opts.nullable_overrides, opts.emit_sql_as_comment, opts.emit_methods_with_db_argument, opts.emit_empty_slices, parsed_inits)
-  let ast: SourceFile = { items: [] }
-  ast.items.push(Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None }))
-  for t in types { ast.items.push(t) }
-  for f in query_fns { ast.items.push(f) }
+  let ast_items: Array[TopLevel] = [Import({ path: "Mairzzcllo/moonbit_sqlc_plugin/runtime", import_alias: None })]
+  for t in types { ast_items.push(t) }
+  for f in query_fns { ast_items.push(f) }
+  let ast: SourceFile = { items: dedup_imports(ast_items) }
   emit_package_declaration(opts.package_name) + emit_source_file(ast)
+}
+
+test "dedup_imports: no duplicates passes through" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Import({ path: "moonbitlang/core/array", import_alias: Some("array") }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="2")
+}
+
+test "dedup_imports: duplicate import removed" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="1")
+}
+
+test "dedup_imports: duplicate with different alias kept as one" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: Some("builtin") }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="1")
+}
+
+test "dedup_imports: non-import items preserved" {
+  let s: StructDef = {
+    name: "Foo", fields: [], doc: None, is_pub: true,
+  }
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Struct(s))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="2")
+}
+
+test "dedup_imports: empty array returns empty" {
+  let items: Array[TopLevel] = []
+  let result = dedup_imports(items)
+  inspect(result.length(), content="0")
+}
+
+test "dedup_imports: all identical imports returns one" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="1")
+}
+
+test "dedup_imports: three duplicates with mixed non-import items preserved" {
+  let s: StructDef = {
+    name: "Foo", fields: [], doc: None, is_pub: true,
+  }
+  let f: FnDef = {
+    name: "bar", params: [], return_ty: Named("Unit"),
+    body: [Unit], doc: None, is_pub: false,
+  }
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Struct(s))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  items.push(Fn(f))
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  let result = dedup_imports(items)
+  // Expected: 1 import + 1 struct + 1 fn = 3
+  inspect(result.length(), content="3")
+}
+
+test "dedup_imports: non-consecutive duplicates removed" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "a", import_alias: None }))
+  items.push(Import({ path: "b", import_alias: None }))
+  items.push(Import({ path: "a", import_alias: None }))
+  items.push(Import({ path: "b", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="2")
+}
+
+test "dedup_imports: single import without duplicates" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "moonbitlang/core/builtin", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="1")
+}
+
+test "dedup_imports: only non-import items pass through unchanged" {
+  let s1: StructDef = { name: "A", fields: [], doc: None, is_pub: true }
+  let s2: StructDef = { name: "B", fields: [], doc: None, is_pub: true }
+  let items: Array[TopLevel] = [Struct(s1), Struct(s2)]
+  let result = dedup_imports(items)
+  inspect(result.length(), content="2")
+}
+
+test "dedup_imports: five imports with only two unique paths" {
+  let items: Array[TopLevel] = []
+  items.push(Import({ path: "x", import_alias: None }))
+  items.push(Import({ path: "y", import_alias: None }))
+  items.push(Import({ path: "x", import_alias: None }))
+  items.push(Import({ path: "y", import_alias: None }))
+  items.push(Import({ path: "x", import_alias: None }))
+  let result = dedup_imports(items)
+  inspect(result.length(), content="2")
 }
 
 test "process_request: global_options fallback when plugin_options empty" {
@@ -130,7 +320,7 @@ test "process_request: global_options fallback when plugin_options empty" {
   }
   let resp = process_request(req)
   inspect(resp.files.length(), content="2")
-  // First file is types.mbt — check package declaration
+  // First file is types.mbt �?check package declaration
   let source = @utf8.decode(resp.files[0].contents)
   inspect(source.contains("package fallback_test"), content="true")
 }
@@ -153,7 +343,7 @@ test "process_request: plugin_options takes priority over global_options" {
   inspect(source.contains("package global_opt"), content="false")
 }
 
-test "process_request: both empty uses default empty package" {
+test "process_request: both empty defaults to main package" {
   let base = make_users_request()
   let req: GenerateRequest = {
     settings: base.settings,
@@ -165,9 +355,273 @@ test "process_request: both empty uses default empty package" {
   }
   let resp = process_request(req)
   inspect(resp.files.length(), content="2")
-  // Both files have empty package; check types.mbt
+  // Both files default to package main when options are empty
   let source = @utf8.decode(resp.files[0].contents)
-  inspect(source.contains("package "), content="false")
+  inspect(source.contains("package main"), content="true")
 }
 
+test "validate_output_path: empty path returns ok" {
+  // Empty path is valid (no output directory specified)
+  validate_output_path("")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: simple relative path returns ok" {
+  validate_output_path("output")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: nested relative path returns ok" {
+  validate_output_path("gen/moonbit")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: dotted directory name returns ok" {
+  // Single dot in directory name (e.g. "foo.bar") is fine - not path traversal
+  validate_output_path("foo.bar")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: absolute path starting with / is rejected" {
+  let result = try {
+    validate_output_path("/tmp/foo")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: absolute path starting with \\ is rejected" {
+  let result = try {
+    validate_output_path("\\Windows\\Temp")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: path traversal with .. is rejected" {
+  let result = try {
+    validate_output_path("../../etc")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: path traversal with .. in middle is rejected" {
+  let result = try {
+    validate_output_path("foo/../bar")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: path traversal with .. at start is rejected" {
+  let result = try {
+    validate_output_path("../out")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: path traversal with backslash .. is rejected" {
+  let result = try {
+    validate_output_path("..\\out")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: dots embedded in directory name passes" {
+  // ".." as part of a filename (e.g. "foo..bar") is NOT path traversal
+  validate_output_path("foo..bar")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: single dot segment passes" {
+  // "." is the current directory, not traversal
+  validate_output_path("foo/./bar")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: deeply nested relative path passes" {
+  validate_output_path("a/b/c/d/e")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: normal forwardslash path passes" {
+  validate_output_path("foo/bar/baz")
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: path with only .. is rejected" {
+  let result = try {
+    validate_output_path("..")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: very long path passes" {
+  // Build a long but valid relative path
+  let path = "a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/1/2/3/4/5/6/7/8/9/0"
+  validate_output_path(path)
+  inspect("ok", content="ok")
+}
+
+test "validate_output_path: unicode characters in path passes" {
+  validate_output_path("目录/文件/subdir")
+  inspect("ok", content="ok")
+}
+
+test "process_request: path traversal in out name raises error" {
+  let base = make_users_request()
+  let settings_with_traversal = {
+    version: base.settings.version,
+    engine: base.settings.engine,
+    schema: base.settings.schema,
+    queries: base.settings.queries,
+    codegen: {
+      out: "../../etc",
+      plugin: base.settings.codegen.plugin,
+      options: base.settings.codegen.options,
+      env: base.settings.codegen.env,
+      process: base.settings.codegen.process,
+      wasm: base.settings.codegen.wasm,
+    },
+  }
+  let req: GenerateRequest = {
+    settings: settings_with_traversal,
+    catalog: base.catalog,
+    queries: base.queries,
+    sqlc_version: base.sqlc_version,
+    plugin_options: b"package_name=test",
+    global_options: b"",
+  }
+  let result = try {
+    let _ = process_request(req)
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "process_request: absolute path in out name raises error" {
+  let base = make_users_request()
+  let settings_with_abs = {
+    version: base.settings.version,
+    engine: base.settings.engine,
+    schema: base.settings.schema,
+    queries: base.settings.queries,
+    codegen: {
+      out: "/tmp/foo",
+      plugin: base.settings.codegen.plugin,
+      options: base.settings.codegen.options,
+      env: base.settings.codegen.env,
+      process: base.settings.codegen.process,
+      wasm: base.settings.codegen.wasm,
+    },
+  }
+  let req: GenerateRequest = {
+    settings: settings_with_abs,
+    catalog: base.catalog,
+    queries: base.queries,
+    sqlc_version: base.sqlc_version,
+    plugin_options: b"package_name=test",
+    global_options: b"",
+  }
+  let result = try {
+    let _ = process_request(req)
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: Windows drive-letter C:\\ is rejected" {
+  let result = try {
+    validate_output_path("C:\\Windows\\Temp")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: Windows drive-letter D:/ is rejected" {
+  let result = try {
+    validate_output_path("D:/home/user")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: lowercase drive-letter c:\\ is rejected" {
+  let result = try {
+    validate_output_path("c:\\users\\admin")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "validate_output_path: drive-letter with traversal is rejected" {
+  let result = try {
+    validate_output_path("C:..\\..\\etc")
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
+
+test "process_request: root path / as out_name raises error" {
+  let base = make_users_request()
+  let settings_with_root = {
+    version: base.settings.version,
+    engine: base.settings.engine,
+    schema: base.settings.schema,
+    queries: base.settings.queries,
+    codegen: {
+      out: "/",
+      plugin: base.settings.codegen.plugin,
+      options: base.settings.codegen.options,
+      env: base.settings.codegen.env,
+      process: base.settings.codegen.process,
+      wasm: base.settings.codegen.wasm,
+    },
+  }
+  let req: GenerateRequest = {
+    settings: settings_with_root,
+    catalog: base.catalog,
+    queries: base.queries,
+    sqlc_version: base.sqlc_version,
+    plugin_options: b"package_name=test",
+    global_options: b"",
+  }
+  let result = try {
+    let _ = process_request(req)
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
+}
 

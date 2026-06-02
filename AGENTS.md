@@ -3,7 +3,7 @@
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
-- `moon test` — 运行测试（555 测试）
+- `moon test` — 运行测试（870 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
 - `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）
@@ -36,7 +36,7 @@
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
     - WASI FFI: 使用内联 WAT ABI bridge 方案。MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构体（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。
     - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
-    - `moon test` 在 moonrun 下运行所有 481 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - `moon test` 在 moonrun 下运行所有 870 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
     - AST Expr 新增变体：`If(cond, then, else)`、`Index(target, idx)`、`IntLit(n)`、`BinOp(op, left, right)` — 用于生成 if/else、索引访问、数字字面量和比较表达式
     - Plugin options 解析：`parse_plugin_options(bytes)` → `PluginOptions { package_name }` — 从 `plugin_options` Bytes 中提取 key=value 配置。支持 `package_name=` 和 `package=` 双前缀（兼容 sqlc yaml 中 `package:` 和 `package_name:` 两种写法）
     - 输出文件名从 `req.settings.codegen.out` 获取，空值时默认 `"lib.mbt"`（process_request）
@@ -44,12 +44,12 @@
     - 内部模型适配器模式: 原始 protobuf 类型 → adapter 层内建类型 → 下游 IR。adapter 层是 protobuf schema 和 codegen 逻辑之间的唯一桥梁，禁止跨层直接引用 protobuf 类型
     - Enum constructor 引用不包含类型前缀: `One` 而非 `QueryCmd::One`
     - IR 层是独立的 semantic boundary: IR 类型不引用 protobuf 类型（types.mbt）也不引用 MoonBit AST 类型，仅基于 adapter 层类型构建。IR 是 codegen 管道的核心枢纽：adapter → IR → AST → source
-- Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn, query_fn, query_row_fn }, Row { get_fn, null_mask }, RowIter { next_fn }
+- Runtime 使用 concrete struct + closure 模式（而非 trait），因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法: DB { exec_fn, execrows_fn, query_fn, query_row_fn }, Row { get_fn, null_mask, col_names, num_cols }, RowIter { next_fn }
 - Value 枚举: `Null | Int64(Int64) | String(String) | Bool(Bool) | Double(Double) | Bytes(Array[Byte]) | Date(Date) | DateTime(DateTime) | JsonValue(Json) | Decimal(Decimal) | Uuid(Uuid) | Duration(Duration) | Time(Time) | IpAddr(IpAddr)` — JsonValue 变体使用 `@json.Json` 类型，非 `JsonValue`
-- DBError 枚举: `ConnectionError(String) | QueryError(String) | TypeError(String) | NoRows`
+- DBError 枚举: `ConnectionError(String) | QueryError(String) | TypeError(String) | NoRows | ColumnNotFound(String) | TooManyRows(Int, String)`
 - DB 方法签名：`exec(sql, Array[Value]) -> Result[Int64, DBError]`；`execrows(sql, Array[Value]) -> Result[Int64, DBError]`；`query(sql, Array[Value]) -> Result[RowIter, DBError]`；`query_row(sql, Array[Value]) -> Result[Row, DBError]`
 - Row 类型化 getter：不可空 `get_int64(pos) -> Result[Int64, DBError]` 等；可空 `get_nullable_int64(pos) -> Result[Option[Int64], DBError]`，每对覆盖 Int64/String/Bool/Double/Bytes/Date/DateTime/JsonValue 八种类型
-- RowIter 方法：`next() -> Result[Option[Row], DBError]`；`collect() -> Result[Array[Row], DBError]`
+- RowIter 方法：`next() -> Result[Option[Row], DBError]`；`collect() -> Result[Array[Row], DBError]`（默认上限 10,000 行）；`collect_limited(max_rows: Int) -> Result[Array[Row], DBError]`（可配置上限，超出返回 TooManyRows）
 - 生成函数 body：:one 使用 `db.query_row(sql, params)?; let row = ...; row.decode()` → `Result[T, DBError]`；:many 使用 `db.query(sql, params)?; iter.map(|row| T::decode(row)).collect()` → `Result[Array[T], DBError]`；:execrows 使用 `db.execrows(sql, params)` → `Result[Int64, DBError]`
 - Decode 方法返回 `Result[T, DBError]` 而非 `Option[T]`，保留错误传播
     - MoonBit struct 字段默认 file-private（跨文件/包构造需要 pub fn new() 构造函数）
@@ -57,6 +57,9 @@
     - 字符串字面量转义使用 escape_string(s) 函数（emitter.mbt），转义表：'"'→'\"'、'\n'→'\\n'、'\t'→'\\t'、'\r'→'\\r'、'\\'→'\\\\'、'$'→'\\$'（MoonBit $ 标识符前缀需转义）
 - Transaction struct: 与 DB 相同的 concrete struct + closure 模式，额外包含 commit_fn/rollback_fn。DB::begin() → Result[Transaction, DBError]
 - Row 类型化 getter 不可空变体返回 `Result[T, DBError]`，可空变体返回 `Result[Option[T], DBError]`，空字符串约定为 NULL 值
+    - Row::check_bounds(index) — 所有 getter 内部先调用此方法校验索引，越界返回 `Err(TypeError(...))`（P1-046）
+    - Row::index_of(name) — 按列名查找索引，未找到返回 `Err(ColumnNotFound(...))`，O(n) 线性扫描（P0-063）
+    - Row::new_with_names(get_fn, null_mask, col_names) — 带列名的 Row 构造函数，支持按名称解码（P0-063）
     - Row::get_time 变精度小数容错：<6 位右补零、>6 位截断、无小数→0
     - build_body ExecResult 分支：result_shape(Rows) 优先于 raw_cmd，有列时走 decode 路径而非 conn.exec()
     - build_body ExecResult 分支：按 raw_cmd 分发方法名 — CopyFrom→.copyfrom(), Batch→.batch(), ExecLastId→.execlastid(), Exec→.exec()
@@ -107,13 +110,13 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 ### Phase D — 架构差距 (2026-05-29 评审) + 100 边界情况 (2026-05-30)
 
 9 个已知 GAP vs 成熟生态插件:
-- GAP-1: 单文件输出 → P0-060
+- GAP-1: 单文件输出 → P0-060 ✅ done
 - GAP-2: :execresult 缺失 LastInsertId → P0-056 ✅ done
-- GAP-3: 类型覆盖简陋 → P0-058
-- GAP-4: 插件选项极少 → P0-057
+- GAP-3: 类型覆盖简陋 → P0-058 ✅ done
+- GAP-4: 插件选项极少 → P0-057 ✅ done
 - GAP-5: 仅 PostgreSQL → P1-035
 - GAP-6: 无 trait/interface → P1-038 (Blocked by MoonBit)
-- GAP-7: TIMETZ 时区丢失 → P0-059
+- GAP-7: TIMETZ 时区丢失 → P0-059 ✅ done
 - GAP-8: 根 sqlc.yaml 空模板 → P1-036
 - GAP-9: 缺 E2E 集成测试 → P1-037
 
@@ -125,16 +128,16 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - P0-065: MoonBit 关键字冲突 (完整转义表)
 - P0-066: 空/无效标识符处理 (空查询名/列名)
 - P0-067: iovec 保留内存区间隔离验证
-- P1-039: Codec 静默错误传播 (read_string/decode_embedded)
-- P1-040: 类型格式验证 (Date/DateTime/UUID/IP)
-- P1-041: 命名转换边缘情况加固
-- P1-042: MockDB 可用性改进
-- P1-043: Test 覆盖扩展 (多表/数组/枚举)
-- P1-044: DBError 增强 (嵌套错误 + TooManyRows)
-- P1-045: 代码生成去重与空包名保护
-- P1-046: Row 运行时加固 (越界/类型混淆/挂起)
-- P1-047: 枚举运行时值验证
-- P1-048: 集成测试基础设施加固
+- P1-039: Codec 静默错误传播 ✅ done
+- P1-040: 类型格式验证 ✅ done
+- P1-041: 命名转换边缘情况加固 ✅ done
+- P1-042: MockDB 可用性改进 ✅ done
+- P1-043: Test 覆盖扩展 ✅ done
+- P1-044: DBError 增强 ✅ done
+- P1-045: 代码生成去重与空包名保护 ✅ done
+- P1-046: Row 运行时加固 ✅ done
+- P1-047: 枚举运行时值验证 ✅ done
+- P1-048: 集成测试基础设施加固 ✅ done
 
 ## 代码库勘误（2026-05-22 深度评审记录）
 

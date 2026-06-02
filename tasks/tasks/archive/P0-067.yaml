@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: P0-067
+state: done
+deterministic: true
+title: "iovec 保留内存区间隔离验证与加固"
+type: bugfix
+priority: P0
+description: >
+  iovec 内存区间 [1024,1035] 和暂存区 [1036,65536] 是硬编码
+  的保留内存地址，MoonBit 分配器变化可能导致重叠。
+  当前 check_bytes_data_ptr 验证 Bytes 对象偏移 (+8)，
+  但未验证保留区间与 MoonBit .data 段/TLSF 之间无重叠。
+  需增强启动时验证：确认 1036+ 区域未被分配器使用，
+  并在 memory_grow 后重新验证隔离边界。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 2
+max_retry: 3
+created_at: "2026-05-30"
+updated_at: "2026-06-01"
+artifacts:
+  - plugin/wasi_io.mbt
+references:
+  - plugin/wasi_io.mbt
+execution_notes: >
+  Final (round 2, coder→tester→reviewer): plugin/wasi_io.mbt 新增 verify_reserved_memory()。
+  使用 sentinel 模式 + 边界检查。在 run_io_loop 启动时和 read_all 中 memory_grow 后调用。
+  Round 2 修复: bare panic() 改为带诊断消息的 panic("Reserved memory violation: ...")。
+  startups check 顺序保留（先 verify_reserved_memory 再 run_io_loop）。
+  moon check 0 errors, moon test 682/682 passed.

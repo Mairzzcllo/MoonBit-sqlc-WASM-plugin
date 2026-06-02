@@ -1,8 +1,121 @@
 # Archived Tasks
 
-> 归档时间: 2026-05-30
+> 归档时间: 2026-06-01
 > 项目: MoonBit sqlc WASM Plugin
 > 来源: `runtime/tasks/archive/{id}.yaml`
+
+### [P0-067] iovec 保留内存区间隔离验证与加固
+- 边界情况 #10: plugin/wasi_io.mbt 新增 verify_reserved_memory() — sentinel 模式 + 边界检查
+- 在 run_io_loop 启动时和 read_all 中 memory_grow 后调用
+- Round 1 (2026-05-31): 初始实现，bare panic() 无诊断消息
+- Round 2 (2026-06-01): panic 加诊断消息；startups check 顺序保留
+- 架构: moon check 0 errors, moon test 682/682 passed
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-039] Codec 静默错误传播 — read_string/decode_embedded/skip_field
+- 边界情况 #3, #4: 编解码器 3 处静默数据丢失修复
+- read_string: len 超过剩余字节时 log warning 而非静默截断
+- decode_embedded: 无足够字节时返回 Err 而非空解码器静默继续
+- skip_field: len > remaining 时 warn/abort，防止跳过过多字节
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-040] 类型格式验证 — 5 个 parse_* 函数 (Date/DateTime/UUID/IP/Decimal)
+- 边界情况 #17, #18, #19: 新增 5 个格式校验函数
+- parse_date/parse_datetime/parse_uuid/parse_ipaddr/parse_decimal
+- Row 类型化 getter 集成格式验证，非法格式返回 TypeError
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-041] 命名转换边缘情况加固 — 重复/冲突/特殊字符
+- 边界情况 #50, #51, #54-59: snake_to_pascal/camel 边缘情况加固
+- 重复字段名检测与去重、特殊字符清理、unicode 处理
+- capitalize_first/lowercase_first 空字符串/单字符边界保护
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)；依赖 P0-066(soft)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-042] MockDB 可用性改进 — builder 模式 + 按 SQL 匹配
+- 边界情况 #66-69: MockDB API 全面增强
+- 新增 MockDBBuilder fluent API: register_exec/execrows/query/query_row/copyfrom/batch/execlastid
+- 精确 SQL 匹配（非 startsWith）；重复注册 abort 检测；default_ok() 快速构造
+- with_tx() 可配置事务工厂
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-043] Test 覆盖扩展 — 多表/多查询模式/数组/枚举/命令生成器
+- 边界情况 #73-79: golden test 多表多查询场景覆盖
+- 新增多表 join 查询、数组列、枚举参数、CopyFrom/Batch/ExecLastId command 测试
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)；依赖 P0-058(soft), P0-060(soft)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-044] DBError 增强 — TooManyRows(Int, String) + ColumnNotFound(String)
+- 边界情况 #83, #85: DBError enum 新增 2 个变体
+- TooManyRows(count: Int, query: String): `:one` 查询多行时的错误
+- ColumnNotFound(name: String): 按名称查找列不存在时的错误
+- 全链路测试覆盖（exhaustive pattern match, empty name, qualified name, large count）
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)；依赖 P0-062(soft)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-045] 代码生成去重与包名保护 — import 去重 + 空包名 guard
+- 边界情况 #87, #90: 重复 import 语句去重，空包名回退 "main"
+- generate_sources 去重 import 列表；空 package_name guard 保护
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-046] Row 运行时加固 — check_bounds() + collect_limited()
+- 边界情况 #37, #43, #72: Row 运行时 3 处防护
+- check_bounds(index): 所有 getter 内部先校验索引越界，OOB→Err(TypeError)
+- collect_limited(max_rows): RowIter 可配置上限（默认 10,000），超出返回 TooManyRows
+- collect() 委托 collect_limited(10000) 防止无限挂起
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-047] 枚举运行时值验证 — 变体匹配检查测试
+- 边界情况 #52: 枚举变体匹配检查
+- 新增 exhaustive match 测试覆盖所有枚举变体
+- 验证未知变体/边界值的处理正确性
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P1-048] 集成测试基础设施加固 — 快照/同步/编译隔离
+- 边界情况 #80-82: 集成测试稳定性加固
+- basic/wasm generated.mbt 同步更新（Row::new 含 null_mask, col_names, num_cols）
+- 编译隔离测试确保生成代码独立可编译
+- 架构: moon check 0 errors, moon test 682→870 passed (+188)；依赖 P0-060(soft), P1-043(soft)
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P0-066] 空/无效标识符处理
+- 边界情况 #31, #35, #36, #53: 空查询名/空列名/空类型名 fallback 处理
+- Round 1 (2026-05-31): ⚠️ FAILED — coder agent 报告完成但 reviewer 发现实际代码未落地
+- Round 2 (2026-05-31): 重新实现但仍有部分问题
+- Round 3 (2026-06-01): ✅ done — snake_to_pascal("")→"Empty"; convert_column 空名回退 "unnamed_column_N"; convert_query 空名回退 "unnamed_query_N"; type_codegen 空类型名→"EmptyType"
+- 架构: moon check 0 errors, moon test 682/682 passed
+- 创建: 2026-05-30 | 完成: 2026-06-01 (3 轮迭代)
+
+### [P0-065] MoonBit 关键字冲突 — 字段名/枚举名转义覆盖全部关键字
+- 边界情况 #88: plugin/keyword.mbt escape_keyword 覆盖 55+ MoonBit 关键字
+- type_codegen.mbt + query_codegen.mbt 所有生成标识符调用 escape_keyword
+- "type" → "ty" 保持现有约定；其他关键字追加 "_" 后缀
+- Round 1 (2026-05-31): 初始实现，rename_to 值绕过转义，golden 测试缺关键字场景
+- Round 2 (2026-06-01): rename_to 值也经 escape_keyword 转义；golden 测试新增关键字场景覆盖
+- 架构: moon check 0 errors, moon test 682/682 passed
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P0-064] 输出路径穿越防护 — out_name 合法性验证
+- 边界情况 #89: plugin/main.mbt validate_output_path 函数，拒绝 `..` 段和绝对路径
+- Segment-aware 检测（不误报 foo..bar）
+- Round 1 (2026-05-31): 初始实现，Windows 驱动器字母路径 (C:\...) 未检测
+- Round 2 (2026-06-01): Windows 驱动器字母绝对路径检测；修复 root path "//" bypass
+- 架构: moon check 0 errors, moon test 682/682 passed
+- 创建: 2026-05-30 | 完成: 2026-06-01
+
+### [P0-063] 字段解码按列名而非索引 — 列顺序变化静默错位
+- 边界情况 #60: Row 新增 col_names: Array[String] 字段 + index_of(name) 方法
+- AST FieldDef 新增 col_name: Option[String]; type_codegen.mbt build_decode_body 生成 row.index_of("column_name") 调用
+- Round 1 (2026-05-31): 初始实现，index_of 使用 MoonBit 字段名非数据库列名；-1 静默传递
+- Round 2 (2026-06-01): index_of 使用原始数据库列名（不经过关键字转义）；-1 → Result Err(TypeError)；集成 stubs 更新
+- 架构: moon check 0 errors, moon test 682/682 passed
+- 创建: 2026-05-30 | 完成: 2026-06-01
 
 ### [P0-060] 多文件输出支持 — 按类型/查询拆分
 - GAP-1: generate_sources() 返回 Array[(String, String)] 拆分 types.mbt + queries.mbt

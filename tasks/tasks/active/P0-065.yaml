@@ -1,33 +1,3 @@
-schema_version: "1.0"
-id: P0-065
-state: todo
-deterministic: true
-title: "MoonBit 关键字冲突 — 字段名/枚举名转义覆盖全部关键字"
-type: bugfix
-priority: P0
-description: >
-  当前仅处理 type→ty 映射，未处理其他 MoonBit 保留关键字。
-  如果 SQL 列名或枚举名为 match/fn/let/if/then/else/true/
-  false/None/Some/Ok/Err/pub/fn/struct/enum/trait/for/while
-  等 MoonBit 关键字，生成的代码将编译失败。需建立完整的
-  MoonBit 关键字表，对所有标识符进行转义（追加 _ 后缀）。
-dependencies: []
-owner: ""
-acquired_at: null
-expires_at: null
-retry_count: 0
-max_retry: 3
-created_at: "2026-05-30"
-updated_at: "2026-05-30"
-artifacts: []
-references:
-  - plugin/type_codegen.mbt
-  - plugin/query_codegen.mbt
-execution_notes: >
-  Edge case #88. Also relates to #35 (empty column name) and
-  #31 (empty query name). Build complete MoonBit keyword set:
-  type, match, fn, let, if, then, else, true, false, None, Some,
-  Ok, Err, pub, fn, struct, enum, trait, for, while, loop, var,
-  mut, ref, pure, async, try, catch, raise, abort, panic, etc.
-  Append "_" suffix to colliding identifiers.
-  Move escaping logic to shared helper in type_codegen.mbt.
+# MOVED TO ARCHIVE
+# See: tasks/tasks/archive/P0-065.yaml
+# Completed: 2026-06-01 (round 2 — rename_to escape + golden keyword test, 55+ keywords)

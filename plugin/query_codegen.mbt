@@ -20,24 +20,25 @@
 
 /// Get the result struct type name for a query.
 fn get_result_type_name(query: InternalQuery, initialisms: Array[String]) -> String {
-  snake_to_pascal(query.name, initialisms) + "Row"
+  escape_keyword(snake_to_pascal(query.name, initialisms) + "Row")
 }
 
 /// Convert an InternalParameter to a ParamDef, mapping the type through the type layer.
 fn param_to_param_def(p: InternalParameter, overrides: Array[(String, String)], nullable_overrides: Array[String]) -> ParamDef {
   let moon_type = map_internal_type_nullable(p.ty, p.not_null, overrides, nullable_overrides)
-  { name: p.name, ty: moon_type }
+  { name: escape_keyword(p.name), ty: moon_type }
 }
 
 /// Build a single Value constructor expression for a parameter.
 fn param_to_value_expr(p: InternalParameter, overrides: Array[(String, String)]) -> Expr {
   let ctor_name = type_to_value_constructor(p.ty, overrides)
+  let escaped_name = escape_keyword(p.name)
   if p.not_null {
-    Call(ctor_name, [Ident(p.name)])
+    Call(ctor_name, [Ident(escaped_name)])
   } else {
-    Match(Ident(p.name), [
+    Match(Ident(escaped_name), [
       ("None", Ident("Null")),
-      ("Some(" + p.name + ")", Call(ctor_name, [Ident(p.name)])),
+      ("Some(" + escaped_name + ")", Call(ctor_name, [Ident(escaped_name)])),
     ])
   }
 }
@@ -157,7 +158,7 @@ fn build_body(query: InternalQuery, result_type: String, conn_name: String, resu
         ]))
         let err_arm = ("Err(e)", Call("Err", [Ident("e")]))
         let collect_arms: Array[(String, Expr)] = if emit_empty_slices {
-          [ok_arm, ("Err(NoRows)", Call("Ok", [ArrLit([])])), err_arm]
+        [ok_arm, ("Err(NoRows)", Call("Ok", [ArrLit([])])), err_arm]
         } else {
           [ok_arm, err_arm]
         }
@@ -714,4 +715,46 @@ test "generate_query_fns: ExecRows still generates 2 fns (db + tx)" {
   let param1_name = match items[1] { Fn(f) => f.params[0].name; _ => "" }
   inspect(param0_name, content="db")
   inspect(param1_name, content="tx")
+}
+
+// === P0-065: Keyword escaping tests ===
+
+test "P0-065: parameter name 'type' is escaped to 'ty'" {
+  let p: InternalParameter = { number: 1, name: "type", ty: Named("text"), not_null: true }
+  let pd = param_to_param_def(p, [], [])
+  inspect(pd.name, content="ty")
+}
+
+test "P0-065: parameter name 'fn' is escaped to 'fn_'" {
+  let p: InternalParameter = { number: 1, name: "fn", ty: Named("int4"), not_null: true }
+  let pd = param_to_param_def(p, [], [])
+  inspect(pd.name, content="fn_")
+}
+
+test "P0-065: non-keyword parameter name passes through" {
+  let p: InternalParameter = { number: 1, name: "user_id", ty: Named("int4"), not_null: true }
+  let pd = param_to_param_def(p, [], [])
+  inspect(pd.name, content="user_id")
+}
+
+test "P0-065: get_result_type_name: query named 'type' produces TypeRow" {
+  let q: InternalQuery = {
+    name: "type", text: "", cmd: OneRow, raw_cmd: One,
+    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let name = get_result_type_name(q, [])
+  inspect(name, content="TypeRow")
+}
+
+test "P0-065: get_result_type_name: query named 'int' produces IntRow" {
+  let q: InternalQuery = {
+    name: "int", text: "", cmd: OneRow, raw_cmd: One,
+    params: Array::make(0, { number: 0, name: "", ty: Named(""), not_null: false }),
+    result_shape: (None: InternalResultShape),
+    comments: Array::make(0, ""), filename: "",
+  }
+  let name = get_result_type_name(q, [])
+  inspect(name, content="IntRow")
 }

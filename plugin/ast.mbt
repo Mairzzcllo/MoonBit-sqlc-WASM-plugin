@@ -55,7 +55,8 @@ impl Show for TypeExpr with to_string(self) -> String {
 
 /// A struct field definition.
 pub struct FieldDef {
-  name : String
+  name : String       // MoonBit field identifier (after rename/escape)
+  col_name : String   // Original database column name (for index_of lookup)
   ty : TypeExpr
   doc : Option[String]
   json_tag : Option[String]
@@ -188,8 +189,8 @@ test "StructDef with fields" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
-      { name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
+      { name: "id", col_name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "email", col_name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
     ],
     doc: Some("A user record"),
     is_pub: true,

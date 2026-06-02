@@ -32,7 +32,7 @@ test "wasm-compile: GetUserRow struct can be constructed" {
 test "wasm-compile: query functions are callable" {
   let db: DB = { exec_fn: fn(_sql, _params) { Ok(0L) }, execrows_fn: fn(_sql, _params) { Ok(0L) }, query_fn: fn(_sql, _params) { Ok(RowIter::new([])) }, query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) } }
   let result = query_delete_user(db, 42L)
-  inspect(match result { Ok(n) => n; Err(_) => 0L }, content="0")
+  inspect(match result { Ok(r) => r.rows_affected; Err(_) => 0L }, content="0")
 }
 
 test "wasm-compile: query_list_users accepts DB" {
@@ -43,5 +43,5 @@ test "wasm-compile: query_list_users accepts DB" {
 
 test "wasm-compile: DBError variant accessible" {
   let e: DBError = ConnectionError("err")
-  inspect(match e { ConnectionError(s) => s }, content="err")
+  inspect(match e { ConnectionError(s) => s; _ => "" }, content="err")
 }

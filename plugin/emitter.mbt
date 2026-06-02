@@ -52,13 +52,15 @@ fn Emitter::finish(self: Emitter) -> String {
   result
 }
 
-/// Emit a package declaration line if package_name is non-empty.
+/// Emit a package declaration line. Defaults to "main" when name is empty or whitespace-only.
 pub fn emit_package_declaration(name: String) -> String {
-  if name.length() > 0 {
-    "package " + name + "\n\n"
-  } else {
-    ""
-  }
+  let trimmed = name.trim()
+  let pkg = if trimmed.length() > 0 { trimmed.to_owned() } else { "main" }
+  let em = Emitter::new()
+  em.push("package ")
+  em.push(pkg)
+  em.push("\n\n")
+  em.finish()
 }
 
 /// Emit a SourceFile to a formatted MoonBit source string.
@@ -465,8 +467,8 @@ test "emit: public struct with fields" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
-      { name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
+      { name: "id", col_name: "id", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "email", col_name: "email", ty: Named("String"), doc: Some("user email"), json_tag: None, db_tag: None },
     ],
     doc: Some("A user record"),
     is_pub: true,
@@ -617,8 +619,8 @@ test "emit: full source file with multiple items" {
   let imp: ImportDef = { path: "moonbitlang/core/builtin", import_alias: None }
   let s: StructDef = {
     name: "Point", fields: [
-      { name: "x", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
-      { name: "y", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "x", col_name: "x", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
+      { name: "y", col_name: "y", ty: Named("Int"), doc: None, json_tag: None, db_tag: None },
     ], doc: None, is_pub: true,
   }
   let f: FnDef = {
@@ -686,8 +688,8 @@ test "emit: struct with doc comment and field doc comments" {
   let s: StructDef = {
     name: "User",
     fields: [
-      { name: "id", ty: Named("Int"), doc: Some("primary key"), json_tag: None, db_tag: None },
-      { name: "name", ty: Named("String"), doc: Some("full name"), json_tag: None, db_tag: None },
+      { name: "id", col_name: "id", ty: Named("Int"), doc: Some("primary key"), json_tag: None, db_tag: None },
+      { name: "name", col_name: "name", ty: Named("String"), doc: Some("full name"), json_tag: None, db_tag: None },
     ],
     doc: Some("Represents a user in the system"),
     is_pub: true,
@@ -777,8 +779,8 @@ test "emit: field with json_tag outputs @json.tag annotation" {
   let s: StructDef = {
     name: "Tagged",
     fields: [
-      { name: "user_id", ty: Named("Int64"), doc: None, json_tag: Some("user_id"), db_tag: None },
-      { name: "email_addr", ty: Named("String"), doc: None, json_tag: None, db_tag: Some("email_addr") },
+      { name: "user_id", col_name: "user_id", ty: Named("Int64"), doc: None, json_tag: Some("user_id"), db_tag: None },
+      { name: "email_addr", col_name: "email_addr", ty: Named("String"), doc: None, json_tag: None, db_tag: Some("email_addr") },
     ],
     doc: None,
     is_pub: true,
@@ -792,7 +794,7 @@ test "emit: field with both json_tag and db_tag outputs both annotations" {
   let s: StructDef = {
     name: "Both",
     fields: [
-      { name: "full_name", ty: Named("String"), doc: None, json_tag: Some("full_name"), db_tag: Some("full_name") },
+      { name: "full_name", col_name: "full_name", ty: Named("String"), doc: None, json_tag: Some("full_name"), db_tag: Some("full_name") },
     ],
     doc: None,
     is_pub: true,
@@ -806,7 +808,7 @@ test "emit: field with no tags outputs no annotations" {
   let s: StructDef = {
     name: "Plain",
     fields: [
-      { name: "id", ty: Named("Int64"), doc: None, json_tag: None, db_tag: None },
+      { name: "id", col_name: "id", ty: Named("Int64"), doc: None, json_tag: None, db_tag: None },
     ],
     doc: None,
     is_pub: true,
@@ -814,4 +816,25 @@ test "emit: field with no tags outputs no annotations" {
   let sf: SourceFile = { items: [Struct(s)] }
   let result = emit_source_file(sf)
   inspect(result, content="pub struct Plain {\n  id: Int64\n}\n")
+}
+
+test "emit_package_declaration: non-empty name produces package line" {
+  let result = emit_package_declaration("myapp")
+  inspect(result, content="package myapp\n\n")
+}
+
+test "emit_package_declaration: empty name defaults to main" {
+  let result = emit_package_declaration("")
+  inspect(result, content="package main\n\n")
+}
+
+test "emit_package_declaration: whitespace-only defaults to main" {
+  let result = emit_package_declaration("   ")
+  inspect(result, content="package main\n\n")
+}
+
+/// P1-045: emit_package_declaration trims surrounding whitespace from package name.
+test "emit_package_declaration: trims surrounding whitespace" {
+  let result = emit_package_declaration("  myapp  ")
+  inspect(result, content="package myapp\n\n")
 }

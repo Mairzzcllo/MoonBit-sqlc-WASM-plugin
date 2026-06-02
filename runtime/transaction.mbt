@@ -170,8 +170,10 @@ test "Transaction::commit returns Err on failure" {
     fn() { Ok(()) },
   )
   let result = tx.commit()
-  let is_err = match result { Err(QueryError(_)) => true; _ => false }
-  inspect(is_err, content="true")
+  match result {
+    Err(QueryError(msg)) => inspect(msg, content="commit failed")
+    _ => abort("expected commit error")
+  }
 }
 
 test "Transaction::rollback returns Err on failure" {
@@ -184,8 +186,10 @@ test "Transaction::rollback returns Err on failure" {
     fn() { Err(QueryError("rollback failed")) },
   )
   let result = tx.rollback()
-  let is_err = match result { Err(QueryError(_)) => true; _ => false }
-  inspect(is_err, content="true")
+  match result {
+    Err(QueryError(msg)) => inspect(msg, content="rollback failed")
+    _ => abort("expected rollback error")
+  }
 }
 
 test "Transaction::exec returns Err on failure" {

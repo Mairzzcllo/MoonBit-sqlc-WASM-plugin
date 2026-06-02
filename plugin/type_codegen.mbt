@@ -36,14 +36,14 @@ pub fn generate_struct_from_fields(
     let moon_type = map_internal_type_nullable(f.ty, f.not_null, overrides, nullable_overrides)
     let field_doc: Option[String] = if f.comment == "" { None } else { Some(f.comment) }
     let field_name = match f.rename_to {
-      Some(r) => r
-      None => f.name
+      Some(r) => escape_keyword(r)
+      None => escape_keyword(f.name)
     }
     // json_tag/db_tag use original column name (database column name), not renamed
     let tag_value = apply_case_style(f.name, json_tags_case_style)
     let json_tag: Option[String] = if emit_json_tags { Some(tag_value) } else { None }
     let db_tag: Option[String] = if emit_db_tags { Some(tag_value) } else { None }
-    { name: field_name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
+    { name: field_name, col_name: f.name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
   })
   { name: type_name, fields: field_defs, doc: doc, is_pub: is_pub }
 }
@@ -66,7 +66,7 @@ pub fn generate_struct_from_table(
   json_tags_case_style: String,
   initialisms: Array[String],
 ) -> StructDef {
-  let type_name = snake_to_pascal(table_name, initialisms)
+  let type_name = escape_keyword(snake_to_pascal(table_name, initialisms))
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
   let fields = columns.map(fn(c) {
     let ir_type = if c.is_array { Arr(Named(c.ty.name)) } else { Named(c.ty.name) }
@@ -84,23 +84,23 @@ pub fn generate_struct_from_table(
     let field_doc: Option[String] = if c.comment == "" { None } else { Some(c.comment) }
     let rename_to = lookup_rename(c.name, renames)
     let field_name = match rename_to {
-      Some(r) => r
-      None => c.name
+      Some(r) => escape_keyword(r)
+      None => escape_keyword(c.name)
     }
     // json_tag/db_tag use original column name (database column name), not renamed
     let tag_value = apply_case_style(c.name, json_tags_case_style)
     let json_tag: Option[String] = if emit_json_tags { Some(tag_value) } else { None }
     let db_tag: Option[String] = if emit_db_tags { Some(tag_value) } else { None }
-    { name: field_name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
+    { name: field_name, col_name: c.name, ty: moon_type, doc: field_doc, json_tag: json_tag, db_tag: db_tag }
   })
   { name: type_name, fields: fields, doc: doc, is_pub: true }
 }
 
 /// Generate an EnumDef from a catalog enum.
 pub fn generate_enum_from_enum(name: String, vals: Array[String], comment: String, initialisms: Array[String]) -> EnumDef {
-  let type_name = snake_to_pascal(name, initialisms)
+  let type_name = escape_keyword(snake_to_pascal(name, initialisms))
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
-  let variants = vals.map(fn(v) { { name: snake_to_pascal(v, initialisms), doc: (None: Option[String]) } })
+  let variants = vals.map(fn(v) { { name: escape_keyword(snake_to_pascal(v, initialisms)), doc: (None: Option[String]) } })
   { name: type_name, variants: variants, doc: doc, is_pub: true }
 }
 
@@ -133,7 +133,7 @@ pub fn generate_types_from_queries(queries: Array[InternalQuery], emit_json_tags
   queries.map(fn(q) {
     match q.result_shape {
       Rows(fields) => {
-        let type_name = snake_to_pascal(q.name, initialisms) + "Row"
+        let type_name = escape_keyword(snake_to_pascal(q.name, initialisms) + "Row")
         let doc: Option[String] = if q.comments.length() > 0 { Some(q.comments[0]) } else { None }
         let sd = generate_struct_from_fields(type_name, fields, doc, true, emit_json_tags, emit_db_tags, overrides, nullable_overrides, json_tags_case_style, initialisms)
         [Struct(sd), Fn(generate_decode_fn(sd))]
@@ -226,8 +226,17 @@ fn field_getter_call(field: FieldDef, _index: Int) -> (String, String) {
   (getter_name, suffix)
 }
 
+/// Build the decode body using column name lookup (P0-063).
+/// Each getter call uses `row.index_of("column_name")` as the index argument,
+/// so column reordering does not break decoding.
+pub fn build_decode_body(fields: Array[FieldDef]) -> Array[Expr] {
+  [build_decode_match(fields, 0)]
+}
+
 /// Build a nested match expression for decoding all fields.
-/// For N fields, produces N levels of nested match.
+/// For N fields, produces 2N levels of nested match (one for index_of, one for getter).
+/// P0-063: Uses `row.index_of("col_name")` with original DB column name for index lookups.
+/// P0-062/064: Handles `row.index_of` returning `Result[Int, DBError]` via nested match.
 fn build_decode_match(fields: Array[FieldDef], start_index: Int) -> Expr {
   let i = start_index
   if i >= fields.length() {
@@ -243,21 +252,32 @@ fn build_decode_match(fields: Array[FieldDef], start_index: Int) -> Expr {
   } else {
     let f = fields[i]
     let (getter_name, _) = field_getter_call(f, i)
-    let getter_call = Call(getter_name, [IntLit(i)])
-    let ok_branch = Match(getter_call, [
-      ("Ok(" + f.name + ")", build_decode_match(fields, i + 1)),
+    let idx_var = "_idx_" + i.to_string()
+    // Match on row.index_of(original_column_name) — returns Result[Int, DBError]
+    let index_call = Call("row.index_of", [StrLit(f.col_name)])
+    let index_ok_body = {
+      let getter_call = Call(getter_name, [Ident(idx_var)])
+      Match(getter_call, [
+        ("Ok(" + f.name + ")", build_decode_match(fields, i + 1)),
+        ("Err(e)", Call("Err", [Ident("e")])),
+      ])
+    }
+    Match(index_call, [
+      ("Ok(" + idx_var + ")", index_ok_body),
       ("Err(e)", Call("Err", [Ident("e")])),
     ])
-    ok_branch
   }
 }
 
 /// Generate a decode function for a StructDef using typed getters.
 /// Uses nested match instead of ? operator (not available in MoonBit 0.1).
+/// P0-063: Uses `row.index_of("col_name")` with original DB column name.
+/// Each field produces two nested match levels: one for index_of (Result[Int, DBError])
+/// and one for the typed getter, so column reordering does not break decoding.
 pub fn generate_decode_fn(sd: StructDef) -> FnDef {
   let params = [{ name: "row", ty: TypeExpr::Named("Row") }]
   let return_ty = Parameterized("Result", [Named(sd.name), Named("DBError")])
-  let body = [build_decode_match(sd.fields, 0)]
+  let body = build_decode_body(sd.fields)
   let doc = Some("Decode a Row into a " + sd.name)
   { name: sd.name + "::decode", params: params, return_ty: return_ty, body: body, doc: doc, is_pub: true }
 }
@@ -277,7 +297,7 @@ test "snake_to_pascal: already PascalCase" {
 }
 
 test "snake_to_pascal: empty string" {
-  inspect(snake_to_pascal("", []), content="")
+  inspect(snake_to_pascal("", []), content="Empty")
 }
 
 test "snake_to_pascal: single char" {
@@ -511,4 +531,98 @@ test "generate_struct_from_fields: int8 maps to Int64" {
   ]
   let sd = generate_struct_from_fields("Big", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
   inspect(sd.fields[0].ty, content="Named(\"Int64\")")
+}
+
+// === P0-065: Keyword escaping tests ===
+
+test "P0-065: field name 'type' is escaped to 'ty'" {
+  let fields: Array[InternalField] = [
+    { name: "type", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="ty")
+}
+
+test "P0-065: field name 'fn' is escaped to 'fn_'" {
+  let fields: Array[InternalField] = [
+    { name: "fn", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="fn_")
+}
+
+test "P0-065: field name 'let' is escaped to 'let_'" {
+  let fields: Array[InternalField] = [
+    { name: "let", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="let_")
+}
+
+test "P0-065: field name 'struct' is escaped to 'struct_'" {
+  let fields: Array[InternalField] = [
+    { name: "struct", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="struct_")
+}
+
+test "P0-065: field name 'enum' is escaped to 'enum_'" {
+  let fields: Array[InternalField] = [
+    { name: "enum", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="enum_")
+}
+
+test "P0-065: non-keyword field name passes through unchanged" {
+  let fields: Array[InternalField] = [
+    { name: "user_name", ty: Named("text"), not_null: true, comment: "", rename_to: (None: Option[String]) },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  inspect(sd.fields[0].name, content="user_name")
+}
+
+test "P0-065: rename_to non-keyword value passes through" {
+  let fields: Array[InternalField] = [
+    { name: "type", ty: Named("text"), not_null: true, comment: "", rename_to: Some("kind") },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  // "kind" is not a MoonBit keyword, so escape_keyword returns it unchanged
+  inspect(sd.fields[0].name, content="kind")
+}
+
+test "P0-065: rename_to keyword value is escaped" {
+  let fields: Array[InternalField] = [
+    { name: "category", ty: Named("text"), not_null: true, comment: "", rename_to: Some("fn") },
+  ]
+  let sd = generate_struct_from_fields("User", fields, (None: Option[String]), true, false, false, [], [], "snake", [])
+  // "fn" is a MoonBit keyword, so escape_keyword returns "fn_"
+  inspect(sd.fields[0].name, content="fn_")
+}
+
+test "P0-065: enum variant 'self' is escaped to 'Self_'" {
+  let ed = generate_enum_from_enum("status", ["active", "self", "pending"], "", [])
+  inspect(ed.variants[1].name, content="Self_")
+}
+
+test "P0-065: struct type name that shadows built-in type is escaped" {
+  let cols: Array[AdaptColumn] = [
+    { name: "value", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "int" } },
+  ]
+  let sd = generate_struct_from_table("int", cols, "", false, false, [], [], [], [], false, "snake", [])
+  inspect(sd.name, content="Int_")
+}
+
+test "P0-065: struct type name 'Struct' passes through (Struct is not a keyword in MoonBit)" {
+  let cols: Array[AdaptColumn] = [
+    { name: "value", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "struct" } },
+  ]
+  let sd = generate_struct_from_table("struct", cols, "", false, false, [], [], [], [], false, "snake", [])
+  inspect(sd.name, content="Struct")
+}
+
+test "P0-065: enum type name that shadows built-in type is escaped" {
+  let ed = generate_enum_from_enum("string", ["a", "b"], "", [])
+  inspect(ed.name, content="String_")
 }

@@ -35,10 +35,12 @@ pub fn DB::query_row(self: DB, sql: String, params: Array[Value]) -> Result[Row,
 pub struct Row {
   get_fn : (Int) -> String
   null_mask : Array[Bool]
+  col_names : Array[String]
+  num_cols : Int
 }
 
 pub fn Row::new(get_fn: (Int) -> String, null_mask: Array[Bool]) -> Row {
-  { get_fn: get_fn, null_mask: null_mask }
+  { get_fn: get_fn, null_mask: null_mask, col_names: [], num_cols: null_mask.length() }
 }
 
 pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
@@ -46,6 +48,8 @@ pub fn Row::get(self: Row, index: Int) -> String { (self.get_fn)(index) }
 pub fn Row::is_null(self: Row, index: Int) -> Bool {
   index >= 0 && index < self.null_mask.length() && self.null_mask[index]
 }
+
+pub fn Row::index_of(self: Row, _name: String) -> Result[Int, DBError] { Ok(0) }
 
 pub fn Row::get_int64(_self: Row, _index: Int) -> Result[Int64, DBError] { Ok(0L) }
 pub fn Row::get_string(self: Row, index: Int) -> Result[String, DBError] { Ok(self.get(index)) }
@@ -62,8 +66,11 @@ pub fn RowIter::collect(self: RowIter) -> Result[Array[Row], DBError] { Ok(self.
 /// Value runtime stub for compilation testing.
 pub enum Value { Int64(Int64) }
 
+/// ExecResult stub — matches runtime/value.mbt.
+pub struct ExecResult { last_insert_id: Int64; rows_affected: Int64 }
+
 /// DBError stub.
-pub enum DBError { ConnectionError(String) }
+pub enum DBError { ConnectionError(String); QueryError(String); TypeError(String); NoRows; ColumnNotFound(String); TooManyRows(Int, String); }
 
 /// users table
 pub struct Users {
@@ -75,10 +82,19 @@ pub struct Users {
 
 /// Decode a Row into a Users
 pub fn Users::decode(row: Row) -> Result[Users, DBError] {
-  match row.get_int64(0) {
-    Ok(id) => match row.get_string(1) {
-      Ok(name) => match row.get_nullable_string(2) {
-        Ok(email) => Ok({ id: id, name: name, email: email })
+  match row.index_of("id") {
+    Ok(_idx_0) => match row.get_int64(_idx_0) {
+      Ok(id) => match row.index_of("name") {
+        Ok(_idx_1) => match row.get_string(_idx_1) {
+          Ok(name) => match row.index_of("email") {
+            Ok(_idx_2) => match row.get_nullable_string(_idx_2) {
+              Ok(email) => Ok({ id: id, name: name, email: email })
+              Err(e) => Err(e)
+            }
+            Err(e) => Err(e)
+          }
+          Err(e) => Err(e)
+        }
         Err(e) => Err(e)
       }
       Err(e) => Err(e)
@@ -97,10 +113,19 @@ pub struct ListUsersRow {
 
 /// Decode a Row into a ListUsersRow
 pub fn ListUsersRow::decode(row: Row) -> Result[ListUsersRow, DBError] {
-  match row.get_int64(0) {
-    Ok(id) => match row.get_string(1) {
-      Ok(name) => match row.get_nullable_string(2) {
-        Ok(email) => Ok({ id: id, name: name, email: email })
+  match row.index_of("id") {
+    Ok(_idx_0) => match row.get_int64(_idx_0) {
+      Ok(id) => match row.index_of("name") {
+        Ok(_idx_1) => match row.get_string(_idx_1) {
+          Ok(name) => match row.index_of("email") {
+            Ok(_idx_2) => match row.get_nullable_string(_idx_2) {
+              Ok(email) => Ok({ id: id, name: name, email: email })
+              Err(e) => Err(e)
+            }
+            Err(e) => Err(e)
+          }
+          Err(e) => Err(e)
+        }
         Err(e) => Err(e)
       }
       Err(e) => Err(e)
@@ -119,10 +144,19 @@ pub struct GetUserRow {
 
 /// Decode a Row into a GetUserRow
 pub fn GetUserRow::decode(row: Row) -> Result[GetUserRow, DBError] {
-  match row.get_int64(0) {
-    Ok(id) => match row.get_string(1) {
-      Ok(name) => match row.get_nullable_string(2) {
-        Ok(email) => Ok({ id: id, name: name, email: email })
+  match row.index_of("id") {
+    Ok(_idx_0) => match row.get_int64(_idx_0) {
+      Ok(id) => match row.index_of("name") {
+        Ok(_idx_1) => match row.get_string(_idx_1) {
+          Ok(name) => match row.index_of("email") {
+            Ok(_idx_2) => match row.get_nullable_string(_idx_2) {
+              Ok(email) => Ok({ id: id, name: name, email: email })
+              Err(e) => Err(e)
+            }
+            Err(e) => Err(e)
+          }
+          Err(e) => Err(e)
+        }
         Err(e) => Err(e)
       }
       Err(e) => Err(e)
@@ -163,8 +197,11 @@ pub fn query_get_user(db: DB, id: Int64) -> Result[GetUserRow, DBError] {
   }
 }
 
-pub fn query_delete_user(db: DB, id: Int64) -> Result[Int64, DBError] {
+pub fn query_delete_user(db: DB, id: Int64) -> Result[ExecResult, DBError] {
   let sql = "DELETE FROM users WHERE id = $1"
   let params = [Int64(id)]
-  db.exec(sql, params)
+  match db.exec(sql, params) {
+    Ok(n) => Ok({ last_insert_id: 0L, rows_affected: n })
+    Err(e) => Err(e)
+  }
 }

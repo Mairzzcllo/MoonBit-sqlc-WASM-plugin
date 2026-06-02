@@ -217,7 +217,7 @@ codegen:
 
 ```bash
 moon check              # 类型检查
-moon test               # 运行所有 555 个 inline 测试
+moon test               # 运行所有 870 个 inline 测试
 ```
 
 测试使用 inline `test { ... }` 块而非 `_test.mbt` 文件（main 包不支持 blackbox 测试）。空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型。

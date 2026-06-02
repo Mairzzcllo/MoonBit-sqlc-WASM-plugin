@@ -128,10 +128,12 @@ fn Decoder::read_string(self: Decoder) -> String {
   let len = self.read_varint()
   if len <= 0 { return "" }
   let available = self.remaining()
-  let actual_len = if len > available { available } else { len }
+  if len > available {
+    abort("codec: read_string length (\{len}) exceeds remaining bytes (\{available})")
+  }
   let start = self.pos
-  self.pos = start + actual_len
-  let sub = Bytes::makei(actual_len, i => self.buf[start + i])
+  self.pos = start + len
+  let sub = Bytes::makei(len, i => self.buf[start + i])
   @utf8.decode_lossy(sub[:])
 }
 
@@ -139,10 +141,12 @@ fn Decoder::read_bytes(self: Decoder) -> Bytes {
   let len = self.read_varint()
   if len <= 0 { return Bytes::default() }
   let available = self.remaining()
-  let actual_len = if len > available { available } else { len }
+  if len > available {
+    abort("codec: read_bytes length (\{len}) exceeds remaining bytes (\{available})")
+  }
   let start = self.pos
-  self.pos = start + actual_len
-  Bytes::makei(actual_len, i => self.buf[start + i])
+  self.pos = start + len
+  Bytes::makei(len, i => self.buf[start + i])
 }
 
 fn Decoder::read_bool(self: Decoder) -> Bool {
@@ -178,7 +182,15 @@ fn Decoder::read_fixed64(self: Decoder) -> Int64 {
 fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
   match wt {
     WT_VARINT => { let _ = self.read_varint() }
-    WT_LEN => { let len = self.read_varint(); self.pos = self.pos + len }
+    WT_LEN => {
+      let len = self.read_varint()
+      let new_pos = self.pos + len
+      if new_pos > self.end || new_pos < self.pos {
+        self.pos = self.end
+      } else {
+        self.pos = new_pos
+      }
+    }
     WT_BITS64 => { self.pos = self.pos + 8 }
     WT_BITS32 => { self.pos = self.pos + 4 }
     3 => { self.skip_group(fn_num) }
@@ -1447,13 +1459,7 @@ test "varint: 6 continuation bytes stops at 5" {
   inspect(dec.remaining() > 0, content="true")
 }
 
-test "read_string: len exceeds remaining clamps to available" {
-  let buf = Bytes::from_array([0x05, 0x48, 0x65, 0x6C, 0x6C, 0x6F])
-  let dec = Decoder::new(buf)
-  // read_varint = 5 (len), buffer has exactly 5 data bytes
-  let s = dec.read_string()
-  inspect(s, content="Hello")
-}
+
 
 test "read_string: negative len returns empty" {
   // 5 continuation bytes produce a negative value; read_string treats <=0 as empty
@@ -1463,12 +1469,22 @@ test "read_string: negative len returns empty" {
   inspect(s, content="")
 }
 
-test "read_bytes: len exceeds remaining clamps to available" {
-  let buf = Bytes::from_array([0x0A, 0x01, 0x02, 0x03])
+test "read_bytes: exact boundary succeeds" {
+  let buf = Bytes::from_array([0x03, 0x01, 0x02, 0x03])
   let dec = Decoder::new(buf)
-  // read_varint = 10, but only 3 bytes available
+  // read_varint = 3, exactly 3 bytes available
   let bs = dec.read_bytes()
   inspect(bs.length(), content="3")
+}
+
+test "read_bytes: normal 5 bytes" {
+  let buf = Bytes::from_array([0x05, 0x48, 0x65, 0x6C, 0x6C, 0x6F])
+  let dec = Decoder::new(buf)
+  // read_varint = 5, 5 bytes available
+  let bs = dec.read_bytes()
+  inspect(bs.length(), content="5")
+  inspect(bs[0].to_int(), content="72")
+  inspect(bs[4].to_int(), content="111")
 }
 
 test "decode_embedded: len 0 creates empty sub-decoder" {
@@ -1567,7 +1583,7 @@ test "read_fixed32: all-ones value (wraps to -1 as Int)" {
   let buf = Bytes::from_array([0xFF, 0xFF, 0xFF, 0xFF])
   let dec = Decoder::new(buf)
   let val = dec.read_fixed32()
-  // 0xFFFFFFFF as 32-bit signed Int = -1 (consistent with decode_u32_le)
+  // 0xFFFFFFFF as 32-bit signed Int = -1
   inspect(val, content="-1")
 }
 
@@ -1635,4 +1651,165 @@ test "skip_field: WT_BITS32 (wire type 5) skips 4 bytes" {
   inspect(wt2, content="2")
   let s = dec.read_string()
   inspect(s, content="ok")
+}
+
+// === P1-039: Codec error path boundary tests ===
+
+/// P1-039: read_string with len exactly equal to available bytes (boundary, should succeed).
+test "P1-039: read_string len == available (boundary success)" {
+  let p039_buf = Bytes::from_array([0x05, 0x48, 0x65, 0x6C, 0x6C, 0x6F])
+  let p039_dec = Decoder::new(p039_buf)
+  let p039_s = p039_dec.read_string()
+  inspect(p039_s, content="Hello")
+  inspect(p039_dec.remaining(), content="0")
+}
+
+/// P1-039: read_string with len == remaining on exact boundary.
+test "P1-039: read_string len == remaining on exact boundary" {
+  // Varint=1 with 1 data byte
+  let p039_buf2 = Bytes::from_array([0x01, 0x41])
+  let p039_dec2 = Decoder::new(p039_buf2)
+  let p039_s2 = p039_dec2.read_string()
+  inspect(p039_s2, content="A")
+  inspect(p039_dec2.remaining(), content="0")
+}
+
+/// P1-039: decode_embedded with len == remaining (exact boundary).
+test "P1-039: decode_embedded len == remaining (exact boundary)" {
+  let p039_enc = Encoder::new()
+  p039_enc.write_tag(1, WT_LEN)
+  p039_enc.write_string("A")
+  let p039_data = p039_enc.finish()
+  let p039_dec3 = Decoder::new(p039_data)
+  let (fnum039, wt039) = p039_dec3.read_tag()
+  inspect(fnum039, content="1")
+  inspect(wt039, content="2")
+  let p039_str = p039_dec3.read_string()
+  inspect(p039_str, content="A")
+  inspect(p039_dec3.remaining(), content="0")
+}
+
+/// P1-039: skip_field WT_LEN with length that exceeds buffer — pos clamped to end.
+test "P1-039: skip_field WT_LEN exceeds buffer clamps pos to end" {
+  // Write tag (field=1, WT_LEN=2), varint len=100, plus 1 payload byte
+  let p039_enc5 = Encoder::new()
+  p039_enc5.write_tag(1, WT_LEN)
+  p039_enc5.write_varint(100)
+  p039_enc5.write_byte((0x41).to_byte())
+  let p039_data5 = p039_enc5.finish()
+  let p039_dec16 = Decoder::new(p039_data5)
+  let (fnum039g, wt039g) = p039_dec16.read_tag()
+  p039_dec16.skip_field(fnum039g, wt039g)
+  inspect(p039_dec16.remaining(), content="0")
+}
+
+/// P1-039: skip_field WT_LEN with large negative wrapping varint.
+/// 5 continuation bytes produce a large value; guard clamps to end.
+test "P1-039: skip_field WT_LEN negative varint clamps pos" {
+  let p039_buf5 = Bytes::from_array([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00])
+  let p039_dec5 = Decoder::new(p039_buf5)
+  let (fnum039b, wt039b) = p039_dec5.read_tag()
+  p039_dec5.skip_field(fnum039b, wt039b)
+  inspect(p039_dec5.remaining() >= 0, content="true")
+}
+
+/// P1-039: read_byte at end of buffer returns 0 silently.
+test "P1-039: read_byte at buffer end returns 0" {
+  let p039_dec6 = Decoder::new(b"")
+  let p039_byte = p039_dec6.read_byte()
+  inspect(p039_byte.to_int(), content="0")
+}
+
+/// P1-039: read_byte after reading all bytes returns 0.
+test "P1-039: read_byte after exhausting buffer returns 0" {
+  let p039_buf7 = Bytes::from_array([0x42])
+  let p039_dec7 = Decoder::new(p039_buf7)
+  let p039_b1 = p039_dec7.read_byte()
+  inspect(p039_b1.to_int(), content="66") // 'B' = 66
+  let p039_b2 = p039_dec7.read_byte()
+  inspect(p039_b2.to_int(), content="0") // OOB returns 0
+  let p039_b3 = p039_dec7.read_byte()
+  inspect(p039_b3.to_int(), content="0") // Still OOB returns 0
+}
+
+/// P1-039: read_varint on empty buffer returns 0.
+test "P1-039: read_varint on empty buffer returns 0" {
+  let p039_dec8 = Decoder::new(b"")
+  inspect(p039_dec8.read_varint(), content="0")
+}
+
+/// P1-039: read_varint with all continuation bytes (max 5) followed by terminator.
+test "P1-039: read_varint max continuation bytes with terminator" {
+  // 4 continuation bytes (0x80) + 1 terminator (0x01) = valid 5-byte varint
+  let p039_buf9 = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x01])
+  let p039_dec9 = Decoder::new(p039_buf9)
+  inspect(p039_dec9.read_varint() >= 0, content="true")
+}
+
+/// P1-039: decode_embedded with zero bytes (len=0 varint only).
+test "P1-039: decode_embedded zero-length returns empty sub-decoder" {
+  let p039_buf10 = Bytes::from_array([0x00])
+  let p039_dec10 = Decoder::new(p039_buf10)
+  let p039_result = decode_embedded(p039_dec10, fn(sub) { sub.remaining() })
+  inspect(p039_result, content="0")
+}
+
+/// P1-039: skip_field wire type 3 (start group) triggers skip_group.
+test "P1-039: skip_field wire type 3 triggers skip_group" {
+  let p039_enc2 = Encoder::new()
+  p039_enc2.write_tag(1, 3) // SGROUP
+  p039_enc2.write_byte((0x00).to_byte())
+  p039_enc2.write_tag(2, WT_LEN)
+  p039_enc2.write_string("ok")
+  let p039_data2 = p039_enc2.finish()
+  let p039_dec11 = Decoder::new(p039_data2)
+  let (fnum039c, wt039c) = p039_dec11.read_tag()
+  inspect(wt039c, content="3")
+  p039_dec11.skip_field(fnum039c, wt039c)
+  inspect(p039_dec11.remaining(), content="0")
+}
+
+/// P1-039: skip_field wire type 4 (end group) is a no-op.
+test "P1-039: skip_field wire type 4 is no-op" {
+  let p039_enc3 = Encoder::new()
+  p039_enc3.write_tag(1, 4) // EGROUP
+  p039_enc3.write_tag(2, WT_LEN)
+  p039_enc3.write_string("ok")
+  let p039_data3 = p039_enc3.finish()
+  let p039_dec12 = Decoder::new(p039_data3)
+  let (fnum039d, wt039d) = p039_dec12.read_tag()
+  inspect(wt039d, content="4")
+  p039_dec12.skip_field(fnum039d, wt039d)
+  let (fnum039e, _) = p039_dec12.read_tag()
+  inspect(fnum039e, content="2")
+  let p039_str2 = p039_dec12.read_string()
+  inspect(p039_str2, content="ok")
+}
+
+/// P1-039: read_fixed32 at buffer boundary (exactly 4 bytes).
+test "P1-039: read_fixed32 at exact buffer boundary" {
+  let p039_buf13 = Bytes::from_array([0x01, 0x00, 0x00, 0x00])
+  let p039_dec13 = Decoder::new(p039_buf13)
+  inspect(p039_dec13.read_fixed32(), content="1")
+  inspect(p039_dec13.remaining(), content="0")
+}
+
+/// P1-039: read_fixed64 at buffer boundary (exactly 8 bytes).
+test "P1-039: read_fixed64 at exact buffer boundary" {
+  let p039_buf14 = Bytes::from_array([0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+  let p039_dec14 = Decoder::new(p039_buf14)
+  inspect(p039_dec14.read_fixed64(), content="42")
+  inspect(p039_dec14.remaining(), content="0")
+}
+
+/// P1-039: skip_field unknown wire type (6) should also skip to end.
+test "P1-039: skip_field unknown wire type 6 skips to end" {
+  let p039_enc4 = Encoder::new()
+  p039_enc4.write_tag(1, 6)
+  p039_enc4.write_byte((0xFF).to_byte())
+  let p039_data4 = p039_enc4.finish()
+  let p039_dec15 = Decoder::new(p039_data4)
+  let (fnum039f, wt039f) = p039_dec15.read_tag()
+  p039_dec15.skip_field(fnum039f, wt039f)
+  inspect(p039_dec15.remaining(), content="0")
 }
