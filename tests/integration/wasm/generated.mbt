@@ -24,6 +24,19 @@ pub struct DB {
   execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
   query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
   query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
+  begin_fn : (() -> Result[Transaction, DBError])
+  copyfrom_fn : (String) -> Result[Int64, DBError]
+  batch_fn : (String) -> Result[Int64, DBError]
+  execlastid_fn : (String) -> Result[Int64, DBError]
+}
+
+pub struct Transaction {
+  exec_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  execrows_fn : (String, Array[Value]) -> Result[Int64, DBError]
+  query_fn : (String, Array[Value]) -> Result[RowIter, DBError]
+  query_row_fn : (String, Array[Value]) -> Result[Row, DBError]
+  commit_fn : (() -> Result[Unit, DBError])
+  rollback_fn : (() -> Result[Unit, DBError])
 }
 
 pub fn DB::exec(self: DB, sql: String, params: Array[Value]) -> Result[Int64, DBError] { (self.exec_fn)(sql, params) }
