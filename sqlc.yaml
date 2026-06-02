@@ -1,12 +1,15 @@
 version: "2"
-cloud:
-    organization: ""
-    project: ""
-    hostname: ""
-servers: []
-sql: []
-overrides:
-    go: null
-plugins: []
-rules: []
-options: {}
+plugins:
+  - name: "moonbit"
+    wasm:
+      url: "file://./_build/wasm/debug/build/plugin/plugin.wasm"
+      sha256: ""
+sql:
+  - schema: "examples/users/schema.sql"
+    queries: "examples/users/query.sql"
+    engine: "postgresql"
+    codegen:
+      - out: "gen"
+        plugin: "moonbit"
+        options:
+          package_name: gen

@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-036
-state: todo
+state: done
 deterministic: true
 title: "根目录 sqlc.yaml 工作模板填充"
 type: config
@@ -16,7 +16,7 @@ expires_at: null
 retry_count: 0
 max_retry: 3
 created_at: "2026-05-29"
-updated_at: "2026-05-29"
+updated_at: "2026-06-02"
 artifacts:
   - type: config
     path: sqlc.yaml

@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-038
-state: todo
+state: done
 deterministic: true
 title: "emit_interface 探索 — MoonBit trait 限制文档 + MockDB 替代"
 type: research
@@ -16,7 +16,7 @@ expires_at: null
 retry_count: 0
 max_retry: 3
 created_at: "2026-05-29"
-updated_at: "2026-05-29"
+updated_at: "2026-06-02"
 artifacts: []
 references:
   - runtime/mock.mbt

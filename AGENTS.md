@@ -89,6 +89,8 @@
 - ADR-011 — Codegen Build Body: result_shape Priority and Method Dispatch（已接受）
 - ADR-012 — Phase D Architecture Gaps: ExecResult, Type Overrides, TimeTZ（已接受）
 - ADR-013 — 100 Edge Cases Analysis: Classification and Fix Feasibility（已接受）
+- ADR-014 — Plugin Options Extension: GAP-4（已接受）
+- ADR-015 — emit_interface Limitation: MoonBit Trait Object Gap and MockDB Alternative（已接受）
 
 ## 已知限制
 
@@ -115,7 +117,7 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - GAP-3: 类型覆盖简陋 → P0-058 ✅ done
 - GAP-4: 插件选项极少 → P0-057 ✅ done
 - GAP-5: 仅 PostgreSQL → P1-035
-- GAP-6: 无 trait/interface → P1-038 (Blocked by MoonBit)
+- GAP-6: 无 trait/interface → P1-038 ✅ done (Blocked by MoonBit — documented in ADR-015, MockDB provides equivalent alternative)
 - GAP-7: TIMETZ 时区丢失 → P0-059 ✅ done
 - GAP-8: 根 sqlc.yaml 空模板 → P1-036
 - GAP-9: 缺 E2E 集成测试 → P1-037

@@ -1,6 +1,14 @@
 ///|
+/// MockDB is the project's interface-abstraction alternative to `emit_interface`.
+/// MoonBit 0.1 does not support trait objects or generic trait methods, so we
+/// cannot generate a `Querier` trait like sqlc-gen-go. Instead, MockDB uses the
+/// concrete struct + closure pattern (ADR-010) to provide equivalent test
+/// isolation: build a `DB` with preset results and pass it to generated query
+/// functions. See ADR-015 for the design rationale and future recovery path.
+///
 /// MockDB for testing generated query functions without a real database.
-/// Stores preset results for all four query modes: :one, :many, :exec, :execrows.
+/// Stores preset results for all query modes: :one, :many, :exec, :execrows,
+/// plus copyfrom/batch/execlastid and optional transaction support.
 //
 // Copyright 2026 Mairzzcllo
 //

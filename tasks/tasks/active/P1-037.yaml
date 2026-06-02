@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: P1-037
-state: todo
+state: done
 deterministic: true
 title: "E2E 集成测试 — PowerShell 调用 sqlc + WASM"
 type: test
