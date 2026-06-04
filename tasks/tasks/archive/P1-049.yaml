@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: P1-049
+state: done
+deterministic: true
+title: "decode_embedded 负长度静默失败 — 添加错误传播通道"
+type: bugfix
+priority: P1
+description: >
+  codec.mbt decode_embedded (line 239-250) 在 len < 0 或 len > remaining
+  时创建空解码器并返回全默认值结构体，存在两层静默失败：
+
+  1. 解码结果不可与真实空嵌入消息区分（全默认值）
+  2. 父解码器 pos 未推进——嵌入消息的 payload 字节留在缓冲区，
+     被下一个 read_tag 误解析为兄弟字段的字段号和线类型
+
+  示例攻击路径：GenerateRequest 中 field 1 (Settings) 若其嵌入消息
+  的 length varint 损坏产生负值，Settings 解码为空默认值，而 payload
+  字节被当作 field 2 (catalog) 等的 tag 解析，导致后续字段全部错位。
+  根因：解码器无错误返回通道——所有函数返回 T 而非 Result[T, Error]。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-06-02"
+updated_at: "2026-06-04"
+artifacts:
+  - plugin/codec.mbt
+references:
+  - plugin/codec.mbt:239-250
+execution_notes: >
+  修复方案：在 decode_embedded 的异常分支中，至少需要跳过 payload 字节
+  以维持协议同步。推荐改为：
+
+  1. 在 len < 0 || len > remaining 时，尝试安全跳过（将 pos 移到
+     boundary 而非返回空解码器）
+  2. 可选：添加 Decoder 级别的 error 标记字段，后续 decode 函数检查
+     错误标记（避免改所有函数签名为 Result）
+  实现步骤：
+  1. 在 Decoder struct 增加 mut error: Bool 字段
+  2. decode_embedded 异常分支：设置 dec.error = true
+  3. 所有顶层 decode 函数（decode_generate_request 等）在循环结束后
+     检查 error 标记，可调用 abort 或返回 None
+  4. 更新相关测试验证异常场景的行为
+  验证：moon test 全部通过，新增负长度/超限长度的 roundtrip 测试。
+  此修复与 P1-050 (read_varint) 和 P1-051 (skip_field) 相互关联。
+  建议按 P1-050 → P1-049 → P1-051 顺序执行。
+
+  === FINAL COMPLETION (2026-06-04) ===
+  codec.mbt Decoder 新增 mut error: Bool = false 字段。
+  decode_embedded 异常分支（len < 0 || len > remaining）设置
+  dec.error = true 后跳过 payload 字节维持协议同步。
+  顶层 decode_generate_request/decode_generate_response 在循环
+  结束后检查 error 标记并 abort。新增 3 个错误传播测试。
+  moon test 880/880 pass。

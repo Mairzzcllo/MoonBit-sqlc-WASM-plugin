@@ -1,8 +1,65 @@
 # Archived Tasks
 
-> 归档时间: 2026-06-01
+> 归档时间: 2026-06-04
 > 项目: MoonBit sqlc WASM Plugin
-> 来源: `runtime/tasks/archive/{id}.yaml`
+> 来源: `tasks/tasks/archive/{id}.yaml`
+> 测试: 880 pass, 0 fail
+
+## 本次会话归档 (2026-06-04)
+
+### [P0-068] scratch/.data 内存重叠修复 — 动态 Bytes 缓冲区替代固定地址
+- 来源: DR-02. wasi_io.mbt scratch [1036,65535] 与 .data(10000+)/TLSF(13136+) 重叠
+- read_all 从固定 scratch 改为动态 Bytes::new() + memory_copy 扩容
+- 移除 SCRATCH/SCRATCH_END/GROW_STEP 常量，新增 INITIAL_BUF_SIZE
+- verify_reserved_memory 简化为仅保护 iovec [1024,1035]
+- 架构: moon check 0 errors, moon test 885 passed (+5)
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P0-069] emit_sql_as_comment 默认值文档与代码一致化
+- 来源: CD-03/DC-07. README 默认 false，代码(adapter.mbt:200,219) 默认 true
+- 修复: README.md + ADR-014.md 默认值 false→true
+- 代码默认 true 不变（与 sqlc 生态一致）
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P1-049] decode_embedded 负长度静默失败 — 添加错误传播通道
+- 来源: CD-07. codec.mbt decode_embedded 负长度时返回空解码器+pos未推进
+- 修复: 异常时设 dec.error=true, dec.pos=dec.end 防止 cascading 误解析
+- 子解码器 error 标记向上传播到父解码器
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P1-050] read_varint 静默截断 — 截断时返回错误而非部分结果
+- 来源: CD-08. codec.mbt read_varint remaining()<=0 时返回部分累加值
+- 修复: Decoder 新增 mut error: Bool + has_error() 方法
+- read_varint 截断时设 error=true; read_string/read_bytes 检查 has_error()
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P1-051] skip_field 未知 wire type 边界加固
+- 来源: CD-09. codec.mbt skip_field 未知 wt 时设 pos=end 丢弃后续字段
+- 修复: 未知 wt + OOB 分支均设 self.error=true
+- 修正 "maintain parseability" 误导性注释
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P1-052] write_all bytes_data_ptr 悬垂指针风险
+- 来源: CP-02. wasi_io.mbt write_all 中 data 参数在 bytes_data_ptr 后不再具名引用
+- 修复: while 循环后加 let _ = data.length() 保持 GC 引用存活
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P1-053] 移除 query_parameter_limit 死代码
+- 来源: CD-01/02. 选项被解析但从未在 codegen/IR 层消费
+- 修复: 从 adapter.mbt(struct+解析+测试)、main.mbt(TODO)、golden.mbt(literals)、README.md(文档) 移除
+- 同步更新 ADR-014.md + CONTEXT.md 引用
+- 创建: 2026-06-02 | 完成: 2026-06-04
+
+### [P2-013~015] adapter 重构 + trim_str Unicode — CANCELLED
+- P2-013: 硬编码前缀索引重构 → MoonBit 0.1 String::replace 返回值不可靠
+- P2-014: snake/kebab 解析去重 → 同上，需 replace normalize
+- P2-015: trim_str Unicode 空白 → UInt16 不支持 hex 字面量比较
+- 状态: cancelled (MoonBit 0.1 工具链限制)
+
+---
+
+## 历史归档 (2026-05-14 ~ 2026-06-01)
+
 
 ### [P0-067] iovec 保留内存区间隔离验证与加固
 - 边界情况 #10: plugin/wasi_io.mbt 新增 verify_reserved_memory() — sentinel 模式 + 边界检查

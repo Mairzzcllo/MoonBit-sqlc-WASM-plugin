@@ -154,12 +154,11 @@ pub struct DB {
 | `package_name` | string | `"main"` | 生成代码的包名 |
 | `emit_json_tags` | bool | `false` | 生成 `@json.tag("name")` 注解 |
 | `emit_db_tags` | bool | `false` | 生成 `@db.tag("name")` 注解 |
-| `emit_sql_as_comment` | bool | `false` | 在函数上方嵌入原始 SQL 作为 doc comment |
+| `emit_sql_as_comment` | bool | `true` | 在函数上方嵌入原始 SQL 作为 doc comment |
 | `omit_unused_structs` | bool | `false` | 跳过未被查询引用的 struct 类型生成 |
 | `emit_empty_slices` | bool | `false` | `:many` 无结果时返回空数组 `[]` 而非 `Err(NoRows)` |
 | `initialisms` | string | `""` | 逗号分隔的首字母缩写词，如 `"API,HTTP,ID"` |
 | `json_tags_case_style` | string | `"snake"` | JSON 标签命名风格：`snake` / `camel` / `pascal` |
-| `query_parameter_limit` | int | `0` | 查询参数数量上限（`0` = 无限制） |
 | `emit_exact_table_names` | bool | `false` | struct 名使用数据库表名原样（不转换单复数） |
 | `emit_methods_with_db_argument` | bool | `false` | 生成显式接收 `db: DB` 参数的方法变体（实验性） |
 

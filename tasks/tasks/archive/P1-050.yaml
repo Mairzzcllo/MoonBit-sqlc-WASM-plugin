@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: P1-050
+state: done
+deterministic: true
+title: "read_varint 静默截断 — 截断时返回错误而非部分结果"
+type: bugfix
+priority: P1
+description: >
+  codec.mbt read_varint (line 109-122) 在 remaining() <= 0 时 break
+  返回部分累加值，该值可看似合法小整数（如 1 字节截断返回 104 而非
+  真正的 1000）。这导致：
+  1. 作为字段号使用时匹配错误字段或触发误跳过
+  2. 作为 string/bytes 长度时读太少（后续内容被误解析）或读太多（abort）
+  3. 作为嵌入消息长度时触发 CD-07 的连锁错误
+  read_varint 是 codec 层的根基函数——其正确性影响所有下游解码。
+dependencies: []
+owner: ""
+acquired_at: null
+expires_at: null
+retry_count: 0
+max_retry: 3
+created_at: "2026-06-02"
+updated_at: "2026-06-04"
+artifacts:
+  - plugin/codec.mbt
+references:
+  - plugin/codec.mbt:109-122
+execution_notes: >
+  修复方案：read_varint 在 remaining() <= 0 中断时不应返回部分结果。
+  选项 A（推荐）：在 Decoder struct 增加 error 标记字段。
+  截断时设置 self.error = true，调用者检查标记。
+  选项 B：改为返回 Option[Int]。改动面更大——所有 read_varint
+  调用点（read_tag, read_string, read_bytes, read_bool,
+  decode_embedded 等）均需改为 Option 处理。
+  推荐选项 A：改动面最小，Decoder 的 error 标记可被下游
+  decode_embedded (P1-049) 和 skip_field (P1-051) 复用。
+  实现步骤：
+  1. Decoder struct 增加 mut error: Bool = false
+  2. read_varint: remaining() <= 0 时设置 self.error = true, 返回 0
+  3. read_tag/read_string/read_bytes/read_bool/code_embedded:
+     调用 read_varint 后检查 self.error，若为 true 则提前返回默认值
+     或跳过处理
+  4. 顶层 decode 函数（decode_generate_request）循环结束后检查标记
+  执行顺序：本任务 → P1-049 → P1-051（共享 Decoder error 标记基础设施）。
+
+  === FINAL COMPLETION (2026-06-04) ===
+  read_varint 中 remaining() <= 0 时设置 self.error = true 并返回 0。
+  read_tag/read_string/read_bytes/read_bool 在调用 read_varint 后
+  检查 self.error，true 时提前返回默认值。顶层 decode 函数循环后
+  检查 error 标记并 abort。新增 4 个截断检测测试。
+  moon test 880/880 pass。

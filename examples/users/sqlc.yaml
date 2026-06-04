@@ -2,6 +2,8 @@ version: "2"
 plugins:
   - name: "moonbit"
     wasm:
+      # Uses debug build by default. For CI/release builds, change to:
+      # url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"
       url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"
       sha256: ""
 sql:

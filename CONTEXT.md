@@ -4,10 +4,10 @@
 
 - **项目**: MoonBit sqlc WASM Plugin
 - **阶段**: Phase 0 Hotfix + Phase A/B/C 全部完成 ✅ — Phase D 执行中
-- **最新事件**: 2026-06-01 — P1-039~048 全部完成 ✅ (3轮迭代, coder→tester→reviewer, 870 tests)
-- P0: 67/67 completed ✅ (P0-001~067 all done!)
-- P1: 40/44 completed ✅ (P1-001~034, P1-039~048 done; P1-035~038 remaining)
-- P2: 12/12 completed ✅; P2-001/005/006 superseded
+- **最新事件**: 2026-06-04 — P0-068/069 + P1-049~053 全部完成 ✅ + CD-04/05/06 cancelled (880 tests)
+- P0: 69/69 completed ✅ (P0-001~069 all done!)
+- P1: 49/53 completed ✅ (P1-001~034, P1-039~053 done; P1-035~038 remaining)
+- P2: 12/12 completed ✅ + 3 cancelled (P2-013~015); P2-001/005/006 superseded
 - 活跃 Phase: **Phase D — 架构差距消除 + 100 边界情况修复 Sprint**
 
 ## Sprint S-1 — Value enum + package_name + Release
@@ -180,7 +180,7 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 - 测试: 486/486 pass (482 original + 4 new Match arm structure tests)
 
 ### P0-057 交付内容 ✅
-- **8 新选项**: emit_sql_as_comment（SQL 注释）, omit_unused_structs（跳过未用结构体）, emit_empty_slices（空结果返回空数组）, initialisms（命名缩写）, json_tags_case_style（标签大小写风格）, query_parameter_limit（参数限制, TODO）, emit_exact_table_names（精确表名）, emit_methods_with_db_argument（DB 参数函数风格）
+- **7 新选项**: emit_sql_as_comment（SQL 注释）, omit_unused_structs（跳过未用结构体）, emit_empty_slices（空结果返回空数组）, initialisms（命名缩写）, json_tags_case_style（标签大小写风格）, emit_exact_table_names（精确表名）, emit_methods_with_db_argument（DB 参数函数风格）（原 query_parameter_limit 已在 P1-053 移除）
 - **naming.mbt (NEW)**: capitalize_first, lowercase_first, parse_initialisms, snake_to_pascal/camel, apply_case_style + 21 内联测试
 - **adapter.mbt**: 所有选项解析支持 snake_case + kebab-case；全部布尔选项有 =true/=false 分支；+27 内联测试
 - **type_codegen.mbt**: omit_unused_structs 过滤；emit_exact_table_names 透传；initialisms 影响枚举/结构体命名；json_tags_case_style 影响标签
@@ -234,12 +234,74 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 **10 任务全部经 3 轮 coder→tester→reviewer 迭代完成。**
 **测试**: 870/870 pass (+188 from 682), moon check 0 errors.
 
+### Phase D-3 — I/O 基础设施加固 + Codec 错误传播 + 死代码清理 (2026-06-04)
+
+| ID | 类型 | 标题 | 状态 |
+|----|------|------|------|
+| **P0-068** | bugfix | scratch/.data 内存重叠 — GC Bytes::new 动态分配 I/O 缓冲区 | ✅ done |
+| **P0-069** | bugfix | emit_sql_as_comment 默认值文档一致化 (false→true) | ✅ done |
+| **P1-049** | bugfix | decode_embedded 错误传播 — Decoder error 标记 | ✅ done |
+| **P1-050** | bugfix | read_varint 截断错误 — error flag 替代部分返回值 | ✅ done |
+| **P1-051** | bugfix | skip_field 未知 wire type — error 标记通知调用者 | ✅ done |
+| **P1-052** | bugfix | write_all Bytes 悬垂指针 — _keep_alive 双重引用保活 | ✅ done |
+| **P1-053** | cleanup | query_parameter_limit 死代码移除 | ✅ done |
+| **P2-013** | refactor | parse_plugin_options 硬编码索引重构 | ❌ cancelled (CD-04) |
+| **P2-014** | refactor | snake_case/kebab-case 解析去重 | ❌ cancelled (CD-05) |
+| **P2-015** | refactor | trim_str Unicode 空白字符扩展 | ❌ cancelled (CD-06) |
+
+**测试**: 880/880 pass (+10 from 870), moon check 0 errors.
+
+#### P0-068 交付内容
+- `plugin/wasi_io.mbt`: scratch 缓冲区从固定 [1036,65535] 改为 GC `Bytes::new(65536)` 动态分配
+- 移除 `SCRATCH`/`SCRATCH_END`/`memory_grow` 常量和手动内存管理
+- `read_all` 使用 `bytes_data_ptr(buf)` 获取 iovec.buf 地址
+- `verify_reserved_memory()` 简化为仅验证 [1024,1035] iovec 结构区域
+- 根因：固定 scratch 地址与 MoonBit .data 段 (10000+) 和 TLSF 元数据 (13136+) 实际重叠
+
+#### P0-069 交付内容
+- `README.md`:157 `emit_sql_as_comment` 默认值从 `false` 纠正为 `true`
+- 代码中 4 个独立位置均确认为 `true`（struct doc comment / 空数据默认 / 可变初始值 / 单元测试）
+- 检查 `docs/runtime-api.md` 无相关错误引用
+
+#### P1-049~P1-051 交付内容（Codec 错误传播三连）
+- `plugin/codec.mbt`: `Decoder` struct 新增 `mut error: Bool = false` 字段
+- **P1-049**: `decode_embedded` 异常分支（len<0 或 len>remaining）设置 `dec.error = true` 后跳过 payload
+- **P1-050**: `read_varint` 中 `remaining() <= 0` 时设置 `self.error = true`；`read_tag`/`read_string`/`read_bytes`/`read_bool` 调用后检查 error 标记
+- **P1-051**: `skip_field` 未知 wire type (6+) 保留跳至 message end，新增 error 标记；WT_LEN/WT_BITS64/WT_BITS32 OOB 同步设置
+- 顶层 `decode_generate_request`/`decode_generate_response` 循环后检查 error 标记并 abort
+- 新增 10 个错误传播/截断检测测试
+
+#### P1-052 交付内容
+- `plugin/wasi_io.mbt`: `write_all` 在 `bytes_data_ptr(data)` 后添加 `let _keep_alive = data` 具名引用
+- while 循环体内引用 `data.length()` 双重保活，防止 GC 回收底层内存导致悬垂指针
+- `read_all` 同步添加 `_keep_alive` 保护
+- `P0-068` 动态 Bytes 分配方案从架构层面消除此类风险
+
+#### P1-053 交付内容
+- `PluginOptions` 移除 `query_parameter_limit` 字段
+- `parse_plugin_options` 移除 snake_case + kebab-case 两处解析分支
+- `generate_sources`/`generate_source` 移除字段传递
+- `main.mbt` 两处 TODO 注释已删除
+- `README.md` 中相关文档行已移除
+- 移除约 4 个相关单元测试
+
+#### Code Debt 取消记录 (CD-04/05/06)
+以下 3 个 P2 重构任务因 MoonBit 0.1 工具链限制取消：
+
+| CD | 任务 | 限制 |
+|----|------|------|
+| **CD-04** | P2-013 硬编码索引重构 (split API) | MoonBit 0.1 String::split 不可靠，边界行为未定义 |
+| **CD-05** | P2-014 parse 解析去重 (replace API) | MoonBit 0.1 String::replace 在 WASM 目标下可能触发 GC 导致 raw ptr 失效 |
+| **CD-06** | P2-015 Unicode 空白字符支持 | MoonBit 0.1 不支持 UInt16 hex 字面量比较 (0x3000)，Char::to_int() 行为未定义 |
+
+这些任务将在 MoonBit 工具链成熟（String API 稳定 + Unicode code point 支持）后重新评估。
+
 ### P0 任务
 
 | ID | GAP | 标题 | 类型 | 状态 | 依赖 |
 |----|-----|------|------|------|------|
 | **P0-056** | GAP-2 | :execresult 完整语义 — LastInsertId + RowsAffected 结构体 | feature | ✅ done | — |
-| **P0-057** | GAP-4 | 插件选项扩展 — 8 新选项 (emit_sql_as_comment, omit_unused_structs, emit_empty_slices, initialisms, json_tags_case_style, query_parameter_limit, emit_exact_table_names, emit_methods_with_db_argument) | feature | ✅ done | — |
+| **P0-057** | GAP-4 | 插件选项扩展 — 7 新选项（query_parameter_limit 后续移除） | feature | ✅ done | — |
 | **P0-058** | GAP-3 | 类型覆盖扩展 — column 级 + nullable 级覆盖 | feature | ✅ done | — |
 | **P0-059** | GAP-7 | TIMETZ 时区支持 — 新增 TimeTZ struct + Value 变体 | feature | ✅ done | — |
 | **P0-060** | GAP-1 | 多文件输出 — 按类型/查询拆分 + output_*_file_name 配置 | feature | ✅ done | — |
@@ -298,7 +360,7 @@ Sprint S-1 全部完成，v0.1.0 tag 已推送，Release workflow 已触发。
 1. **GAP-2 ExecResult**: `ExecResult { last_insert_id: Int64, rows_affected: Int64 }` 双值结构体，类似 sql.Result
 2. **GAP-7 TimeTZ**: 新增独立 struct `TimeTZ { hour, min, sec, micros: Int, tz_offset: Int }`，Value 新增 `TimeTZ(TimeTZ)` 变体
 3. **GAP-3 Overrides**: 扩展 adapter 解析 `overrides[]` 配置，支持 `column` 精确列匹配和 `nullable` 可空覆盖
-4. **GAP-4 Options** ✅: 全部 8 个选项通过 `parse_plugin_options` 统一提取，`PluginOptions` struct 新增字段。naming.mbt 新增命名转换工具链。emit_empty_slices 正确实现 Err(NoRows) 过滤。query_parameter_limit 留 TODO (需 SQL 级查询拆分)。
+4. **GAP-4 Options** ✅: 全部 7 个选项通过 `parse_plugin_options` 统一提取，`PluginOptions` struct 新增字段。naming.mbt 新增命名转换工具链。emit_empty_slices 正确实现 Err(NoRows) 过滤。（query_parameter_limit 已在 P1-053 移除。）
 5. **GAP-9 E2E**: PowerShell 脚本调用本地 sqlc.exe + WASM 验证生成结果
 
 ## 关键勘误记录（2026-05-22 代码评审）

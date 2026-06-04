@@ -165,8 +165,6 @@ pub struct PluginOptions {
   initialisms : String
   /// Case style for JSON tags: "snake", "camel", "pascal" (default: "snake").
   json_tags_case_style : String
-  /// Maximum number of query parameters before splitting. 0 = no limit (default: 0).
-  query_parameter_limit : Int
   /// Use exact table names instead of singularized form for struct names (default: false).
   emit_exact_table_names : Bool
   /// Generate standalone functions accepting DB as argument instead of method receivers (default: false).
@@ -202,7 +200,6 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       emit_empty_slices: false,
       initialisms: "",
       json_tags_case_style: "snake",
-      query_parameter_limit: 0,
       emit_exact_table_names: false,
       emit_methods_with_db_argument: false,
       column_overrides: [],
@@ -221,7 +218,6 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   let mut emit_empty_slices = false
   let mut initialisms = ""
   let mut json_tags_case_style = "snake"
-  let mut query_parameter_limit = 0
   let mut emit_exact_table_names = false
   let mut emit_methods_with_db_argument = false
   let column_overrides: Array[ColumnOverride] = []
@@ -328,12 +324,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[21:].trim().to_owned()
     } else if s.has_prefix("json_tags_case_style =") {
       json_tags_case_style = s[22:].trim().to_owned()
-    } else if s.has_prefix("query_parameter_limit=") {
-      let val = s[22:].trim().to_owned()
-      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
     } else if s.has_prefix("query_parameter_limit =") {
-      let val = s[23:].trim().to_owned()
-      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
     } else if s == "emit_exact_table_names=true" || s == "emit_exact_table_names = true" {
       emit_exact_table_names = true
     } else if s == "emit_exact_table_names=false" || s == "emit_exact_table_names = false" {
@@ -368,12 +359,6 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[21:].trim().to_owned()
     } else if s.has_prefix("json-tags-case-style =") {
       json_tags_case_style = s[22:].trim().to_owned()
-    } else if s.has_prefix("query-parameter-limit=") {
-      let val = s[22:].trim().to_owned()
-      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
-    } else if s.has_prefix("query-parameter-limit =") {
-      let val = s[23:].trim().to_owned()
-      query_parameter_limit = try { @string.parse_int(val) } catch { _ => 0 }
     } else if s == "emit-exact-table-names=true" || s == "emit-exact-table-names = true" {
       emit_exact_table_names = true
     } else if s == "emit-exact-table-names=false" || s == "emit-exact-table-names = false" {
@@ -395,7 +380,6 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
     emit_empty_slices: emit_empty_slices,
     initialisms: initialisms,
     json_tags_case_style: json_tags_case_style,
-    query_parameter_limit: query_parameter_limit,
     emit_exact_table_names: emit_exact_table_names,
     emit_methods_with_db_argument: emit_methods_with_db_argument,
     column_overrides: column_overrides,
@@ -852,21 +836,6 @@ test "parse_plugin_options: json_tags_case_style with spaces parsed" {
   inspect(opts.json_tags_case_style, content="pascal")
 }
 
-test "parse_plugin_options: query_parameter_limit=100 parsed" {
-  let opts = parse_plugin_options(b"query_parameter_limit=100")
-  inspect(opts.query_parameter_limit, content="100")
-}
-
-test "parse_plugin_options: query_parameter_limit with spaces parsed" {
-  let opts = parse_plugin_options(b"query_parameter_limit = 50")
-  inspect(opts.query_parameter_limit, content="50")
-}
-
-test "parse_plugin_options: query_parameter_limit=abc non-numeric falls back to 0" {
-  let opts = parse_plugin_options(b"query_parameter_limit=abc")
-  inspect(opts.query_parameter_limit, content="0")
-}
-
 test "parse_plugin_options: emit_exact_table_names=true parsed" {
   let opts = parse_plugin_options(b"emit_exact_table_names=true")
   inspect(opts.emit_exact_table_names, content="true")
@@ -895,11 +864,6 @@ test "parse_plugin_options: kebab-case emit-empty-slices=true parsed" {
 test "parse_plugin_options: kebab-case json-tags-case-style=pascal parsed" {
   let opts = parse_plugin_options(b"json-tags-case-style=pascal")
   inspect(opts.json_tags_case_style, content="pascal")
-}
-
-test "parse_plugin_options: kebab-case query-parameter-limit=75 parsed" {
-  let opts = parse_plugin_options(b"query-parameter-limit=75")
-  inspect(opts.query_parameter_limit, content="75")
 }
 
 test "parse_plugin_options: kebab-case emit-exact-table-names=true parsed" {
@@ -935,20 +899,14 @@ test "parse_plugin_options: mixed combination kebab + snake" {
 }
 
 test "parse_plugin_options: all new options simultaneously" {
-  let opts = parse_plugin_options(b"emit_sql_as_comment=false\nomit_unused_structs=true\nemit_empty_slices=true\ninitialisms=ID,URL\njson_tags_case_style=camel\nquery_parameter_limit=50\nemit_exact_table_names=true\nemit_methods_with_db_argument=true")
+  let opts = parse_plugin_options(b"emit_sql_as_comment=false\nomit_unused_structs=true\nemit_empty_slices=true\ninitialisms=ID,URL\njson_tags_case_style=camel\nemit_exact_table_names=true\nemit_methods_with_db_argument=true")
   inspect(opts.emit_sql_as_comment, content="false")
   inspect(opts.omit_unused_structs, content="true")
   inspect(opts.emit_empty_slices, content="true")
   inspect(opts.initialisms, content="ID,URL")
   inspect(opts.json_tags_case_style, content="camel")
-  inspect(opts.query_parameter_limit, content="50")
   inspect(opts.emit_exact_table_names, content="true")
   inspect(opts.emit_methods_with_db_argument, content="true")
-}
-
-test "parse_plugin_options: non-numeric query_parameter_limit defaults to 0 (kebab)" {
-  let opts = parse_plugin_options(b"query-parameter-limit=xyz")
-  inspect(opts.query_parameter_limit, content="0")
 }
 
 test "parse_plugin_options: emit_sql_as_comment default true when not set" {

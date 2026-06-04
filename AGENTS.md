@@ -3,13 +3,14 @@
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）
-- `moon test` — 运行测试（870 测试）
+- `moon test` — 运行测试（880 测试）
 - `moon check` — 类型检查
 - `moon build --target wasm` — 显式指定 WASM 目标
 - `wasm2wat` — 检查 WASM 二进制 WAT 结构（需 npm i -g wabt）
 - CI/CD: `.github/workflows/ci.yml` (check→test→build→validate) + `.github/workflows/release.yml` (tag v*)
 - Docs: `docs/quickstart.md` (快速开始), `docs/runtime-api.md` (API 参考)
 - 生成代码示例: `examples/` — `sqlc generate` 在 `examples/users/` 下可完整运行
+- **Windows PowerShell 编码**：若 `moon build`/`moon test` 输出中文乱码，在 PowerShell 中运行 `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8` 设置 UTF-8 编码。建议将此行加入 `$PROFILE` 或构建脚本开头
 
 ## 设计理念
 
@@ -35,8 +36,8 @@
     - 测试使用 inline `test { ... }` 块而非 `_test.mbt`（main 包不支持 blackbox 测试）
     - 空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型
     - WASI FFI: 使用内联 WAT ABI bridge 方案。MoonBit `--target wasm` 支持 `= "module" "name"` 语法直接导入 WASI 函数，以及 `= "(func ...)"` 内联 WAT 执行原始内存操作。iovec 结构体（12 字节）固定在 [1024,1035]，数据缓冲区由 GC Bytes::new 动态分配。
-    - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes); [1036, ~65535] — scratch buffer。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
-    - `moon test` 在 moonrun 下运行所有 870 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
+    - Reserved memory: [1024, 1035] — iovec at 1024 (8 bytes), rof_len at 1032 (4 bytes)。I/O 数据缓冲区由 GC Bytes::new 动态分配（P0-068），不再使用固定 scratch 区域。MoonBit .data 初始段在 10000+，TLSF allocator 元数据在 13136+，区间无冲突
+    - `moon test` 在 moonrun 下运行所有 880 测试通过；I/O 层仅在 wasmtime 环境（sqlc generate）时触发
     - AST Expr 新增变体：`If(cond, then, else)`、`Index(target, idx)`、`IntLit(n)`、`BinOp(op, left, right)` — 用于生成 if/else、索引访问、数字字面量和比较表达式
     - Plugin options 解析：`parse_plugin_options(bytes)` → `PluginOptions { package_name }` — 从 `plugin_options` Bytes 中提取 key=value 配置。支持 `package_name=` 和 `package=` 双前缀（兼容 sqlc yaml 中 `package:` 和 `package_name:` 两种写法）
     - 输出文件名从 `req.settings.codegen.out` 获取，空值时默认 `"lib.mbt"`（process_request）

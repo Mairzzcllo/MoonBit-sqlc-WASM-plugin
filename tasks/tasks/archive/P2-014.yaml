@@ -1,31 +1,33 @@
 schema_version: "1.0"
 id: P2-014
-state: done
+state: cancelled
 deterministic: true
-title: "Migrate inspect→debug_inspect in type_map.mbt (94 calls)"
+title: "parse_plugin_options snake_case/kebab-case 解析去重"
 type: refactor
 priority: P2
 description: >
-  plugin/type_map.mbt 中全部 94 处 inspect(value, content=...) 调用
-  未被 P2-009 迁移，仍使用 deprecated 的 inspect 函数。需全部替换为
-  debug_inspect(value, content=...)，与其他 780+ 处已迁移调用保持一致。
-  编译期确认 4 处 deprecation warning (585,591,596,601)，
-  其余 90 处虽未报警但为预防性迁移。
+  plugin/adapter.mbt parse_plugin_options (lines 303-385) 中每个
+  布尔选项和字符串选项的 snake_case 变体和 kebab-case 变体解析逻辑
+  完全重复（如 emit_json_tags=true/false 和 emit-json-tags=true/false
+  各 4 行，共约 80 行重复）。
 dependencies: []
 owner: ""
 acquired_at: null
 expires_at: null
 retry_count: 0
 max_retry: 3
-created_at: "2026-05-29"
-updated_at: "2026-05-30"
+created_at: "2026-06-02"
+updated_at: "2026-06-04"
 artifacts:
-  - type: implementation
-    path: plugin/type_map.mbt
-    hash: null
+  - plugin/adapter.mbt
 references:
-  - plugin/type_map.mbt
+  - plugin/adapter.mbt:303-385
 execution_notes: >
-  正则替换: inspect(  →  debug_inspect(  (精确匹配，保留缩进)。
-  共 94 处，全局替换不会误伤其他文件。
-  执行 moon test + moon check 验证无 regression。
+  原重构方案：normalize kebab→snake 统一匹配，消除约 80 行重复代码。
+
+  === CANCELLED (2026-06-04) ===
+  取消原因：CD-05 — MoonBit 0.1 String::replace API 在 WAT/WASM 目标
+  下行为不可靠（replace 内部可能触发 GC 导致 raw ptr 失效）。
+  若使用 replace 做 normalize，可能与 P0-068/P1-052 的动态内存/保活
+  机制产生交互故障。80 行重复代码虽冗余但行为确定性高。
+  待 MoonBit String API 稳定后重新评估。

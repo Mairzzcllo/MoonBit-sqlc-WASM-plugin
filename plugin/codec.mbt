@@ -87,14 +87,19 @@ struct Decoder {
   buf: Bytes
   mut pos: Int
   end: Int
+  mut error: Bool
 }
 
 fn Decoder::new(buf: Bytes) -> Decoder {
-  { buf, pos: 0, end: buf.length() }
+  { buf, pos: 0, end: buf.length(), error: false }
 }
 
 fn Decoder::remaining(self: Decoder) -> Int {
   self.end - self.pos
+}
+
+fn Decoder::has_error(self: Decoder) -> Bool {
+  self.error
 }
 
 fn Decoder::read_byte(self: Decoder) -> Byte {
@@ -110,7 +115,10 @@ fn Decoder::read_varint(self: Decoder) -> Int {
   let mut result: Int = 0
   let mut shift: Int = 0
   for i = 0; i < 5; i = i + 1 {
-    if self.remaining() <= 0 { break }
+    if self.remaining() <= 0 {
+      self.error = true
+      break
+    }
     let b = self.read_byte().to_int()
     result = result | ((b & 0x7F) << shift)
     if (b & 0x80) == 0 {
@@ -128,7 +136,7 @@ fn Decoder::read_tag(self: Decoder) -> (Int, Int) {
 
 fn Decoder::read_string(self: Decoder) -> String {
   let len = self.read_varint()
-  if len <= 0 { return "" }
+  if self.has_error() || len <= 0 { return "" }
   let available = self.remaining()
   if len > available {
     abort("codec: read_string length (\{len}) exceeds remaining bytes (\{available})")
@@ -141,7 +149,7 @@ fn Decoder::read_string(self: Decoder) -> String {
 
 fn Decoder::read_bytes(self: Decoder) -> Bytes {
   let len = self.read_varint()
-  if len <= 0 { return Bytes::default() }
+  if self.has_error() || len <= 0 { return Bytes::default() }
   let available = self.remaining()
   if len > available {
     abort("codec: read_bytes length (\{len}) exceeds remaining bytes (\{available})")
@@ -194,6 +202,7 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
       let len = self.read_varint()
       let new_pos = self.pos + len
       if new_pos > self.end || new_pos < self.pos {
+        self.error = true
         self.pos = self.end
       } else {
         self.pos = new_pos
@@ -202,6 +211,7 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
     WT_BITS64 => {
       let new_pos = self.pos + 8
       if new_pos > self.end {
+        self.error = true
         self.pos = self.end
       } else {
         self.pos = new_pos
@@ -210,6 +220,7 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
     WT_BITS32 => {
       let new_pos = self.pos + 4
       if new_pos > self.end {
+        self.error = true
         self.pos = self.end
       } else {
         self.pos = new_pos
@@ -218,9 +229,9 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
     3 => { self.skip_group(fn_num) }
     4 => { () }
     _ => {
-      // Unknown wire type — skip to end of current message boundary.
-      // Without size info we cannot skip a single field, so we abort
-      // the current message to maintain parseability of sibling fields.
+      // Unknown wire type — cannot determine field boundary.
+      // Skip rest of message and mark error.
+      self.error = true
       self.pos = self.end
     }
   }
@@ -239,12 +250,18 @@ fn Decoder::skip_group(self: Decoder, fn_num: Int) -> Unit {
 fn[T] decode_embedded(dec: Decoder, f: (Decoder) -> T) -> T {
   let len = dec.read_varint()
   if len < 0 || len > dec.remaining() {
-    return f({ buf: dec.buf, pos: dec.pos, end: dec.pos })
+    // Corrupt length — cannot determine sub-message boundary.
+    // Setting pos = end loses sibling fields in this message, but
+    // is safer than the alternative (misparsing payload bytes as sibling tags).
+    dec.error = true
+    dec.pos = dec.end
+    return f({ buf: dec.buf, pos: dec.pos, end: dec.pos, error: true })
   }
   let start = dec.pos
   let end = start + len
-  let sub: Decoder = { buf: dec.buf, pos: start, end }
+  let sub: Decoder = { buf: dec.buf, pos: start, end, error: false }
   let result = f(sub)
+  if sub.has_error() { dec.error = true }
   dec.pos = end
   result
 }
