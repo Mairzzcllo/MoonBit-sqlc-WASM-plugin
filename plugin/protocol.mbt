@@ -31,10 +31,10 @@
 /// Process a raw protobuf GenerateRequest and return raw GenerateResponse bytes.
 /// This is the ONLY entry point the shim needs. No I/O, no FFI — pure transform.
 ///
-/// On application-level errors (path validation failure, config errors), returns an empty
-/// GenerateResponse instead of crashing the WASM process. Codec-level corruption
-/// (e.g., corrupted protobuf) triggers abort() which causes a WASM trap — this
-/// terminates the plugin cleanly rather than producing garbage output.
+/// On application-level errors (path validation failure, config errors) and codec-level
+/// corruption (corrupt protobuf), returns an empty GenerateResponse instead of crashing
+/// the WASM process. Codec errors propagate via `raise` from `decode_request` and are
+/// caught here; `abort()` must not be used on decode paths (WASM trap bypasses catch).
 pub fn process_message(data: Bytes) -> Bytes {
   try {
     let req = decode_request(data)
@@ -48,4 +48,15 @@ pub fn process_message(data: Bytes) -> Bytes {
   }
 }
 
+
+test "P0-070: process_message corrupt protobuf returns empty response" {
+  let enc = Encoder::new()
+  enc.write_tag(4, WT_LEN)
+  enc.write_varint(100)
+  enc.write_byte((0x41).to_byte())
+  let data = enc.finish()
+  let response_bytes = process_message(data)
+  let resp = decode_response(response_bytes)
+  inspect(resp.files.length(), content="0")
+}
 

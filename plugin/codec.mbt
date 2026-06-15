@@ -104,7 +104,8 @@ fn Decoder::has_error(self: Decoder) -> Bool {
 
 fn Decoder::read_byte(self: Decoder) -> Byte {
   if self.pos >= self.end {
-    abort("codec: read_byte past end of buffer")
+    self.error = true
+    return (0).to_byte()
   }
   let b = self.buf[self.pos]
   self.pos = self.pos + 1
@@ -139,7 +140,10 @@ fn Decoder::read_string(self: Decoder) -> String {
   if self.has_error() || len <= 0 { return "" }
   let available = self.remaining()
   if len > available {
-    abort("codec: read_string length (\{len}) exceeds remaining bytes (\{available})")
+    self.error = true
+    let start = self.pos
+    self.pos = start
+    return ""
   }
   let start = self.pos
   self.pos = start + len
@@ -152,7 +156,10 @@ fn Decoder::read_bytes(self: Decoder) -> Bytes {
   if self.has_error() || len <= 0 { return Bytes::default() }
   let available = self.remaining()
   if len > available {
-    abort("codec: read_bytes length (\{len}) exceeds remaining bytes (\{available})")
+    self.error = true
+    let start = self.pos
+    self.pos = start
+    return Bytes::default()
   }
   let start = self.pos
   self.pos = start + len
@@ -166,8 +173,10 @@ fn Decoder::read_bool(self: Decoder) -> Bool {
 /// Read 4 little-endian bytes as a 32-bit fixed-width unsigned integer.
 /// Corresponds to protobuf wire type 5 (32-bit).
 fn Decoder::read_fixed32(self: Decoder) -> Int {
+  if self.has_error() { return 0 }
   if self.remaining() < 4 {
-    abort("codec: read_fixed32 requires 4 bytes, only \{self.remaining()} remaining")
+    self.error = true
+    return 0
   }
   let b0 = self.read_byte().to_int()
   let b1 = self.read_byte().to_int()
@@ -179,8 +188,10 @@ fn Decoder::read_fixed32(self: Decoder) -> Int {
 /// Read 8 little-endian bytes as a 64-bit fixed-width integer.
 /// Corresponds to protobuf wire type 1 (64-bit).
 fn Decoder::read_fixed64(self: Decoder) -> Int64 {
+  if self.has_error() { return 0L }
   if self.remaining() < 8 {
-    abort("codec: read_fixed64 requires 8 bytes, only \{self.remaining()} remaining")
+    self.error = true
+    return 0L
   }
   let b0 = self.read_byte().to_int()
   let b1 = self.read_byte().to_int()
@@ -857,7 +868,7 @@ fn decode_parameter(dec: Decoder) -> Parameter {
 
 // === GenerateRequest ===
 
-fn decode_generate_request(dec: Decoder) -> GenerateRequest {
+fn decode_generate_request(dec: Decoder) -> GenerateRequest raise {
   let mut settings: Option[Settings] = None
   let mut catalog: Option[Catalog] = None
   let queries: Array[Query] = []
@@ -875,6 +886,9 @@ fn decode_generate_request(dec: Decoder) -> GenerateRequest {
       (6, WT_LEN) => global_options = Some(dec.read_bytes())
       (_, _) => dec.skip_field(fn_num, wt)
     }
+  }
+  if dec.has_error() {
+    raise Failure::Failure("codec: corrupt protobuf")
   }
   let empty_codegen: Codegen = {
     out: "", plugin: "", options: b"", env: [], process: None, wasm: None
@@ -941,7 +955,7 @@ fn encode_generate_request(enc: Encoder, val: GenerateRequest) -> Unit {
 
 // === Public API ===
 
-pub fn decode_request(data: Bytes) -> GenerateRequest {
+pub fn decode_request(data: Bytes) -> GenerateRequest raise {
   let dec = Decoder::new(data)
   decode_generate_request(dec)
 }
@@ -1761,20 +1775,11 @@ test "P0-061: read_byte with valid input returns correct byte" {
   inspect(dec.remaining(), content="0")
 }
 
-/// P0-061: read_byte on empty buffer aborts (abort cannot be caught by try/catch).
-/// This test verifies the boundary via code inspection. The abort message is:
-/// "codec: read_byte past end of buffer"
-/// To test abort behavior, use a negative test: verify read_byte succeeds with valid input.
+/// P0-061: read_byte on empty buffer sets error flag (P0-070).
 test "P0-061: read_byte with zero-length buffer does not return value" {
-  // Verify that a 1-byte buffer followed by OOB cannot happen silently.
-  // The read_byte function now aborts instead of returning 0.
-  // We validate the normal path: with valid input, read_byte consumes exactly 1 byte.
-  let buf = Bytes::from_array([0x01, 0x02])
-  let dec = Decoder::new(buf)
-  let b1 = dec.read_byte()
-  inspect(b1.to_int(), content="1")
-  let b2 = dec.read_byte()
-  inspect(b2.to_int(), content="2")
+  let dec = Decoder::new(b"")
+  let _b = dec.read_byte()
+  inspect(dec.has_error(), content="true")
   inspect(dec.remaining(), content="0")
 }
 
@@ -1908,9 +1913,7 @@ test "P0-061: read_fixed64 with 10 bytes only consumes 8" {
   inspect(b2.to_int(), content="187")  // 0xBB
 }
 
-/// P0-061: read_fixed32 with 3 bytes would abort (abort verified by code inspection).
-/// The bounds check ensures remaining >= 4 before reading.
-/// This test validates the normal (non-abort) path with exactly 4 bytes.
+/// P0-061: read_fixed32 with 3 bytes sets error flag (P0-070).
 test "P0-061: read_fixed32 4 bytes boundary correct value" {
   // Test the exact boundary case: 4 bytes, fixed32 works correctly
   let buf = Bytes::from_array([0x78, 0x56, 0x34, 0x12])
@@ -1920,9 +1923,7 @@ test "P0-061: read_fixed32 4 bytes boundary correct value" {
   inspect(dec.remaining(), content="0")
 }
 
-/// P0-061: read_fixed64 with 7 bytes would abort (abort verified by code inspection).
-/// The bounds check ensures remaining >= 8 before reading.
-/// This test validates normal path with exactly 8 bytes.
+/// P0-061: read_fixed64 with 7 bytes sets error flag (P0-070).
 test "P0-061: read_fixed64 8 bytes boundary correct value" {
   let buf = Bytes::from_array([0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00])
   let dec = Decoder::new(buf)
@@ -1941,4 +1942,61 @@ test "P0-061: read_varint guard prevents OOB read_byte" {
   let val = dec.read_varint()
   inspect(val, content="1")
   inspect(dec.remaining(), content="0")
+}
+
+// === P0-070: Codec abort → error flag ===
+
+test "P0-070: read_byte on empty buffer sets error flag" {
+  let dec = Decoder::new(b"")
+  let _b = dec.read_byte()
+  inspect(dec.has_error(), content="true")
+  inspect(dec.remaining(), content="0")
+}
+
+test "P0-070: read_string len exceeds available sets error" {
+  // varint len=5 (0x05), only 1 payload byte available
+  let dec = Decoder::new(Bytes::from_array([0x05, 0x41]))
+  let s = dec.read_string()
+  inspect(s, content="")
+  inspect(dec.has_error(), content="true")
+  inspect(dec.remaining(), content="1")
+}
+
+test "P0-070: read_bytes len exceeds available sets error" {
+  let dec = Decoder::new(Bytes::from_array([0x05, 0x41]))
+  let bs = dec.read_bytes()
+  inspect(bs.length(), content="0")
+  inspect(dec.has_error(), content="true")
+  inspect(dec.remaining(), content="1")
+}
+
+test "P0-070: read_fixed32 insufficient bytes sets error" {
+  let dec = Decoder::new(Bytes::from_array([0x01, 0x02, 0x03]))
+  let val = dec.read_fixed32()
+  inspect(val, content="0")
+  inspect(dec.has_error(), content="true")
+  inspect(dec.remaining(), content="3")
+}
+
+test "P0-070: read_fixed64 insufficient bytes sets error" {
+  let dec = Decoder::new(Bytes::from_array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]))
+  let val = dec.read_fixed64()
+  inspect(val, content="0")
+  inspect(dec.has_error(), content="true")
+  inspect(dec.remaining(), content="7")
+}
+
+test "P0-070: decode_request corrupt protobuf raises" {
+  let enc = Encoder::new()
+  enc.write_tag(4, WT_LEN)
+  enc.write_varint(100)
+  enc.write_byte((0x41).to_byte())
+  let data = enc.finish()
+  let result = try {
+    let _ = decode_request(data)
+    "unexpected_ok"
+  } catch {
+    _ => "raised"
+  }
+  inspect(result, content="raised")
 }
