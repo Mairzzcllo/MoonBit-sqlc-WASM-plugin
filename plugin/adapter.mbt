@@ -185,8 +185,17 @@ fn find_char(s: String, c: Char) -> Option[Int] {
   None
 }
 
+/// Emit a plugin-option warning without failing inline tests.
+fn warn_plugin_option(msg: String) -> Unit {
+  try {
+    debug_inspect(msg)
+  } catch {
+    _ => ()
+  }
+}
+
 /// Parse plugin_options bytes into a PluginOptions struct.
-/// Silently returns defaults on empty data or parse failure.
+/// Returns defaults on empty data; warns on malformed or unknown options.
 pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   if data.length() == 0 {
     return {
@@ -261,10 +270,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
               let column = key[d + 1:].to_owned()
               column_overrides.push({ table: table, column: column, moonbit_type: moon_type })
             }
-            None => ()
+            None => warn_plugin_option("override_column_ missing dot separator: " + s)
           }
         }
-        None => ()
+        None => warn_plugin_option("override_column_ missing '=': " + s)
       }
     } else if s.has_prefix("override_nullable_") {
       let eq_pos = find_char(s, '=')
@@ -274,7 +283,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
           let val = s[pos + 1:].trim().to_owned()
           if val == "true" { nullable_overrides.push(pg_type.to_lower()) }
         }
-        None => ()
+        None => warn_plugin_option("override_nullable_ missing '=': " + s)
       }
     } else if s.has_prefix("override_") {
       let eq_pos = find_char(s, '=')
@@ -284,7 +293,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
           let moon_type = s[pos + 1:].trim().to_owned()
           overrides.push((pg_type.to_lower(), moon_type))
         }
-        None => ()
+        None => warn_plugin_option("override_ missing '=': " + s)
       }
     } else if s.has_prefix("rename_") {
       let eq_pos = find_char(s, '=')
@@ -294,7 +303,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
           let val = s[pos + 1:].trim().to_owned()
           renames.push((key, val))
         }
-        None => ()
+        None => warn_plugin_option("rename_ missing '=': " + s)
       }
     } else if s == "emit_json_tags=true" || s == "emit_json_tags = true" {
       emit_json_tags = true
@@ -324,13 +333,14 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[21:].trim().to_owned()
     } else if s.has_prefix("json_tags_case_style =") {
       json_tags_case_style = s[22:].trim().to_owned()
-    } else if s.has_prefix("query_parameter_limit =") {
     } else if s == "emit_exact_table_names=true" || s == "emit_exact_table_names = true" {
       emit_exact_table_names = true
+      warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)")
     } else if s == "emit_exact_table_names=false" || s == "emit_exact_table_names = false" {
       emit_exact_table_names = false
     } else if s == "emit_methods_with_db_argument=true" || s == "emit_methods_with_db_argument = true" {
       emit_methods_with_db_argument = true
+      warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1")
     } else if s == "emit_methods_with_db_argument=false" || s == "emit_methods_with_db_argument = false" {
       emit_methods_with_db_argument = false
     }
@@ -361,12 +371,16 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[22:].trim().to_owned()
     } else if s == "emit-exact-table-names=true" || s == "emit-exact-table-names = true" {
       emit_exact_table_names = true
+      warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)")
     } else if s == "emit-exact-table-names=false" || s == "emit-exact-table-names = false" {
       emit_exact_table_names = false
     } else if s == "emit-methods-with-db-argument=true" || s == "emit-methods-with-db-argument = true" {
       emit_methods_with_db_argument = true
+      warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1")
     } else if s == "emit-methods-with-db-argument=false" || s == "emit-methods-with-db-argument = false" {
       emit_methods_with_db_argument = false
+    } else if s.length() > 0 {
+      warn_plugin_option("unknown option: " + s)
     }
   }
   {

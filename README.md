@@ -159,8 +159,8 @@ pub struct DB {
 | `emit_empty_slices` | bool | `false` | `:many` 无结果时返回空数组 `[]` 而非 `Err(NoRows)` |
 | `initialisms` | string | `""` | 逗号分隔的首字母缩写词，如 `"API,HTTP,ID"` |
 | `json_tags_case_style` | string | `"snake"` | JSON 标签命名风格：`snake` / `camel` / `pascal` |
-| `emit_exact_table_names` | bool | `false` | struct 名使用数据库表名原样（不转换单复数） |
-| `emit_methods_with_db_argument` | bool | `false` | 生成显式接收 `db: DB` 参数的方法变体（实验性） |
+| `emit_exact_table_names` | bool | `false` | struct 名使用数据库表名原样（**no effect in MoonBit 0.1** — singularization 未实现） |
+| `emit_methods_with_db_argument` | bool | `false` | 生成显式接收 `db: DB` 参数的方法变体（**no effect in MoonBit 0.1** — 实验性/no-op） |
 
 示例：
 ```yaml

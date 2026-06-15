@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Cursor 上下文管理
+
+- **自动规则**: `.cursor/rules/` — `project-stack`, `moonbit-testing`, `code-style`, `codemap`, `anti-patterns`（alwaysApply）
+- **跨会话记忆**: 新对话 `@.cursor/session_summary.tmp`（四维度：有效/失败/待做/切入点）
+- **执行计划**: `.cursor/execution_plan.md`
+- **精简上下文**: `@.cursor/agent-context.md`（可选）
+- **里程碑后**: 更新 `session_summary.tmp`，在逻辑节点 Compact 上下文
+
 ## 构建命令
 
 - `moon build` — 构建插件 WASM 二进制（等同于 `moon build --target wasm`）

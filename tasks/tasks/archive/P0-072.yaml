@@ -1,0 +1,48 @@
+schema_version: "1.0"
+
+id: P0-072
+state: done
+deterministic: true
+
+title: "decode_embedded 损坏长度 → error flag 通知 — 防止兄弟字段静默丢失"
+type: fix
+priority: P0
+description: >
+  当前 decode_embedded (codec.mbt:250-267) 在损坏长度时将 dec.pos 设为 dec.end，
+  导致所有后续字段被丢弃无报告。虽然设置了 dec.error = true，但调用者无法
+  获知丢失了多少字段。
+  修复方案：设置 error flag 后在返回的默认值中包含错误标记（sub: Decoder
+  已含 error: true），调用者（各 decode_* 函数）应检查 has_error()。
+  P1-049 已建立 error 传播框架（decode_generate_request 循环后检查），
+  但小粒度的 field-level decode 函数未检查 — 补全这些检查点。
+
+dependencies:
+  - id: P1-049
+    type: soft
+
+owner: ""
+acquired_at: null
+expires_at: null
+
+retry_count: 0
+max_retry: 3
+
+created_at: "2026-06-04"
+updated_at: "2026-06-04"
+
+artifacts:
+  - type: source
+    path: plugin/codec.mbt
+    hash: null
+
+references:
+  - ADR-013
+
+execution_notes: >
+  方案 A (推荐): 在每个调用 decode_embedded(f, decoder_fn) 的位置，调用后检查
+  dec.has_error()。如果为 true，跳过当前字段的后续处理。
+  涉及位置包括所有 decode_* 函数中的 decode_embedded 调用：
+  decode_settings:12, decode_query, decode_column, decode_parameter 等
+  当前这些函数已经通过 skip_field 跳过错误的嵌入消息，但返回的是带默认值的
+  对象而非 None。改为当 has_error() 时返回 None 或保留当前 partial 返回。
+  最简单修复: 在 decode_embedded 调用后检查 error，若 true 则 break/返回。

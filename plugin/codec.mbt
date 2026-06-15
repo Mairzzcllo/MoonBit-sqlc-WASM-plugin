@@ -238,7 +238,7 @@ fn Decoder::skip_field(self: Decoder, fn_num: Int, wt: Int) -> Unit {
       }
     }
     3 => { self.skip_group(fn_num) }
-    4 => { () }
+    4 => { self.error = true; self.pos = self.end }
     _ => {
       // Unknown wire type — cannot determine field boundary.
       // Skip rest of message and mark error.
@@ -338,6 +338,7 @@ fn decode_settings(dec: Decoder) -> Settings {
       (12, WT_LEN) => codegen = Some(decode_embedded(dec, decode_codegen))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let version_val = match version { Some(v) => v; None => "" }
   let engine_val = match engine { Some(v) => v; None => "" }
@@ -396,6 +397,7 @@ fn decode_codegen(dec: Decoder) -> Codegen {
       (6, WT_LEN) => wasm = Some(decode_embedded(dec, decode_codegen_wasm))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let out_val = match out { Some(v) => v; None => "" }
   let plugin_val = match plugin { Some(v) => v; None => "" }
@@ -477,6 +479,7 @@ fn decode_catalog(dec: Decoder) -> Catalog {
       (4, WT_LEN) => schemas.push(decode_embedded(dec, decode_schema))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let comment_val = match comment { Some(v) => v; None => "" }
   let default_schema_val = match default_schema { Some(v) => v; None => "" }
@@ -521,6 +524,7 @@ fn decode_schema(dec: Decoder) -> Schema {
       (5, WT_LEN) => composite_types.push(decode_embedded(dec, decode_composite_type))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let comment_val = match comment { Some(v) => v; None => "" }
   let name_val = match name { Some(v) => v; None => "" }
@@ -608,6 +612,7 @@ fn decode_table(dec: Decoder) -> Table {
       (3, WT_LEN) => comment = Some(dec.read_string())
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let empty_id: Identifier = { catalog: "", schema: "", name: "" }
   let rel_val = match rel { Some(v) => v; None => empty_id }
@@ -738,6 +743,7 @@ fn decode_column(dec: Decoder) -> Column {
       (17, WT_VARINT) => array_dims = Some(dec.read_varint())
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let empty_id: Identifier = { catalog: "", schema: "", name: "" }
   let name_val = match name { Some(v) => v; None => "" }
@@ -815,6 +821,7 @@ fn decode_query(dec: Decoder) -> Query {
       (8, WT_LEN) => insert_into_table = Some(decode_embedded(dec, decode_identifier))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let text_val = match text { Some(v) => v; None => "" }
   let name_val = match name { Some(v) => v; None => "" }
@@ -850,6 +857,7 @@ fn decode_parameter(dec: Decoder) -> Parameter {
       (2, WT_LEN) => column = Some(decode_embedded(dec, decode_column))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   let number_val = match number { Some(v) => v; None => 0 }
   let empty_id: Identifier = { catalog: "", schema: "", name: "" }
@@ -886,6 +894,7 @@ fn decode_generate_request(dec: Decoder) -> GenerateRequest raise {
       (6, WT_LEN) => global_options = Some(dec.read_bytes())
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   if dec.has_error() {
     raise Failure::Failure("codec: corrupt protobuf")
@@ -930,6 +939,7 @@ fn decode_generate_response(dec: Decoder) -> GenerateResponse {
       (1, WT_LEN) => files.push(decode_embedded(dec, decode_file))
       (_, _) => dec.skip_field(fn_num, wt)
     }
+    if dec.has_error() { break }
   }
   { files: files }
 }
@@ -1820,21 +1830,17 @@ test "P1-039: skip_field wire type 3 triggers skip_group" {
   inspect(p039_dec11.remaining(), content="0")
 }
 
-/// P1-039: skip_field wire type 4 (end group) is a no-op.
-test "P1-039: skip_field wire type 4 is no-op" {
-  let p039_enc3 = Encoder::new()
-  p039_enc3.write_tag(1, 4) // EGROUP
-  p039_enc3.write_tag(2, WT_LEN)
-  p039_enc3.write_string("ok")
-  let p039_data3 = p039_enc3.finish()
-  let p039_dec12 = Decoder::new(p039_data3)
-  let (fnum039d, wt039d) = p039_dec12.read_tag()
-  inspect(wt039d, content="4")
-  p039_dec12.skip_field(fnum039d, wt039d)
-  let (fnum039e, _) = p039_dec12.read_tag()
-  inspect(fnum039e, content="2")
-  let p039_str2 = p039_dec12.read_string()
-  inspect(p039_str2, content="ok")
+/// P1-056: skip_field wire type 4 (EndGroup) outside group context sets error.
+test "P1-056: skip_field wire type 4 sets error" {
+  let p056_enc = Encoder::new()
+  p056_enc.write_tag(1, 4) // orphaned EndGroup
+  let p056_data = p056_enc.finish()
+  let p056_dec = Decoder::new(p056_data)
+  let (fnum056, wt056) = p056_dec.read_tag()
+  inspect(wt056, content="4")
+  p056_dec.skip_field(fnum056, wt056)
+  inspect(p056_dec.has_error(), content="true")
+  inspect(p056_dec.remaining(), content="0")
 }
 
 /// P1-039: read_fixed32 at buffer boundary (exactly 4 bytes).
@@ -1991,6 +1997,71 @@ test "P0-070: decode_request corrupt protobuf raises" {
   enc.write_tag(4, WT_LEN)
   enc.write_varint(100)
   enc.write_byte((0x41).to_byte())
+  let data = enc.finish()
+  let result = try {
+    let _ = decode_request(data)
+    "unexpected_ok"
+  } catch {
+    _ => "raised"
+  }
+  inspect(result, content="raised")
+}
+
+// === P0-072: decode_embedded field-level error propagation ===
+
+/// P0-072: corrupt embedded length in settings sets error and stops sibling fields.
+test "P0-072: decode_settings corrupt codegen length sets error" {
+  let enc = Encoder::new()
+  enc.write_tag(12, WT_LEN)
+  enc.write_varint(999)
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let _ = decode_settings(dec)
+  inspect(dec.has_error(), content="true")
+}
+
+/// P0-072: sub-decoder error inside embedded message stops parsing sibling fields.
+test "P0-072: decode_settings breaks after embedded sub-decoder error" {
+  let inner = Encoder::new()
+  inner.write_tag(1, WT_LEN)
+  inner.write_varint(50)
+  inner.write_byte((0x41).to_byte())
+  let inner_bytes = inner.finish()
+
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_LEN)
+  enc.write_string("v1")
+  enc.write_tag(12, WT_LEN)
+  enc.write_varint(inner_bytes.length())
+  enc.write_bytes(inner_bytes)
+  enc.write_tag(2, WT_LEN)
+  enc.write_string("postgres")
+  let data = enc.finish()
+  let dec = Decoder::new(data)
+  let settings = decode_settings(dec)
+  inspect(dec.has_error(), content="true")
+  inspect(settings.version, content="v1")
+  inspect(settings.engine, content="")
+}
+
+/// P0-072: corrupt nested embedded propagates to decode_request raise.
+test "P0-072: decode_request raises on nested embedded error" {
+  let inner = Encoder::new()
+  inner.write_tag(1, WT_LEN)
+  inner.write_varint(50)
+  inner.write_byte((0x41).to_byte())
+  let inner_bytes = inner.finish()
+
+  let settings_enc = Encoder::new()
+  settings_enc.write_tag(12, WT_LEN)
+  settings_enc.write_varint(inner_bytes.length())
+  settings_enc.write_bytes(inner_bytes)
+  let settings_bytes = settings_enc.finish()
+
+  let enc = Encoder::new()
+  enc.write_tag(1, WT_LEN)
+  enc.write_varint(settings_bytes.length())
+  enc.write_bytes(settings_bytes)
   let data = enc.finish()
   let result = try {
     let _ = decode_request(data)

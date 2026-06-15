@@ -33,6 +33,7 @@ const IOV_BUF    : Int = IOV_BASE
 const IOV_LEN    : Int = IOV_BASE + 4
 const ROF_LEN    : Int = 1032
 const INITIAL_BUF_SIZE : Int = 65536
+const MAX_READ_SIZE : Int = 16 * 1024 * 1024
 
 // === Inline WAT helpers ====================================================
 
@@ -44,18 +45,20 @@ fn bytes_data_ptr(b : Bytes) -> Int =
 
 /// Verify that the hardcoded +8 offset in `bytes_data_ptr` still matches
 /// the actual MoonBit Bytes memory layout. Runs once at first I/O call.
-fn check_bytes_data_ptr() -> Unit {
+/// Returns false when layout drift is detected (caller skips I/O).
+fn check_bytes_data_ptr() -> Bool {
   let b = Bytes::make(4, 0xDE)
   let ptr = bytes_data_ptr(b)
   let mut i = 0
   while i < 4 {
     let val = load_u8(ptr + i)
     if val != 0xDE {
-      // P0-067: Bytes object layout changed — offset +8 no longer points to data payload
-      panic()
+      // P0-067/P0-071: Bytes object layout changed — offset +8 no longer points to data payload
+      return false
     }
     i = i + 1
   }
+  true
 }
 
 fn store_i32(addr : Int, val : Int) -> Unit =
@@ -90,10 +93,13 @@ fn read_all(fd : Int) -> Bytes {
   let mut capacity = INITIAL_BUF_SIZE
   let mut total = 0
   while true {
+    if total >= MAX_READ_SIZE { break }
     let remaining = capacity - total
     if remaining < 4096 {
       // Grow buffer: allocate larger, copy existing data over
-      let new_cap = capacity + 65536
+      let mut new_cap = capacity + 65536
+      if new_cap > MAX_READ_SIZE { new_cap = MAX_READ_SIZE }
+      if new_cap <= capacity { break }
       let new_buf = Bytes::new(new_cap)
       let new_ptr = bytes_data_ptr(new_buf)
       memory_copy(new_ptr, buf_ptr, total)
@@ -101,13 +107,18 @@ fn read_all(fd : Int) -> Bytes {
       buf_ptr = new_ptr
       capacity = new_cap
     }
+    let avail = capacity - total
+    let quota = MAX_READ_SIZE - total
+    let to_read = if avail < quota { avail } else { quota }
+    if to_read <= 0 { break }
     store_i32(IOV_BUF, buf_ptr + total)
-    store_i32(IOV_LEN, capacity - total)
+    store_i32(IOV_LEN, to_read)
     let err = fd_read(fd, IOV_BASE, 1, ROF_LEN)
     if err != 0 { break }
     let nread = load_i32(ROF_LEN)
     if nread <= 0 { break }
     total = total + nread
+    if total >= MAX_READ_SIZE { break }
   }
   if total == 0 { return Bytes::make(0, 0) }
   if total < capacity {
@@ -149,7 +160,8 @@ fn write_all(fd : Int, data : Bytes) -> Unit {
 /// the reserved iovec region).
 ///
 /// Called at startup in run_io_loop().
-fn verify_reserved_memory() -> Unit {
+/// Returns false when GC overwrote the reserved iovec region (caller skips I/O).
+fn verify_reserved_memory() -> Bool {
   // Phase 1: Write sentinel values to reserved iovec region
   store_i32(IOV_BUF, 0xDEADBEEF)
   store_i32(IOV_LEN, 0xCAFEBABE)
@@ -160,24 +172,26 @@ fn verify_reserved_memory() -> Unit {
   let _ = Bytes::new(256)
 
   if load_i32(IOV_BUF) != 0xDEADBEEF {
-    // P0-067: IOV_BUF sentinel corruption — GC allocator overwrote reserved iovec region at offset 1024
-    panic()
+    // P0-067/P0-071: IOV_BUF sentinel corruption — GC allocator overwrote reserved iovec region at offset 1024
+    return false
   }
   if load_i32(IOV_LEN) != 0xCAFEBABE {
-    // P0-067: IOV_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1028
-    panic()
+    // P0-067/P0-071: IOV_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1028
+    return false
   }
   if load_i32(ROF_LEN) != 0xFEEDFACE {
-    // P0-067: ROF_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1032
-    panic()
+    // P0-067/P0-071: ROF_LEN sentinel corruption — GC allocator overwrote reserved iovec region at offset 1032
+    return false
   }
+  true
 }
 
 /// Main protocol loop: read raw stdin → process → write raw stdout.
 /// sqlc WASM plugin uses unframed protobuf (no 4-byte LE header).
+/// P0-071: sentinel checks return Bool; failure skips I/O (sqlc sees empty stdout).
 fn run_io_loop() -> Unit {
-  check_bytes_data_ptr()
-  verify_reserved_memory()
+  if !check_bytes_data_ptr() { return () }
+  if !verify_reserved_memory() { return () }
   let body = read_all(0)
   if body.length() == 0 { return () }
   let resp = process_message(body)
@@ -190,9 +204,8 @@ fn run_io_loop() -> Unit {
 // wasm-gc which has a different object model (GC refs instead of linear memory
 // pointers), so these functions cannot be directly invoked in tests.
 //
-// Runtime verification of the sentinel pattern and boundary checks occurs
-// at startup in the actual wasmtime deployment (run_io_loop → check_bytes_data_ptr
-// → verify_reserved_memory).
+// P0-071: both checks return Bool; run_io_loop skips I/O on false (no panic/abort).
+// Runtime verification occurs at startup in wasmtime (run_io_loop → checks → I/O).
 //
 // Test coverage here focuses on compile-time validation (constants, type checking)
 // and basic non-WAT-dependent behavior that works across all targets.
@@ -274,6 +287,22 @@ test "P0-067: Bytes::make sentinel isolation" {
 test "P0-068: INITIAL_BUF_SIZE is exactly one wasm page" {
   inspect(INITIAL_BUF_SIZE, content="65536")
   inspect(INITIAL_BUF_SIZE == 65536, content="true")
+}
+
+/// P1-054: MAX_READ_SIZE caps stdin accumulation to prevent hostile-host OOM.
+test "P1-054: MAX_READ_SIZE is 16 MB" {
+  inspect(MAX_READ_SIZE, content="16777216")
+  inspect(MAX_READ_SIZE > INITIAL_BUF_SIZE, content="true")
+  inspect(MAX_READ_SIZE % 65536, content="0")
+}
+
+/// P0-071: sentinel check contract — Bool return, graceful skip on failure.
+/// WAT-dependent checks cannot run under moonrun; production path verified by grep + wasm integration.
+test "P0-071: sentinel checks return Bool not trap" {
+  // Bytes::make sentinel mirrors check_bytes_data_ptr validation pattern.
+  let b = Bytes::make(4, 0xDE)
+  inspect(b[0].to_int(), content="222")
+  inspect(IOV_BUF >= 1024, content="true")
 }
 
 

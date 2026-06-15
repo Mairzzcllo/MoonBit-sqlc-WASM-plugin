@@ -71,25 +71,152 @@ pub fn Row::get(self: Row, index: Int) -> String {
 }
 
 /// Check if the column at index is NULL.
-/// Note: this method intentionally does NOT perform bounds checking.
-/// It is meant for internal use where the index is known to be valid.
-/// External callers should use getter methods which include bounds checks.
+/// OOB or negative indices return true (NULL) as fail-safe defense.
 pub fn Row::is_null(self: Row, index: Int) -> Bool {
-  index >= 0 && index < self.null_mask.length() && self.null_mask[index]
+  if index < 0 || index >= self.null_mask.length() {
+    true
+  } else {
+    self.null_mask[index]
+  }
 }
 
 // === Array decoding helpers ===
 
-/// Parse a raw string as a JSON array. Returns the `Array[Json]` or a `DBError`.
-fn parse_json_array(raw: String, index: Int, type_label: String) -> Result[Array[Json], DBError] {
-  try {
-    let j = @json.parse(raw[:])
-    if j is Array(arr) {
-      Ok(arr)
-    } else {
-      Err(TypeError("expected JSON array at position " + index.to_string()))
+/// Read one PG array element starting at index `start`. Returns (element, next_index).
+fn read_pg_array_element(s: String, start: Int) -> (String, Int) {
+  let n = s.length()
+  let mut i = start
+  while i < n && s[i] == ' ' { i = i + 1 }
+  if i >= n { return ("", i) }
+  if s[i] == '"' {
+    let mut elem = ""
+    i = i + 1
+    while i < n {
+      let c = s[i]
+      if c == '\\' && i + 1 < n {
+        elem = elem + s[i + 1:i + 2].to_owned()
+        i = i + 2
+      } else if c == '"' {
+        return (elem, i + 1)
+      } else {
+        elem = elem + s[i:i + 1].to_owned()
+        i = i + 1
+      }
     }
-  } catch { _ => Err(TypeError("expected " + type_label + " array at position " + index.to_string())) }
+    (elem, i)
+  } else {
+    let mut elem = ""
+    while i < n && s[i] != ',' {
+      elem = elem + s[i:i + 1].to_owned()
+      i = i + 1
+    }
+    (elem.trim().to_owned(), i)
+  }
+}
+
+/// Parse PostgreSQL native array format `{a,b,c}` into string elements.
+fn parse_pg_array(raw: String) -> Result[Array[String], DBError] {
+  let trimmed = raw.trim().to_owned()
+  if trimmed.length() < 2 || trimmed[0] != '{' || trimmed[trimmed.length() - 1] != '}' {
+    return Err(TypeError("expected PG array format"))
+  }
+  let inner = trimmed[1:trimmed.length() - 1].to_owned()
+  if inner.trim().length() == 0 {
+    return Ok(Array::make(0, ""))
+  }
+  let result: Array[String] = Array::make(0, "")
+  let mut i = 0
+  let n = inner.length()
+  while i < n {
+    let (elem, next_i) = read_pg_array_element(inner, i)
+    if elem == "NULL" {
+      result.push("")
+    } else {
+      result.push(elem)
+    }
+    i = next_i
+    while i < n && inner[i] == ' ' { i = i + 1 }
+    if i < n && inner[i] == ',' { i = i + 1 }
+  }
+  Ok(result)
+}
+
+/// Escape a string for inclusion in a JSON string literal.
+fn escape_json_string(s: String) -> String {
+  let mut out = ""
+  for i in 0..<s.length() {
+    let c = s[i]
+    if c == '"' { out = out + "\\\"" } else if c == '\\' { out = out + "\\\\" } else { out = out + s[i:i + 1].to_owned() }
+  }
+  out
+}
+
+/// True when `s` looks like a PG numeric array element.
+fn is_pg_number(s: String) -> Bool {
+  if s.length() == 0 { return false }
+  let c = s[0]
+  (c >= '0' && c <= '9') || c == '-'
+}
+
+/// Convert PG array elements to JSON text and parse as `Array[Json]`.
+fn pg_array_to_json_array(raw: String) -> Result[Array[Json], DBError] {
+  match parse_pg_array(raw) {
+    Ok(elems) => {
+      let mut json_str = "["
+      for i in 0..<elems.length() {
+        if i > 0 { json_str = json_str + "," }
+        let e = elems[i]
+        if e == "NULL" {
+          json_str = json_str + "null"
+        } else if e == "t" || e == "true" {
+          json_str = json_str + "true"
+        } else if e == "f" || e == "false" {
+          json_str = json_str + "false"
+        } else if is_pg_number(e) {
+          json_str = json_str + e
+        } else {
+          json_str = json_str + "\"" + escape_json_string(e) + "\""
+        }
+      }
+      json_str = json_str + "]"
+      try {
+        let j = @json.parse(json_str[:])
+        if j is Array(arr) {
+          Ok(arr)
+        } else {
+          Err(TypeError("expected PG array"))
+        }
+      } catch {
+        _ => Err(TypeError("expected PG array"))
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+/// Parse a raw string as JSON or PG native array format.
+fn parse_json_array(raw: String, index: Int, type_label: String) -> Result[Array[Json], DBError] {
+  let trimmed = raw.trim().to_owned()
+  if trimmed.length() > 0 && trimmed[0] == '{' {
+    pg_array_to_json_array(trimmed)
+  } else {
+    try {
+      let j = @json.parse(raw[:])
+      if j is Array(arr) {
+        Ok(arr)
+      } else {
+        Err(TypeError("expected JSON array at position " + index.to_string()))
+      }
+    } catch {
+      _ => {
+        if trimmed.length() > 0 && trimmed[0] == '{' {
+          pg_array_to_json_array(trimmed)
+        } else {
+          Err(TypeError("expected " + type_label + " array at position " + index.to_string()))
+        }
+      }
+    }
+  }
 }
 
 fn parse_array_str_elems(arr: Array[Json], index: Int) -> Result[Array[String], DBError] {
@@ -1862,6 +1989,69 @@ test "P1-046: in-bounds access still works after hardening" {
   match s {
     Ok(str) => inspect(str, content="hello")
     Err(_) => inspect("", content="hello")
+  }
+}
+
+// === P1-057: null_mask OOB safety ===
+
+test "P1-057: is_null returns true for index >= null_mask.length" {
+  let row = Row::new(fn(i) { if i == 1 { "42" } else { "" } }, Array::make(1, false))
+  inspect(row.is_null(1), content="true")
+}
+
+test "P1-057: is_null returns true for negative index" {
+  let row = Row::new(fn(_i) { "x" }, Array::make(1, false))
+  inspect(row.is_null(-1), content="true")
+}
+
+test "P1-057: mismatched null_mask returns None for nullable getter" {
+  let row = { get_fn: fn(i) { if i == 1 { "42" } else { "" } },
+              null_mask: Array::make(1, false),
+              col_names: [],
+              num_cols: 2 }
+  let val = row.get_nullable_int64(1)
+  match val {
+    Ok(None) => inspect(true, content="true")
+    _ => inspect(false, content="true")
+  }
+}
+
+// === P1-059: PG native array format ===
+
+test "P1-059: decode_array_string accepts PG {a,b,c} format" {
+  let row = Row::new(fn(_i) { "{a,b,c}" }, Array::make(1, false))
+  let val = row.decode_array_string(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[0], content="a")
+      inspect(arr[2], content="c")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "P1-059: decode_array_int64 accepts PG {1,2,3} format" {
+  let row = Row::new(fn(_i) { "{1,2,3}" }, Array::make(1, false))
+  let val = row.decode_array_int64(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="3")
+      inspect(arr[1], content="2")
+    }
+    Err(_) => inspect("fail", content="pass")
+  }
+}
+
+test "P1-059: decode_array_string accepts quoted PG elements" {
+  let row = Row::new(fn(_i) { "{\"hello,world\",foo}" }, Array::make(1, false))
+  let val = row.decode_array_string(0)
+  match val {
+    Ok(arr) => {
+      inspect(arr.length(), content="2")
+      inspect(arr[0], content="hello,world")
+    }
+    Err(_) => inspect("fail", content="pass")
   }
 }
 

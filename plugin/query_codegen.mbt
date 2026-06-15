@@ -25,7 +25,7 @@ fn get_result_type_name(query: InternalQuery, initialisms: Array[String]) -> Str
 
 /// Convert an InternalParameter to a ParamDef, mapping the type through the type layer.
 fn param_to_param_def(p: InternalParameter, overrides: Array[(String, String)], nullable_overrides: Array[String]) -> ParamDef {
-  let moon_type = map_internal_type_nullable(p.ty, p.not_null, overrides, nullable_overrides)
+  let moon_type = map_internal_type_nullable(p.ty, p.not_null, overrides, nullable_overrides, [])
   { name: escape_keyword(p.name), ty: moon_type }
 }
 

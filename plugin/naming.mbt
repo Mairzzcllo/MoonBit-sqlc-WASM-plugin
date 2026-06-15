@@ -80,7 +80,7 @@ fn match_initialism(word: String, initialisms: Array[String]) -> Option[String] 
 /// | `"userName"`    | `"UserName"` | No underscore → only first letter capitalized |
 /// | `"user_name"`   | `"UserName"` | Same output as `"UserName"` — collision risk |
 /// | `"_"`           | `""`         | Single underscore → two empty segments → empty string |
-/// | `""`            | `"Empty"`    | Empty input returns sentinel `"Empty"` |
+/// | `""`            | `"UnnamedType"` | Empty input returns sentinel `"UnnamedType"` |
 ///
 /// **Collision warning**: Different snake_case inputs can produce identical
 /// PascalCase output (e.g., `"user_name"` and `"UserName"` both → `"UserName"`).
@@ -94,9 +94,9 @@ fn match_initialism(word: String, initialisms: Array[String]) -> Option[String] 
 /// in P1-041; future work may add disambiguation suffixes.
 ///
 /// **Empty input**: Callers should ensure non-empty input; empty string returns
-/// sentinel `"Empty"` which may collide with tables named 'empty'.
+/// sentinel `"UnnamedType"` which avoids collision with tables named 'empty'.
 pub fn snake_to_pascal(s: String, initialisms: Array[String]) -> String {
-  if s.length() == 0 { return "Empty" }
+  if s.length() == 0 { return "UnnamedType" }
   let parts = s.split("_")
   let mut result = ""
   for part in parts {
@@ -202,9 +202,9 @@ test "snake_to_pascal: initialism in middle of name" {
   inspect(snake_to_pascal("user_id_url", inits), content="UserIDURL")
 }
 
-test "snake_to_pascal: empty string returns Empty" {
+test "snake_to_pascal: empty string returns UnnamedType" {
   let inits = parse_initialisms("ID")
-  inspect(snake_to_pascal("", inits), content="Empty")
+  inspect(snake_to_pascal("", inits), content="UnnamedType")
 }
 
 test "snake_to_camel: basic conversion" {

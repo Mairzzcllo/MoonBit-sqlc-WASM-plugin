@@ -33,7 +33,7 @@ pub fn generate_struct_from_fields(
   _initialisms: Array[String],
 ) -> StructDef {
   let field_defs = fields.map(fn(f) {
-    let moon_type = map_internal_type_nullable(f.ty, f.not_null, overrides, nullable_overrides)
+    let moon_type = map_internal_type_nullable(f.ty, f.not_null, overrides, nullable_overrides, [])
     let field_doc: Option[String] = if f.comment == "" { None } else { Some(f.comment) }
     let field_name = match f.rename_to {
       Some(r) => escape_keyword(r)
@@ -65,6 +65,7 @@ pub fn generate_struct_from_table(
   _emit_exact_table_names: Bool,
   json_tags_case_style: String,
   initialisms: Array[String],
+  enum_renames: Array[(String, String)],
 ) -> StructDef {
   let type_name = escape_keyword(snake_to_pascal(table_name, initialisms))
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
@@ -79,7 +80,7 @@ pub fn generate_struct_from_table(
           Option(base)
         }
       }
-      None => map_internal_type_nullable(ir_type, c.not_null, overrides, nullable_overrides)
+      None => map_internal_type_nullable(ir_type, c.not_null, overrides, nullable_overrides, enum_renames)
     }
     let field_doc: Option[String] = if c.comment == "" { None } else { Some(c.comment) }
     let rename_to = lookup_rename(c.name, renames)
@@ -96,12 +97,36 @@ pub fn generate_struct_from_table(
   { name: type_name, fields: fields, doc: doc, is_pub: true }
 }
 
-/// Generate an EnumDef from a catalog enum.
-pub fn generate_enum_from_enum(name: String, vals: Array[String], comment: String, initialisms: Array[String]) -> EnumDef {
-  let type_name = escape_keyword(snake_to_pascal(name, initialisms))
+/// Generate an EnumDef from a catalog enum with an optional pre-resolved type name.
+pub fn generate_enum_from_enum(_name: String, vals: Array[String], comment: String, initialisms: Array[String], type_name: String) -> EnumDef {
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
   let variants = vals.map(fn(v) { { name: escape_keyword(snake_to_pascal(v, initialisms)), doc: (None: Option[String]) } })
   { name: type_name, variants: variants, doc: doc, is_pub: true }
+}
+
+/// P1-060: pick a non-colliding enum type name when a struct already uses `base_pascal`.
+fn disambiguate_enum_type_name(base_pascal: String, struct_names: Array[String]) -> String {
+  if !struct_names.contains(base_pascal) { return base_pascal }
+  let with_type = base_pascal + "Type"
+  if !struct_names.contains(with_type) { return with_type }
+  for n in 1..<100 {
+    let candidate = base_pascal + n.to_string()
+    if !struct_names.contains(candidate) { return candidate }
+  }
+  with_type
+}
+
+/// P1-060: build PG enum name → disambiguated MoonBit type name map for a schema.
+fn build_enum_renames(schema: AdaptSchema, struct_names: Array[String], initialisms: Array[String]) -> Array[(String, String)] {
+  let renames: Array[(String, String)] = []
+  for e in schema.enums {
+    let pascal = escape_keyword(snake_to_pascal(e.name, initialisms))
+    let resolved = disambiguate_enum_type_name(pascal, struct_names)
+    if resolved != pascal {
+      renames.push((e.name.to_lower(), resolved))
+    }
+  }
+  renames
 }
 
 /// Generate all type definitions from an AdaptCatalog.
@@ -115,12 +140,19 @@ pub fn generate_types_from_catalog(catalog: AdaptCatalog, emit_json_tags: Bool, 
     } else {
       schema.tables
     }
+    let struct_names: Array[String] = []
+    for table in tables_to_use {
+      struct_names.push(escape_keyword(snake_to_pascal(table.name, initialisms)))
+    }
+    let enum_renames = build_enum_renames(schema, struct_names, initialisms)
     let table_items = tables_to_use.map(fn(table) {
-      let sd = generate_struct_from_table(table.name, table.columns, table.comment, emit_json_tags, emit_db_tags, overrides, column_overrides, nullable_overrides, renames, emit_exact_table_names, json_tags_case_style, initialisms)
+      let sd = generate_struct_from_table(table.name, table.columns, table.comment, emit_json_tags, emit_db_tags, overrides, column_overrides, nullable_overrides, renames, emit_exact_table_names, json_tags_case_style, initialisms, enum_renames)
       [Struct(sd), Fn(generate_decode_fn(sd))]
     }).flatten()
     let enum_items = schema.enums.map(fn(e) {
-      Enum(generate_enum_from_enum(e.name, e.vals, e.comment, initialisms))
+      let pascal = escape_keyword(snake_to_pascal(e.name, initialisms))
+      let resolved = disambiguate_enum_type_name(pascal, struct_names)
+      Enum(generate_enum_from_enum(e.name, e.vals, e.comment, initialisms, resolved))
     })
     table_items + enum_items
   }).flatten()
@@ -297,7 +329,7 @@ test "snake_to_pascal: already PascalCase" {
 }
 
 test "snake_to_pascal: empty string" {
-  inspect(snake_to_pascal("", []), content="Empty")
+  inspect(snake_to_pascal("", []), content="UnnamedType")
 }
 
 test "snake_to_pascal: single char" {
@@ -338,7 +370,7 @@ test "generate_struct_from_table: snake_case table name to PascalCase" {
   let cols: Array[AdaptColumn] = [
     { name: "id", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "user_profiles" } },
   ]
-  let sd = generate_struct_from_table("user_profiles", cols, "User profiles table", false, false, [], [], [], [], false, "snake", [])
+  let sd = generate_struct_from_table("user_profiles", cols, "User profiles table", false, false, [], [], [], [], false, "snake", [], [])
   inspect(sd.name, content="UserProfiles")
   debug_inspect(sd.doc, content="Some(\"User profiles table\")")
   inspect(sd.fields[0].name, content="id")
@@ -349,7 +381,7 @@ test "generate_struct_from_table: nullable column becomes Option" {
   let cols: Array[AdaptColumn] = [
     { name: "nickname", not_null: false, is_array: false, ty: { catalog: "", schema: "", name: "text" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "users" } },
   ]
-  let sd = generate_struct_from_table("users", cols, "", false, false, [], [], [], [], false, "snake", [])
+  let sd = generate_struct_from_table("users", cols, "", false, false, [], [], [], [], false, "snake", [], [])
   inspect(sd.fields[0].ty, content="Option(Named(\"String\"))")
 }
 
@@ -357,12 +389,12 @@ test "generate_struct_from_table: array column becomes Array[T]" {
   let cols: Array[AdaptColumn] = [
     { name: "tags", not_null: true, is_array: true, ty: { catalog: "", schema: "", name: "text" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "posts" } },
   ]
-  let sd = generate_struct_from_table("posts", cols, "", false, false, [], [], [], [], false, "snake", [])
+  let sd = generate_struct_from_table("posts", cols, "", false, false, [], [], [], [], false, "snake", [], [])
   inspect(sd.fields[0].ty, content="Parameterized(\"Array\", [Named(\"String\")])")
 }
 
 test "generate_enum_from_enum: basic enum" {
-  let ed = generate_enum_from_enum("mood", ["happy", "sad", "neutral"], "User mood", [])
+  let ed = generate_enum_from_enum("mood", ["happy", "sad", "neutral"], "User mood", [], "Mood")
   inspect(ed.name, content="Mood")
   inspect(ed.variants.length(), content="3")
   inspect(ed.variants[0].name, content="Happy")
@@ -602,7 +634,7 @@ test "P0-065: rename_to keyword value is escaped" {
 }
 
 test "P0-065: enum variant 'self' is escaped to 'Self_'" {
-  let ed = generate_enum_from_enum("status", ["active", "self", "pending"], "", [])
+  let ed = generate_enum_from_enum("status", ["active", "self", "pending"], "", [], "Status")
   inspect(ed.variants[1].name, content="Self_")
 }
 
@@ -610,7 +642,7 @@ test "P0-065: struct type name that shadows built-in type is escaped" {
   let cols: Array[AdaptColumn] = [
     { name: "value", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "int" } },
   ]
-  let sd = generate_struct_from_table("int", cols, "", false, false, [], [], [], [], false, "snake", [])
+  let sd = generate_struct_from_table("int", cols, "", false, false, [], [], [], [], false, "snake", [], [])
   inspect(sd.name, content="Int_")
 }
 
@@ -618,11 +650,38 @@ test "P0-065: struct type name 'Struct' passes through (Struct is not a keyword 
   let cols: Array[AdaptColumn] = [
     { name: "value", not_null: true, is_array: false, ty: { catalog: "", schema: "", name: "int4" }, length: 0, comment: "", table: { catalog: "", schema: "public", name: "struct" } },
   ]
-  let sd = generate_struct_from_table("struct", cols, "", false, false, [], [], [], [], false, "snake", [])
+  let sd = generate_struct_from_table("struct", cols, "", false, false, [], [], [], [], false, "snake", [], [])
   inspect(sd.name, content="Struct")
 }
 
 test "P0-065: enum type name that shadows built-in type is escaped" {
-  let ed = generate_enum_from_enum("string", ["a", "b"], "", [])
+  let ed = generate_enum_from_enum("string", ["a", "b"], "", [], "String_")
   inspect(ed.name, content="String_")
+}
+
+test "P1-060: table and enum same name disambiguates enum with Type suffix" {
+  let col: AdaptColumn = {
+    name: "id", not_null: true, is_array: false,
+    ty: { catalog: "", schema: "", name: "int4" },
+    length: 0, comment: "",
+    table: { catalog: "", schema: "public", name: "status" },
+  }
+  let schema: AdaptSchema = {
+    name: "public", comment: "",
+    tables: [{ name: "status", schema: "public", columns: [col], comment: "" }],
+    enums: [{ name: "status", vals: ["active", "inactive"], comment: "" }],
+  }
+  let catalog: AdaptCatalog = { name: "db", default_schema: "public", schemas: [schema] }
+  let items = generate_types_from_catalog(catalog, false, false, [], [], [], [], false, [], false, "snake", [])
+  let mut has_struct = false
+  let mut has_enum = false
+  for item in items {
+    match item {
+      Struct(sd) => if sd.name == "Status" { has_struct = true }
+      Enum(ed) => if ed.name == "StatusType" { has_enum = true }
+      _ => ()
+    }
+  }
+  inspect(has_struct, content="true")
+  inspect(has_enum, content="true")
 }
