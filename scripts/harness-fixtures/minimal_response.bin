@@ -1,0 +1,9 @@
+
+1
+	types.mbt$package users
+
+pub struct Users {
+}
+
+
+queries.mbtpackage users

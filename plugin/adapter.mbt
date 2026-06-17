@@ -194,28 +194,199 @@ fn warn_plugin_option(msg: String) -> Unit {
   }
 }
 
+fn default_plugin_options() -> PluginOptions {
+  {
+    package_name: "",
+    overrides: [],
+    emit_json_tags: false,
+    emit_db_tags: false,
+    renames: [],
+    emit_sql_as_comment: true,
+    omit_unused_structs: false,
+    emit_empty_slices: false,
+    initialisms: "",
+    json_tags_case_style: "snake",
+    emit_exact_table_names: false,
+    emit_methods_with_db_argument: false,
+    column_overrides: [],
+    nullable_overrides: [],
+  }
+}
+
+fn json_as_string(j: Json) -> Option[String] {
+  match j {
+    String(s) => Some(s)
+    _ => None
+  }
+}
+
+fn json_as_bool(j: Json) -> Option[Bool] {
+  match j {
+    True => Some(true)
+    False => Some(false)
+    String(s) => {
+      if s == "true" { Some(true) } else if s == "false" { Some(false) } else { None }
+    }
+    _ => None
+  }
+}
+
+/// sqlc v1.31+ sends plugin_options as JSON bytes, e.g. `{"package_name":"users"}`.
+fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions raise {
+  let mut package_name = ""
+  let mut has_package_name = false
+  let overrides: Array[(String, String)] = []
+  let renames: Array[(String, String)] = []
+  let mut emit_json_tags = false
+  let mut emit_db_tags = false
+  let mut emit_sql_as_comment = true
+  let mut omit_unused_structs = false
+  let mut emit_empty_slices = false
+  let mut initialisms = ""
+  let mut json_tags_case_style = "snake"
+  let mut emit_exact_table_names = false
+  let mut emit_methods_with_db_argument = false
+  let column_overrides: Array[ColumnOverride] = []
+  let nullable_overrides: Array[String] = []
+  obj.each(fn(key, value) {
+    if key == "package_name" || key == "package" {
+      match json_as_string(value) {
+        Some(name) => {
+          if has_package_name {
+            warn_plugin_option("duplicate package_name option: keeping last value")
+          }
+          package_name = name.trim().to_owned()
+          has_package_name = true
+        }
+        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+      }
+    } else if key.has_prefix("override_column_") {
+      match json_as_string(value) {
+        Some(moon_type) => {
+          let col_key = key[16:].trim().to_owned()
+          let dot_pos = col_key.rev_find(".")
+          match dot_pos {
+            Some(d) => {
+              let table = col_key[:d].to_owned()
+              let column = col_key[d + 1:].to_owned()
+              column_overrides.push({ table: table, column: column, moonbit_type: moon_type.trim().to_owned() })
+            }
+            None => warn_plugin_option("override_column_ missing dot separator: " + key)
+          }
+        }
+        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+      }
+    } else if key.has_prefix("override_nullable_") {
+      match json_as_bool(value) {
+        Some(true) => nullable_overrides.push(key[18:].trim().to_owned().to_lower())
+        Some(false) => ()
+        None => warn_plugin_option("plugin_options JSON: " + key + " must be boolean")
+      }
+    } else if key.has_prefix("override_") {
+      match json_as_string(value) {
+        Some(moon_type) => {
+          let pg_type = key[9:].trim().to_owned()
+          overrides.push((pg_type.to_lower(), moon_type.trim().to_owned()))
+        }
+        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+      }
+    } else if key.has_prefix("rename_") {
+      match json_as_string(value) {
+        Some(val) => renames.push((key[7:].trim().to_owned(), val.trim().to_owned()))
+        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+      }
+    } else if key == "emit_json_tags" || key == "emit-json-tags" {
+      match json_as_bool(value) {
+        Some(v) => emit_json_tags = v
+        None => warn_plugin_option("plugin_options JSON: emit_json_tags must be boolean")
+      }
+    } else if key == "emit_db_tags" || key == "emit-db-tags" {
+      match json_as_bool(value) {
+        Some(v) => emit_db_tags = v
+        None => warn_plugin_option("plugin_options JSON: emit_db_tags must be boolean")
+      }
+    } else if key == "emit_sql_as_comment" || key == "emit-sql-as-comment" {
+      match json_as_bool(value) {
+        Some(v) => emit_sql_as_comment = v
+        None => warn_plugin_option("plugin_options JSON: emit_sql_as_comment must be boolean")
+      }
+    } else if key == "omit_unused_structs" || key == "omit-unused-structs" {
+      match json_as_bool(value) {
+        Some(v) => omit_unused_structs = v
+        None => warn_plugin_option("plugin_options JSON: omit_unused_structs must be boolean")
+      }
+    } else if key == "emit_empty_slices" || key == "emit-empty-slices" {
+      match json_as_bool(value) {
+        Some(v) => emit_empty_slices = v
+        None => warn_plugin_option("plugin_options JSON: emit_empty_slices must be boolean")
+      }
+    } else if key == "emit_exact_table_names" || key == "emit-exact-table-names" {
+      match json_as_bool(value) {
+        Some(v) => {
+          emit_exact_table_names = v
+          if v { warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)") }
+        }
+        None => warn_plugin_option("plugin_options JSON: emit_exact_table_names must be boolean")
+      }
+    } else if key == "emit_methods_with_db_argument" || key == "emit-methods-with-db-argument" {
+      match json_as_bool(value) {
+        Some(v) => {
+          emit_methods_with_db_argument = v
+          if v { warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1") }
+        }
+        None => warn_plugin_option("plugin_options JSON: emit_methods_with_db_argument must be boolean")
+      }
+    } else if key == "initialisms" {
+      match json_as_string(value) {
+        Some(v) => initialisms = v.trim().to_owned()
+        None => warn_plugin_option("plugin_options JSON: initialisms must be string")
+      }
+    } else if key == "json_tags_case_style" || key == "json-tags-case-style" {
+      match json_as_string(value) {
+        Some(v) => json_tags_case_style = v.trim().to_owned()
+        None => warn_plugin_option("plugin_options JSON: json_tags_case_style must be string")
+      }
+    } else {
+      warn_plugin_option("unknown option: " + key)
+    }
+  })
+  {
+    package_name: package_name,
+    overrides: overrides,
+    emit_json_tags: emit_json_tags,
+    emit_db_tags: emit_db_tags,
+    renames: renames,
+    emit_sql_as_comment: emit_sql_as_comment,
+    omit_unused_structs: omit_unused_structs,
+    emit_empty_slices: emit_empty_slices,
+    initialisms: initialisms,
+    json_tags_case_style: json_tags_case_style,
+    emit_exact_table_names: emit_exact_table_names,
+    emit_methods_with_db_argument: emit_methods_with_db_argument,
+    column_overrides: column_overrides,
+    nullable_overrides: nullable_overrides,
+  }
+}
+
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Returns defaults on empty data; warns on malformed or unknown options.
+/// Accepts sqlc JSON (`{"package_name":"users"}`) and legacy key=value lines.
 pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   if data.length() == 0 {
-    return {
-      package_name: "",
-      overrides: [],
-      emit_json_tags: false,
-      emit_db_tags: false,
-      renames: [],
-      emit_sql_as_comment: true,
-      omit_unused_structs: false,
-      emit_empty_slices: false,
-      initialisms: "",
-      json_tags_case_style: "snake",
-      emit_exact_table_names: false,
-      emit_methods_with_db_argument: false,
-      column_overrides: [],
-      nullable_overrides: [],
-    }
+    return default_plugin_options()
   }
   let text = @utf8.decode_lossy(data[:])
+  let trimmed = text.trim().to_owned()
+  if trimmed.has_prefix("{") {
+    try {
+      match @json.parse(trimmed[:]) {
+        Object(obj) => return parse_plugin_options_json(obj)
+        _ => warn_plugin_option("plugin_options JSON root must be object")
+      }
+    } catch {
+      _ => warn_plugin_option("plugin_options JSON parse failed")
+    }
+  }
   let mut package_name = ""
   let mut has_package_name = false
   let overrides: Array[(String, String)] = []
@@ -645,6 +816,34 @@ test "parse_plugin_options: package_name= prefix parsed" {
 test "parse_plugin_options: package= prefix (short form) parsed" {
   let opts = parse_plugin_options(b"package=myapp")
   inspect(opts.package_name, content="myapp")
+}
+
+test "parse_plugin_options: json package_name parsed (sqlc v1.31 format)" {
+  let opts = parse_plugin_options(b"{\"package_name\":\"users\"}")
+  inspect(opts.package_name, content="users")
+}
+
+test "parse_plugin_options: json package alias parsed" {
+  let opts = parse_plugin_options(b"{\"package\":\"users\"}")
+  inspect(opts.package_name, content="users")
+}
+
+test "parse_plugin_options: json emit_json_tags parsed" {
+  let opts = parse_plugin_options(b"{\"package_name\":\"users\",\"emit_json_tags\":true}")
+  inspect(opts.package_name, content="users")
+  inspect(opts.emit_json_tags, content="true")
+}
+
+test "parse_plugin_options: json override parsed" {
+  let opts = parse_plugin_options(b"{\"package_name\":\"users\",\"override_int4\":\"String\"}")
+  inspect(opts.overrides.length(), content="1")
+  inspect(opts.overrides[0].0, content="int4")
+  inspect(opts.overrides[0].1, content="String")
+}
+
+test "parse_plugin_options: json unknown key warns without failing" {
+  let opts = parse_plugin_options(b"{\"package_name\":\"users\",\"unknown_key\":\"x\"}")
+  inspect(opts.package_name, content="users")
 }
 
 test "parse_plugin_options: package_name = with spaces parsed" {

@@ -48,11 +48,17 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
   }
   let sources = generate_sources(req, opts)
   let out_name = req.settings.codegen.out
-  let dir = if out_name.length() > 0 {
-    validate_output_path(out_name)
-    let dir_str = if out_name[out_name.length() - 1] == '/' { out_name[0:out_name.length() - 1].to_owned() } else { out_name }
+  // sqlc v2 commonly sends out="." for current directory; treat as empty prefix.
+  let normalized_out = if out_name == "." { "" } else { out_name }
+  let dir = if normalized_out.length() > 0 {
+    validate_output_path(normalized_out)
+    let dir_str = if normalized_out[normalized_out.length() - 1] == '/' {
+      normalized_out[0 : normalized_out.length() - 1].to_owned()
+    } else {
+      normalized_out
+    }
     if dir_str.length() == 0 {
-      reject_absolute(out_name)
+      reject_absolute(normalized_out)
     }
     dir_str
   } else {
@@ -324,6 +330,25 @@ test "process_request: plugin_options takes priority over global_options" {
   let source = @utf8.decode(resp.files[0].contents)
   inspect(source.contains("package plugin_opt"), content="true")
   inspect(source.contains("package global_opt"), content="false")
+}
+
+test "process_request: json plugin_options package_name (sqlc v1.31)" {
+  let base = make_users_request()
+  let req: GenerateRequest = {
+    settings: base.settings,
+    catalog: base.catalog,
+    queries: base.queries,
+    sqlc_version: base.sqlc_version,
+    plugin_options: b"{\"package_name\":\"users\"}",
+    global_options: b"",
+  }
+  let resp = process_request(req)
+  inspect(resp.files.length(), content="2")
+  let types_source = @utf8.decode(resp.files[0].contents)
+  let queries_source = @utf8.decode(resp.files[1].contents)
+  inspect(types_source.contains("package users"), content="true")
+  inspect(types_source.contains("package main"), content="false")
+  inspect(queries_source.contains("package users"), content="true")
 }
 
 test "process_request: both empty defaults to main package" {

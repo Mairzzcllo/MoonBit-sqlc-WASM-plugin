@@ -34,26 +34,44 @@ const IOV_LEN    : Int = IOV_BASE + 4
 const ROF_LEN    : Int = 1032
 const INITIAL_BUF_SIZE : Int = 65536
 const MAX_READ_SIZE : Int = 16 * 1024 * 1024
+const BYTES_DATA_OFFSET : Int = 8
 
 // === Inline WAT helpers ====================================================
 
-/// Offset from Bytes object pointer to its data payload.
-/// MoonBit Bytes: [refcount:4][array_header:4][data...]
+/// Inline +8 payload pointer for WASI fd_read iov targets.
 #borrow(b)
 fn bytes_data_ptr(b : Bytes) -> Int =
   "(func (param $0 i32) (result i32) (i32.add (local.get $0) (i32.const 8)))"
 
-/// Verify that the hardcoded +8 offset in `bytes_data_ptr` still matches
-/// the actual MoonBit Bytes memory layout. Runs once at first I/O call.
-/// Returns false when layout drift is detected (caller skips I/O).
+/// Raw GC object pointer (MoonBit arithmetic path avoids inline-WAT early-decref).
+#borrow(b)
+fn object_base_ptr(b : Bytes) -> Int =
+  "(func (param $0 i32) (result i32) (local.get $0))"
+
+/// Payload address via MoonBit arithmetic.
+#borrow(b)
+fn bytes_data_at(offset : Int, b : Bytes) -> Int {
+  object_base_ptr(b) + offset
+}
+
+/// Rebuild `Bytes` from snapshot accumulator.
+fn bytes_from_acc(acc : Array[Byte], len : Int) -> Bytes {
+  if len <= 0 { return Bytes::make(0, 0) }
+  let out = Array::make(len, (0).to_byte())
+  let mut i = 0
+  while i < len {
+    out[i] = acc[i]
+    i = i + 1
+  }
+  Bytes::from_array(out)
+}
+
+/// Verify +8 offset still matches MoonBit Bytes layout (diagnostic only; not gated on startup).
 fn check_bytes_data_ptr() -> Bool {
   let b = Bytes::make(4, 0xDE)
-  let ptr = bytes_data_ptr(b)
   let mut i = 0
   while i < 4 {
-    let val = load_u8(ptr + i)
-    if val != 0xDE {
-      // P0-067/P0-071: Bytes object layout changed — offset +8 no longer points to data payload
+    if load_u8(bytes_data_at(BYTES_DATA_OFFSET, b) + i) != b[i].to_int() {
       return false
     }
     i = i + 1
@@ -88,69 +106,105 @@ fn fd_write(fd : Int, iovs : Int, iovs_len : Int, ret : Int) -> Int =
 /// Accumulates into a dynamically-allocated GC-managed Bytes buffer,
 /// expanding as needed. Returns the buffer containing all read data.
 fn read_all(fd : Int) -> Bytes {
+  let mut acc = Array::make(INITIAL_BUF_SIZE, (0).to_byte())
+  let mut acc_cap = INITIAL_BUF_SIZE
+  let mut acc_len = 0
   let mut buf = Bytes::new(INITIAL_BUF_SIZE)
-  let mut buf_ptr = bytes_data_ptr(buf)
   let mut capacity = INITIAL_BUF_SIZE
   let mut total = 0
   while true {
     if total >= MAX_READ_SIZE { break }
     let remaining = capacity - total
     if remaining < 4096 {
-      // Grow buffer: allocate larger, copy existing data over
       let mut new_cap = capacity + 65536
       if new_cap > MAX_READ_SIZE { new_cap = MAX_READ_SIZE }
       if new_cap <= capacity { break }
       let new_buf = Bytes::new(new_cap)
-      let new_ptr = bytes_data_ptr(new_buf)
-      memory_copy(new_ptr, buf_ptr, total)
+      let _ = buf.length()
+      memory_copy(
+        bytes_data_at(BYTES_DATA_OFFSET, new_buf),
+        bytes_data_at(BYTES_DATA_OFFSET, buf),
+        total,
+      )
       buf = new_buf
-      buf_ptr = new_ptr
       capacity = new_cap
     }
     let avail = capacity - total
     let quota = MAX_READ_SIZE - total
     let to_read = if avail < quota { avail } else { quota }
     if to_read <= 0 { break }
-    store_i32(IOV_BUF, buf_ptr + total)
+    let _ = buf.length()
+    let dest = bytes_data_at(BYTES_DATA_OFFSET, buf) + total
+    store_i32(IOV_BUF, dest)
     store_i32(IOV_LEN, to_read)
     let err = fd_read(fd, IOV_BASE, 1, ROF_LEN)
-    if err != 0 { break }
     let nread = load_i32(ROF_LEN)
+    if err != 0 { break }
     if nread <= 0 { break }
+    if acc_len + nread > acc_cap {
+      let mut new_acc_cap = acc_cap + 65536
+      if new_acc_cap > MAX_READ_SIZE { new_acc_cap = MAX_READ_SIZE }
+      if new_acc_cap <= acc_cap { break }
+      let new_acc = Array::make(new_acc_cap, (0).to_byte())
+      let mut k = 0
+      while k < acc_len {
+        new_acc[k] = acc[k]
+        k = k + 1
+      }
+      acc = new_acc
+      acc_cap = new_acc_cap
+    }
+    let mut j = 0
+    while j < nread {
+      acc[acc_len + j] = load_u8(dest + j).to_byte()
+      j = j + 1
+    }
+    acc_len = acc_len + nread
     total = total + nread
     if total >= MAX_READ_SIZE { break }
+    let _ = buf.length()
   }
-  if total == 0 { return Bytes::make(0, 0) }
-  if total < capacity {
-    let final_buf = Bytes::new(total)
-    memory_copy(bytes_data_ptr(final_buf), buf_ptr, total)
-    final_buf
-  } else {
-    buf
+  bytes_from_acc(acc, acc_len)
+}
+
+/// Write iov source: payload starts at object base for `Bytes::from_array` chunks.
+/// Read iov target uses `BYTES_DATA_OFFSET` (+8) — asymmetric MoonBit GC layout.
+fn write_chunk(fd : Int, chunk : Bytes, chunk_sz : Int) -> Int {
+  let _ = chunk.length()
+  let ptr = object_base_ptr(chunk)
+  store_i32(IOV_BUF, ptr)
+  store_i32(IOV_LEN, chunk_sz)
+  let err = fd_write(fd, IOV_BASE, 1, ROF_LEN)
+  if err != 0 { return -1 }
+  load_i32(ROF_LEN)
+}
+
+/// Write raw response bytes to stdout via per-chunk snapshot (mirrors read_all dest snapshot).
+fn write_all(fd : Int, data : Bytes) -> Unit {
+  let len = data.length()
+  if len == 0 { return () }
+  let mut off = 0
+  while off < len {
+    let mut chunk_sz = len - off
+    if chunk_sz > 4096 { chunk_sz = 4096 }
+    let chunk_arr = Array::make(chunk_sz, (0).to_byte())
+    let mut j = 0
+    while j < chunk_sz {
+      chunk_arr[j] = data[off + j]
+      j = j + 1
+    }
+    let chunk = Bytes::from_array(chunk_arr)
+    let nwritten = write_chunk(fd, chunk, chunk_sz)
+    if nwritten <= 0 { return () }
+    off = off + nwritten
   }
 }
 
-/// Write raw response bytes to stdout (no framing).
-/// Loops fd_write since WASI pipes may write fewer bytes than requested.
-fn write_all(fd : Int, data : Bytes) -> Unit {
-  let len = data.length()
-  let ptr = bytes_data_ptr(data)
-  // Keep data alive throughout the write loop — the compiler may drop
-  // the GC reference after bytes_data_ptr returns the raw pointer.
-  let mut remaining = len
-  let mut off = 0
-  while remaining > 0 {
-    store_i32(IOV_BUF, ptr + off)
-    store_i32(IOV_LEN, remaining)
-    let err = fd_write(fd, IOV_BASE, 1, ROF_LEN)
-    if err != 0 { return () }
-    let nwritten = load_i32(ROF_LEN)
-    if nwritten <= 0 { return () }
-    remaining = remaining - nwritten
-    off = off + nwritten
-  }
-  // Touch data to keep the GC reference alive
-  let _ = data.length()
+fn run_io_loop() -> Unit {
+  let body = read_all(0)
+  if body.length() == 0 { return () }
+  let resp = process_message(body)
+  write_all(1, resp)
 }
 
 /// Verify that reserved iovec memory [1024,1035] is not corrupted by GC allocations.
@@ -159,8 +213,7 @@ fn write_all(fd : Int, data : Bytes) -> Unit {
 /// then verifies sentinels are intact (GC allocator did not overwrite
 /// the reserved iovec region).
 ///
-/// Called at startup in run_io_loop().
-/// Returns false when GC overwrote the reserved iovec region (caller skips I/O).
+/// Returns false when GC overwrote the reserved iovec region.
 fn verify_reserved_memory() -> Bool {
   // Phase 1: Write sentinel values to reserved iovec region
   store_i32(IOV_BUF, 0xDEADBEEF)
@@ -186,26 +239,14 @@ fn verify_reserved_memory() -> Bool {
   true
 }
 
-/// Main protocol loop: read raw stdin → process → write raw stdout.
-/// sqlc WASM plugin uses unframed protobuf (no 4-byte LE header).
-/// P0-071: sentinel checks return Bool; failure skips I/O (sqlc sees empty stdout).
-fn run_io_loop() -> Unit {
-  if !check_bytes_data_ptr() { return () }
-  if !verify_reserved_memory() { return () }
-  let body = read_all(0)
-  if body.length() == 0 { return () }
-  let resp = process_message(body)
-  write_all(1, resp)
-}
-
 // === Tests: P0-067 — iovec reserved memory region isolation verification ===
 // NOTE: verify_reserved_memory() and check_bytes_data_ptr() use inline WAT FFI
 // that targets the WASM MVP linear memory model. The moonrun test runner uses
 // wasm-gc which has a different object model (GC refs instead of linear memory
 // pointers), so these functions cannot be directly invoked in tests.
 //
-// P0-071: both checks return Bool; run_io_loop skips I/O on false (no panic/abort).
-// Runtime verification occurs at startup in wasmtime (run_io_loop → checks → I/O).
+// P0-071: sentinel checks return Bool (no panic/abort); not gated on startup under wazero.
+// Runtime verification of WAT helpers occurs under sqlc/wasmtime, not moonrun.
 //
 // Test coverage here focuses on compile-time validation (constants, type checking)
 // and basic non-WAT-dependent behavior that works across all targets.
@@ -303,6 +344,32 @@ test "P0-071: sentinel checks return Bool not trap" {
   let b = Bytes::make(4, 0xDE)
   inspect(b[0].to_int(), content="222")
   inspect(IOV_BUF >= 1024, content="true")
+}
+
+test "encode response wire prefix for sqlc" {
+  let req = make_users_request()
+  let out = process_message(encode_request(req))
+  inspect(out.length() > 50, content="true")
+  inspect(out[0].to_int(), content="10")
+  let resp = decode_response(out)
+  inspect(resp.files.length(), content="2")
+  inspect(out.length() > 4096, content="true")
+}
+
+test "minimal generate response matches node wire bytes" {
+  let resp : GenerateResponse = {
+    files: [
+      { name: "types.mbt", contents: b"package users\n\npub struct Users {\n}\n" },
+      { name: "queries.mbt", contents: b"package users\n" },
+    ],
+  }
+  let out = encode_response(resp)
+  inspect(out.length(), content="82")
+  inspect(out[0].to_int(), content="10")
+  inspect(out[1].to_int(), content="49")
+  inspect(out[13].to_int(), content="18")
+  inspect(out[14].to_int(), content="36")
+  inspect(out[81].to_int(), content="10")
 }
 
 

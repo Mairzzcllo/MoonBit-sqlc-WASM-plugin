@@ -115,7 +115,7 @@ fn Decoder::read_byte(self: Decoder) -> Byte {
 fn Decoder::read_varint(self: Decoder) -> Int {
   let mut result: Int = 0
   let mut shift: Int = 0
-  for i = 0; i < 5; i = i + 1 {
+  for i = 0; i < 10; i = i + 1 {
     if self.remaining() <= 0 {
       self.error = true
       break
@@ -127,6 +127,8 @@ fn Decoder::read_varint(self: Decoder) -> Int {
     }
     shift = shift + 7
   }
+  // Protobuf varints are at most 10 bytes; trailing continuation bit is corrupt.
+  self.error = true
   result
 }
 
@@ -1514,12 +1516,14 @@ test "varint: encoding with 5-byte max prevents infinite loop" {
   inspect(data.length() > 0, content="true")
 }
 
-test "varint: 6 continuation bytes stops at 5" {
-  // 6 continuation bytes (0x80) followed by 0x00 — decoder should stop after 5
-  let buf = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00])
+test "varint: 11 continuation bytes without terminator sets error" {
+  // Protobuf max varint is 10 bytes; an 11th continuation byte is corrupt.
+  let buf = Bytes::from_array([
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00,
+  ])
   let dec = Decoder::new(buf)
   let _ = dec.read_varint()
-  inspect(dec.remaining() > 0, content="true")
+  inspect(dec.has_error(), content="true")
 }
 
 
@@ -1799,12 +1803,16 @@ test "P1-039: read_varint on empty buffer returns 0" {
   inspect(p039_dec8.read_varint(), content="0")
 }
 
-/// P1-039: read_varint with all continuation bytes (max 5) followed by terminator.
+/// P1-039: read_varint with all continuation bytes (max 10) followed by terminator.
 test "P1-039: read_varint max continuation bytes with terminator" {
-  // 4 continuation bytes (0x80) + 1 terminator (0x01) = valid 5-byte varint
-  let p039_buf9 = Bytes::from_array([0x80, 0x80, 0x80, 0x80, 0x01])
+  // 9 continuation bytes (0x80) + 1 terminator (0x01) = valid 10-byte varint (sqlc length=-1)
+  let p039_buf9 = Bytes::from_array([
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01,
+  ])
   let p039_dec9 = Decoder::new(p039_buf9)
-  inspect(p039_dec9.read_varint() >= 0, content="true")
+  let _ = p039_dec9.read_varint()
+  inspect(p039_dec9.has_error(), content="false")
+  inspect(p039_dec9.remaining(), content="0")
 }
 
 /// P1-039: decode_embedded with zero bytes (len=0 varint only).
