@@ -5,15 +5,9 @@ on:
     branches: [main]
     paths-ignore:
       - "**.md"
-      - "AGENTS.md"
-      - "CONTEXT.md"
-      - "tasks/**"
-      - "adr/**"
       - "docs/**"
-      - "events/**"
       - "shim/**"
       - "scripts/**"
-      - ".env.template"
   pull_request:
     branches: [main]
 

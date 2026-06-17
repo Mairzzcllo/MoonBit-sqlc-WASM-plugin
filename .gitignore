@@ -13,6 +13,12 @@ _build/
 *.wasm
 !plugin/**/*.wasm
 
+# sqlc generate output (reproducible via README steps)
+examples/users/types.mbt
+examples/users/queries.mbt
+examples/users/generated/
+gen/
+
 # Test artifacts
 plugin_test.wat
 test_if.wasm

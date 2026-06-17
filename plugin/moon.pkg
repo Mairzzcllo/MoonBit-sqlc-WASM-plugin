@@ -4,6 +4,8 @@ import {
   "moonbitlang/core/string" @string,
 }
 
+supported_targets = "+wasm+wasm-gc"
+
 options(
   "is-main": true,
 )

@@ -2,83 +2,119 @@
 
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260512-db6e2a?style=flat-square)](https://www.moonbitlang.com/)
 [![sqlc](https://img.shields.io/badge/sqlc-v1_WASM_plugin-00b4d8?style=flat-square)](https://sqlc.dev)
+[![mooncakes](https://img.shields.io/badge/mooncakes-0.1.2-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen?style=flat-square)](LICENSE)
-[![version](https://img.shields.io/badge/version-0.1.0-blue?style=flat-square)](moon.mod.json)
 
-> Generate type-safe MoonBit database code from SQL queries — a WASM plugin for [sqlc](https://sqlc.dev).
+> 从 SQL 生成类型安全的 MoonBit 数据库代码 —— [sqlc](https://sqlc.dev) 的 WASM 插件。
 
-## 项目介绍
+---
 
-[sqlc](https://sqlc.dev) 是一个从 SQL 查询自动生成类型安全数据库代码的编译器。它通过 WASM 插件接口支持自定义代码生成目标。
+## 项目目标
 
-本项目是一个 sqlc WASM 插件，将 sqlc 的查询分析结果编译为 **MoonBit** 源码。开发者只需编写标准 SQL，即可获得经过类型检查的 MoonBit 数据库操作函数，无需手动编写 ORM 映射或 CRUD 样板代码。
+[sqlc](https://sqlc.dev) 读取 `schema.sql` 与 `query.sql`，在编译期校验 SQL 与类型，并调用 WASM 插件生成 MoonBit 源码。
 
-**设计初衷：**
+| 目标 | 说明 |
+|------|------|
+| **类型安全** | `Result[T, DBError]`，编译期捕获 SQL/类型不匹配 |
+| **零 ORM 开销** | 生成函数直接接受 `DB` / `Transaction`，无反射 |
+| **最小 runtime** | 仅依赖 `runtime/`（`DB`、`Row`、`RowIter`） |
+| **可维护 codegen** | AST → Pretty Printer，禁止字符串拼接 |
 
-1. **消除运行时开销** — 生成代码直接调用 DB connection 的函数式 API，无 ORM 反射开销
-2. **类型安全** — 利用 MoonBit 的强类型系统在编译期捕获 SQL 与代码类型不匹配问题
-3. **最小 runtime** — 生成代码依赖三个 concrete struct：`DB`、`Row`、`Decoder`，不含真实数据库驱动
-4. **AST-based 代码生成** — 所有输出经 AST → Pretty Printer 管道，禁止字符串拼接
+**当前范围：** PostgreSQL · sqlc v1.27+ · MoonBit WASM (WASI preview1)
 
-### Built With
+---
 
-| 组件 | 技术 | 版本 |
+## 环境要求
+
+| 工具 | 版本 | 说明 |
 |------|------|------|
-| 语言 | [MoonBit](https://www.moonbitlang.com/) | 0.1.20260512 |
-| 目标 | WASM (WASI preview1) | — |
-| 宿主 | [sqlc](https://sqlc.dev) | v1.31.1 (wasmtime) |
-| 数据库 | PostgreSQL | MVP |
+| [MoonBit](https://www.moonbitlang.com/download/) | ≥ 0.1.20260512 | 构建插件、测试、mooncakes |
+| [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html) | ≥ v1.27.0 | 调用 WASM 插件（实测 v1.31.1） |
 
-## 架构
+PostgreSQL 仅用于 sqlc 校验 schema/query；生成代码本身不连接数据库。
 
-### 内部管道
+---
 
-```
-sqlc → CodeGenRequest (protobuf)
-  → P0-002: WASM Plugin Protocol (protocol.mbt)
-  → P0-003: Protobuf Adapter Layer (adapter.mbt)
-  → P0-004: Internal IR (ir.mbt)
-    → P0-007: Type Mapping (type_map.mbt)
-    → P0-008: Type Code Generator (type_codegen.mbt)
-    → P0-009: Query Code Generator (query_codegen.mbt)
-    → P0-005: MoonBit AST (ast.mbt)
-      → P0-006: Pretty Printer (emitter.mbt)
-        → CodeGenResponse → 生成 MoonBit 源码
-```
+## Windows / Linux 配置指南
 
-### Native WASI I/O via Inline WAT FFI
+### 1. 安装 MoonBit
 
-MoonBit `--target wasm` 支持内联 WAT FFI（`= "module" "name"` 语法直接导入 WASI 函数，`= "(func ...)"` 执行原始内存操作）。I/O 层完全在 MoonBit 侧实现，无需外部 shim。
+<details>
+<summary><strong>Windows（PowerShell）</strong></summary>
 
-```
-┌─────────────────────────────────────┐
-│  wasmtime (sqlc generate)           │
-│  ┌─ plugin.wasm ─────────────────┐  │
-│  │  ┌─ wasi_io.mbt ─────────────┐│  │
-│  │  │  inline WAT FFI           ││  │
-│  │  │  fd_read / fd_write       ││  │
-│  │  │  run_io_loop (_start)     ││  │
-│  │  └───────────────────────────┘│  │
-│  │  ┌─ codegen pipeline ────────┐│  │
-│  │  │  process_message          ││  │
-│  │  │  decode_request →         ││  │
-│  │  │  process_request →        ││  │
-│  │  │  encode_response          ││  │
-│  │  └───────────────────────────┘│  │
-│  └───────────────────────────────┘  │
-└─────────────────────────────────────┘
+```powershell
+# 官方安装脚本（见 https://www.moonbitlang.com/download/）
+# 安装后验证：
+moon --version
+
+# 可选：解决控制台中文乱码
+$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 ```
 
-iovec 结构（12 字节）固定在预留内存 `[1024, 1035]` 区域（iovec at 1024, rof_len at 1032），数据缓冲区由 GC `Bytes::new` 动态分配。构建一步到位：`moon build --target wasm`，无后处理步骤。
+</details>
 
-## 快速开始
+<details>
+<summary><strong>Linux / macOS（Bash）</strong></summary>
 
-### 环境要求
+```bash
+# 官方安装脚本（见 https://www.moonbitlang.com/download/）
+curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
 
-- [MoonBit](https://www.moonbitlang.com/) ≥ 0.1.20260512
-- [sqlc](https://sqlc.dev) ≥ v1.27.0
+# 将 ~/.moon/bin 加入 PATH（安装脚本通常会提示）
+export PATH="$HOME/.moon/bin:$PATH"
+moon --version
+```
 
-### 安装
+</details>
+
+### 2. 安装 sqlc
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+# 方式 A：Go 安装
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# 方式 B：下载 release 二进制
+# https://github.com/sqlc-dev/sqlc/releases
+
+sqlc version
+```
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+```bash
+# 方式 A：Go
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# 方式 B：下载 release 并加入 PATH
+# https://github.com/sqlc-dev/sqlc/releases
+
+sqlc version
+```
+
+</details>
+
+### 3. 克隆仓库并验证
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+git clone https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
+cd MoonBit-sqlc-WASM-plugin
+moon check
+moon test
+```
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
 
 ```bash
 git clone https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
@@ -87,177 +123,298 @@ moon check
 moon test
 ```
 
-### 构建 WASM 插件
+</details>
+
+### 4. 构建 WASM 插件
+
+两平台命令相同。产物在 `_build/`（**不是** `target/`）：
 
 ```bash
-moon build --target wasm
+moon build --target wasm --release
 ```
 
-### 配置 sqlc
+| 模式 | 路径 |
+|------|------|
+| release（推荐） | `_build/wasm/release/build/plugin/plugin.wasm` |
+| debug | `_build/wasm/debug/build/plugin/plugin.wasm` |
 
-`sqlc.yaml`:
+### 5. 一键运行示例
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+# 构建 + sqlc generate + 预览输出
+.\scripts\run-example.ps1
+
+# 可选参数
+.\scripts\run-example.ps1 -Full      # 含 moon check + moon test
+.\scripts\run-example.ps1 -Release   # 使用 release WASM
+.\scripts\run-example.ps1 -SkipBuild # 跳过构建，复用已有 WASM
+```
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+```bash
+chmod +x scripts/run-example.sh scripts/setup-mooncakes.sh
+bash scripts/run-example.sh
+
+# 可选参数
+bash scripts/run-example.sh --full
+bash scripts/run-example.sh --release
+bash scripts/run-example.sh --skip-build
+```
+
+</details>
+
+生成结果位于 `examples/users/types.mbt` 与 `examples/users/queries.mbt`。
+
+### 6. mooncakes.io 安装 Runtime
+
+生成代码需链接 `runtime` 包（已发布至 [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)）。
+
+<details>
+<summary><strong>Windows — 业务项目</strong></summary>
+
+```powershell
+# 首次（可选）
+moon login
+
+# 在含 moon.mod.json 的业务项目根目录
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.2
+moon check --target wasm-gc
+moon test --target wasm-gc
+```
+
+验证脚本（在**本仓库**根目录）：
+
+```powershell
+.\scripts\setup-mooncakes.ps1
+```
+
+</details>
+
+<details>
+<summary><strong>Linux — 业务项目</strong></summary>
+
+```bash
+moon login    # 首次（可选）
+
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.2
+moon check --target wasm-gc
+moon test --target wasm-gc
+```
+
+验证脚本（在**本仓库**根目录）：
+
+```bash
+bash scripts/setup-mooncakes.sh
+```
+
+</details>
+
+业务项目 `moon.pkg` 示例（见 [`examples/users/moon.pkg.example`](examples/users/moon.pkg.example)）：
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
+}
+```
+
+| 项目 | 值 |
+|------|-----|
+| 包名 | `Mairzzcllo/moonbit_sqlc_plugin` |
+| 当前版本 | `0.1.2` |
+| 包页 | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+
+> mooncakes 发布的是 **runtime**；**WASM 插件**需本地 `moon build --target wasm` 或 [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases)。
+
+### 7. 配置 sqlc.yaml 并生成代码
+
+两平台配置相同。`file://` 路径按 OS 使用正斜杠或绝对路径：
+
 ```yaml
 version: "2"
 plugins:
   - name: moonbit
     wasm:
-      url: file://./target/wasm/release/build/plugin/plugin.wasm
-      sha256: <build 后填入>
+      url: file://./_build/wasm/release/build/plugin/plugin.wasm
+      sha256: ""   # 首次留空，sqlc 会打印 sha256
 sql:
   - engine: postgresql
     schema: schema.sql
     queries: query.sql
     codegen:
-      out: gen
-      plugin: moonbit
+      - out: gen
+        plugin: moonbit
+        options:
+          package_name: myapp
 ```
 
-### 生成代码用法
+```bash
+sqlc generate
+```
+
+输出：`types.mbt`（类型与 decode）+ `queries.mbt`（查询函数）。
+
+---
+
+## 使用示例
+
+### SQL
+
+`schema.sql`：
+
+```sql
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+`query.sql`：
+
+```sql
+-- name: GetUser :one
+SELECT * FROM users WHERE id = $1;
+
+-- name: ListUsers :many
+SELECT * FROM users ORDER BY created_at DESC;
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1;
+```
+
+### 生成代码调用
 
 ```moonbit
-fn init {
-  let db: DB = connect_to_postgres("host=localhost dbname=myapp")
+import "Mairzzcllo/moonbit_sqlc_plugin/runtime"
 
-  let user = query_users_get_by_id(db, 42)
-  match user {
-    Some(u) => println("Hello, \{u.name}!")
-    None => println("User not found")
+fn example(db: DB) {
+  match query_get_user(db, 42L) {
+    Ok(user) => println(user.name)
+    Err(NoRows) => println("not found")
+    Err(e) => println("error: \{e}")
   }
-
-  let all = query_users_list(db)
-  println("Found \{all.length()} users")
-
-  let new = query_users_create(db, "Alice", "alice@example.com")
-  println("Created user \{new.id}")
 }
 ```
 
-### Runtime 设计
+`DB` 由你的数据库驱动适配层构造；测试可用 `runtime/mock.mbt` 中的 `MockDB`。
 
-Runtime 使用 concrete struct + closure 模式（因 MoonBit 0.1 不支持 trait 对象和泛型 trait 方法）：
+### 常用 plugin options
 
-```moonbit
-pub struct DB {
-  exec_fn : (String) -> Int
-  execrows_fn : (String) -> Int64
-}
+| 选项 | 默认 | 说明 |
+|------|------|------|
+| `package_name` | `"main"` | 生成代码包名 |
+| `emit_sql_as_comment` | `true` | 函数上方嵌入 SQL |
+| `emit_json_tags` | `false` | 生成 `@json.tag(...)` |
+| `emit_empty_slices` | `false` | `:many` 空结果返回 `[]` |
+
+详见 [docs/quickstart.md](docs/quickstart.md)、[docs/runtime-api.md](docs/runtime-api.md)。
+
+---
+
+## 故障排除
+
+### mooncakes / `moon add` 报 `moonbit_simd.h` 缺失
+
+native 后端编译失败，但本项目仅需 **wasm / wasm-gc**：
+
+```bash
+moon check --target wasm-gc
+moon test --target wasm-gc
+# 勿使用 --target native
 ```
 
-生成函数中非匹配 return type 的 db 调用使用 `let _ = db.exec(sql)` 丢弃。
+仍失败时重装 MoonBit 并确认 `~/.moon/include/moonbit.h` 存在。
 
-### 插件选项
+### Windows 控制台乱码
 
-在 `sqlc.yaml` 的 `codegen:` 段 `plugin_options:` 中支持以下配置：
-
-| 选项 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `package_name` | string | `"main"` | 生成代码的包名 |
-| `emit_json_tags` | bool | `false` | 生成 `@json.tag("name")` 注解 |
-| `emit_db_tags` | bool | `false` | 生成 `@db.tag("name")` 注解 |
-| `emit_sql_as_comment` | bool | `true` | 在函数上方嵌入原始 SQL 作为 doc comment |
-| `omit_unused_structs` | bool | `false` | 跳过未被查询引用的 struct 类型生成 |
-| `emit_empty_slices` | bool | `false` | `:many` 无结果时返回空数组 `[]` 而非 `Err(NoRows)` |
-| `initialisms` | string | `""` | 逗号分隔的首字母缩写词，如 `"API,HTTP,ID"` |
-| `json_tags_case_style` | string | `"snake"` | JSON 标签命名风格：`snake` / `camel` / `pascal` |
-| `emit_exact_table_names` | bool | `false` | struct 名使用数据库表名原样（**no effect in MoonBit 0.1** — singularization 未实现） |
-| `emit_methods_with_db_argument` | bool | `false` | 生成显式接收 `db: DB` 参数的方法变体（**no effect in MoonBit 0.1** — 实验性/no-op） |
-
-示例：
-```yaml
-codegen:
-  out: gen
-  plugin: moonbit
-  plugin_options:
-    - package_name=moonbit_app
-    - emit_json_tags=true
-    - emit_empty_slices=true
-    - initialisms=API,HTTP,ID
-    - json_tags_case_style=camel
+```powershell
+$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 ```
 
-> **注意**: 所有选项均向后兼容，默认值保持现有行为。
+### WASM 路径找不到
+
+确认使用 `_build/wasm/...`，不是 `target/wasm/...`。
+
+### sqlc 找不到 plugin.wasm
+
+先执行 `moon build --target wasm`（或 `--release`），并确保 `sqlc.yaml` 中 `file://` 路径与构建模式一致。
+
+---
 
 ## 项目结构
 
 ```
 .
-├── plugin/              # WASM 插件主包 (16 .mbt 文件)
-│   ├── main.mbt         # 入口 (fn main → run_io_loop)
-│   ├── wasi_io.mbt      # Native WASI I/O via inline WAT FFI
-│   ├── protocol.mbt     # WASM 插件协议 + process_message
-│   ├── adapter.mbt      # Protobuf → 内部模型适配器
-│   ├── types.mbt        # Protobuf 协议类型定义
-│   ├── codec.mbt        # 手动 protobuf 编解码 (LEB128 + length-delimited)
-│   ├── ir.mbt           # 中间表示层 (codegen 核心枢纽)
-│   ├── ast.mbt          # MoonBit AST 定义
-│   ├── emitter.mbt      # Pretty Printer (AST → 源码)
-│   ├── type_map.mbt     # SQL 类型 → MoonBit 类型映射
-│   ├── type_codegen.mbt # 类型代码生成器
-│   ├── query_codegen.mbt# 查询函数代码生成器
-│   ├── naming.mbt       # 命名转换 (initialisms, case style)
-│   ├── keyword.mbt      # MoonBit 关键字转义 (55+ keywords)
-│   ├── golden.mbt       # Golden 测试（确定性输出验证）
-│   └── wasm_integration.mbt # WASM 集成测试 (roundtrip + error)
-├── runtime/             # 生成代码运行时库
-│   ├── db.mbt           # DB concrete struct (exec/execrows/query/query_row/begin)
-│   ├── row.mbt          # Row concrete struct (typed getter 16 种)
-│   ├── row_iter.mbt     # RowIter streaming iterator
-│   ├── transaction.mbt  # Transaction (commit/rollback)
-│   ├── value.mbt        # Value enum + Date/DateTime wrappers
-│   ├── error.mbt        # DBError enum
-│   └── mock.mbt         # MockDB for testing
-├── shim/archive/        # 存档 (WAT shim 参考实现)
-├── examples/users/      # 完整使用示例 (schema.sql + query.sql + sqlc.yaml)
-├── tests/               # 集成测试 (basic + wasm)
-├── docs/                # API 参考与快速开始指南
-├── adr/                 # 架构决策记录 (15 条)
-└── tasks/               # 任务追踪 (active.md + archive/)
+├── plugin/           # WASM 插件（codegen + WASI I/O）
+├── runtime/          # 生成代码运行时（mooncakes 已发布）
+├── examples/users/   # 可复现示例（schema + query + sqlc.yaml）
+├── tests/            # golden + integration 测试
+├── docs/             # API 与快速开始
+├── scripts/          # run-example / setup-mooncakes（Win + Linux）
+├── sqlc.yaml         # 根目录 generate 配置
+└── moon.mod.json
 ```
+
+---
 
 ## 测试
 
 ```bash
-moon check              # 类型检查
-moon test               # 运行所有 870 个 inline 测试
+moon check
+moon test          # 907 个 inline test
 ```
 
-测试使用 inline `test { ... }` 块而非 `_test.mbt` 文件（main 包不支持 blackbox 测试）。空类型数组用 `Array::make(0, <默认值>)` 构造以推断泛型。
+<details>
+<summary>WASM 集成验证</summary>
 
-## 约定
+**Windows：**
 
-- 代码层始终通过 **AST → Pretty Printer** 管道生成，禁止字符串拼接
-- 生成函数使用 **snake_case** 函数名，**PascalCase** 类型名
-- Query 函数命名：`query_<表名>_<操作>`（如 `query_users_by_id`）
-- protobuf 保留关键字 `type` 映射为 `ty`
-- Enum constructor 不包含类型前缀：`One` 而非 `QueryCmd::One`
-- MoonBit struct 字段默认 file-private，跨文件构造需要 `pub fn new()`
-- 所有 doc comment 使用标准 MoonBit `///` 格式
+```powershell
+tests/integration/wasm/validate_plugin.ps1
+```
 
-## 架构决策记录
+**Linux：** CI 使用相同脚本（需 PowerShell Core `pwsh`）或手动 `moon build --target wasm` + `cd examples/users && sqlc generate`。
 
-| ADR | 标题 | 状态 |
-|-----|------|------|
-| ADR-001 | AST-based Code Generation Strategy | Accepted |
-| ADR-002 | Runtime Scope | Accepted (v3) |
-| ADR-003 | Nullable Strategy | Draft |
-| ADR-004 | Naming Convention | Draft |
-| ADR-005 | Type Mapping Policy | Draft |
-| ADR-006 | AST Stability Policy | Draft |
-| ADR-007 | WAT Shim ABI Bridge | Superseded (by ADR-008) |
-| ADR-008 | Native WASI I/O via Inline WAT FFI | Accepted |
-| ADR-009 | Known Limitations and MVP Boundaries | Draft |
-| ADR-010 | Transaction Support: Concrete Struct + Closure Pattern | Accepted |
-| ADR-011 | Codegen Build Body: result_shape Priority and Method Dispatch | Accepted |
-| ADR-012 | Phase D Architecture Gaps: ExecResult, Type Overrides, TimeTZ | Accepted |
-| ADR-013 | 100 Edge Cases Analysis: Classification and Fix Feasibility | Accepted |
-| ADR-014 | Plugin Options Extension (GAP-4) | Accepted |
+</details>
 
-## 路线图
+---
 
-详细任务分解见 [`tasks/active.md`](tasks/active.md)，已完成任务见 [`tasks/archive.md`](tasks/archive.md)。
+## 架构概览
+
+```
+sqlc (protobuf) → wasi_io → codec → adapter → ir
+  → type_codegen / query_codegen → ast → emitter
+  → types.mbt + queries.mbt
+```
+
+I/O 通过内联 WAT FFI 调用 WASI `fd_read` / `fd_write`（无外部 shim）。
+
+---
+
+## 文档与链接
+
+| 资源 | 链接 |
+|------|------|
+| 快速开始 | [docs/quickstart.md](docs/quickstart.md) |
+| Runtime API | [docs/runtime-api.md](docs/runtime-api.md) |
+| 示例 | [examples/README.md](examples/README.md) |
+| mooncakes | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| GitHub | <https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin> |
+
+---
 
 ## 许可证
 
-Apache-2.0。详见 [LICENSE](LICENSE)。
+Apache-2.0 — 详见 [LICENSE](LICENSE)。第三方归属见 [NOTICE](NOTICE)。
 
-*由 sqlc 驱动，为 MoonBit 生态而生。*
+WASM I/O 协议参考 [sqlc-gen-greeter](https://github.com/sqlc-dev/sqlc-gen-greeter)（MIT）。

@@ -1,63 +1,46 @@
 # Examples
 
-## users — PostgreSQL Example
+## users — PostgreSQL 完整示例
 
-Complete sqlc integration example for MoonBit.
+从 SQL 生成 MoonBit 代码的最小可复现示例。
 
-### Files
+### 文件
 
-| File | Purpose |
-|------|---------|
-| `schema.sql` | Users table DDL |
-| `query.sql` | SQL queries with sqlc annotations (`:one`, `:many`, `:exec`) |
-| `sqlc.yaml` | sqlc v2 plugin config (references plugin.wasm from build output) |
-| `moon.pkg` | Package manifest with runtime dependency |
-| `lib.mbt` | Generated MoonBit code (produced by `sqlc generate`) |
+| 文件 | 说明 |
+|------|------|
+| `schema.sql` | `users` 表 DDL |
+| `query.sql` | sqlc 注解查询（`:one` / `:many` / `:exec`） |
+| `sqlc.yaml` | 指向 `_build/wasm/.../plugin.wasm` |
+| `moon.pkg.example` | 集成到业务项目时的 runtime 依赖模板 |
+| `types.mbt` | `sqlc generate` 产出（gitignore，本地生成） |
+| `queries.mbt` | `sqlc generate` 产出（gitignore，本地生成） |
 
-### Usage
+### 复现步骤
+
+**一键（推荐）：**
 
 ```bash
-# Build the WASM plugin first
-moon build --target wasm
-
-# Generate MoonBit code from SQL
-cd examples/users
-sqlc generate
-
-# Inspect the output
-cat lib.mbt
+# 仓库根目录
+bash scripts/run-example.sh
+# Windows: .\scripts\run-example.ps1
 ```
 
-### Query Annotations
+**手动：**
+# 在仓库根目录
+moon build --target wasm
+cd examples/users
+sqlc generate
+ls types.mbt queries.mbt
+```
 
-- `:one` — Returns a single row (e.g., `GetUser`)
-- `:many` — Returns multiple rows (e.g., `ListUsers`)
-- `:exec` — Executes without returning rows (e.g., `DeleteUser`)
+本目录**不含** `moon.pkg`，生成文件不会参与插件 monorepo 的 `moon check`。集成到项目时复制生成文件并参考 `moon.pkg.example`。
 
-## Feature Examples
+详细说明见根目录 [README.md](../README.md)。
 
-The plugin supports these features which can be referenced in `sqlc.yaml`:
+### 查询注解
 
-| Feature | Config Key | Example Value |
-|---------|-----------|---------------|
-| Transaction support | (auto-generated) | Query fn overload accepts `tx: Transaction` |
-| PostgreSQL Enum | schema DDL | `CREATE TYPE mood AS ENUM ('happy','sad')` |
-| Custom type overrides | `override_<pg_type>=<MoonBit>` | `override_numeric=Decimal` |
-| Column-level overrides | `override_column_<table>.<col>=<Type>` | `override_column_users.id=String` |
-| Nullable overrides | `override_nullable_<pg_type>=true` | `override_nullable_int4=true` |
-| JSON/DB tag annotations | `emit_json_tags`, `emit_db_tags` | `true` / `false` |
-| SQL doc comments | `emit_sql_as_comment` | `true` |
-| Naming initialisms | `initialisms` | `ID,URL,HTTP` |
-| JSON tag case style | `json_tags_case_style` | `snake` / `camel` / `pascal` |
-| MockDB testing | `runtime/mock.mbt` | `MockDB::build()` → `DB` |
-
-### Adding New Examples
-
-To create an additional example, copy the `users/` directory and:
-1. Write a `schema.sql` with your DDL
-2. Write a `query.sql` with annotated queries
-3. Update `sqlc.yaml` with your options
-4. Run `sqlc generate` and verify the output
-
-The plugin supports: multi-table joins, PostgreSQL enums, arrays, transactions,
-and all type override options documented in the main README.
+| 注解 | 行为 | 示例 |
+|------|------|------|
+| `:one` | 返回单行 | `GetUser` |
+| `:many` | 返回多行 | `ListUsers` |
+| `:exec` | 无返回行 | `DeleteUser` |

@@ -1,0 +1,45 @@
+MoonBit sqlc WASM Plugin
+Copyright 2026 Mairzzcllo
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the License governing permissions and limitations
+under the License.
+
+================================================================================
+
+This project includes or references the following third-party works.
+
+--------------------------------------------------------------------------------
+sqlc — SQL compiler and WASM plugin host
+  Project:  https://github.com/sqlc-dev/sqlc
+  Website:  https://sqlc.dev
+  License:  Apache License 2.0
+  Use:      Host tool that invokes this WASM plugin; protobuf plugin API.
+
+--------------------------------------------------------------------------------
+sqlc-gen-greeter — Reference WASM plugin (I/O protocol)
+  Project:  https://github.com/sqlc-dev/sqlc-gen-greeter
+  License:  MIT License
+  Copyright (c) 2023 Riza, Inc.
+  Use:      Unframed stdin/stdout protobuf I/O protocol reference only.
+            This project does not incorporate greeter source code.
+
+--------------------------------------------------------------------------------
+MoonBit standard library (moonbitlang/core)
+  Project:  https://github.com/moonbitlang/core
+  Registry: https://mooncakes.io/docs/moonbitlang/core
+  License:  Apache License 2.0
+  Use:      Runtime dependency of plugin and runtime packages (json, utf8, string).
+
+--------------------------------------------------------------------------------
+MoonBit toolchain
+  Project:  https://www.moonbitlang.com/
+  Use:      Compiler, build system (moon), and WASM target support.

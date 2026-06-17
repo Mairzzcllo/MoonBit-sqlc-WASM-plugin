@@ -3,3 +3,5 @@ import {
   "moonbitlang/core/json" @json,
   "moonbitlang/core/string" @string,
 }
+
+supported_targets = "+wasm+wasm-gc"

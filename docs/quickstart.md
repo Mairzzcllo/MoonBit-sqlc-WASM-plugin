@@ -145,4 +145,3 @@ fn transfer_funds(db: DB, from: Int64, to: Int64, amount: Int64) -> Result[Unit,
 
 - See [Runtime API Reference](runtime-api.md) for full type documentation
 - See [examples/users/](../examples/users/) for a complete working example
-- See [tasks/active.md](../tasks/active.md) for project roadmap

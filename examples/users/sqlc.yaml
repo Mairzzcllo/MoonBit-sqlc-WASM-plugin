@@ -2,9 +2,10 @@ version: "2"
 plugins:
   - name: "moonbit"
     wasm:
-      # Uses debug build by default. For CI/release builds, change to:
-      # url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"
+      # debug (default: moon build --target wasm):
       url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"
+      # release (moon build --target wasm --release):
+      # url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"
       sha256: ""
 sql:
   - schema: "schema.sql"

@@ -1,8 +1,31 @@
 {
   "name": "Mairzzcllo/moonbit_sqlc_plugin",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "sqlc WASM plugin — generate type-safe MoonBit database layer from SQL queries",
+  "readme": "README.md",
   "license": "Apache-2.0",
   "repository": "https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin",
-  "keywords": ["sqlc", "codegen", "database", "wasm-plugin"]
+  "homepage": "https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin",
+  "keywords": ["sqlc", "codegen", "database", "wasm-plugin"],
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc",
+  "exclude": [
+    ".cursor/",
+    ".git/",
+    "_build/",
+    "gen/",
+    "shim/",
+    "scripts/",
+    "tests/",
+    "examples/users/types.mbt",
+    "examples/users/queries.mbt",
+    "examples/users/generated/",
+    "examples/users/gen/",
+    "examples/users/2",
+    "examples/users/g.wat",
+    "examples/users/greeter.wasm",
+    "examples/users/stderr_capture.bin",
+    "examples/users/sqlc_stderr.txt",
+    "examples/users/sqlc_greeter_test.yaml"
+  ]
 }
