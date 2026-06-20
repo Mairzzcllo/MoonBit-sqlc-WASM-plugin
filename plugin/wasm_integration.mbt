@@ -36,8 +36,8 @@ test "wasm: process_message output matches golden" {
   let types_source = @utf8.decode(resp.files[0].contents)
   let queries_source = @utf8.decode(resp.files[1].contents)
   // types.mbt contains struct definitions and decode functions
-  inspect(types_source.contains("pub struct Users"), content="true")
-  inspect(types_source.contains("pub fn Users::decode"), content="true")
+  inspect(types_source.contains("pub struct User"), content="true")
+  inspect(types_source.contains("pub fn User::decode"), content="true")
   inspect(types_source.contains("pub fn ListUsersRow::decode"), content="true")
   inspect(types_source.contains("pub fn GetUserRow::decode"), content="true")
   inspect(types_source.contains("pub enum UserRole"), content="true")

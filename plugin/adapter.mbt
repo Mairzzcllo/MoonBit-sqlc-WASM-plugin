@@ -232,7 +232,7 @@ fn json_as_bool(j: Json) -> Option[Bool] {
 }
 
 /// sqlc v1.31+ sends plugin_options as JSON bytes, e.g. `{"package_name":"users"}`.
-fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions raise {
+fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
   let mut package_name = ""
   let mut has_package_name = false
   let overrides: Array[(String, String)] = []
@@ -322,18 +322,12 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions raise {
       }
     } else if key == "emit_exact_table_names" || key == "emit-exact-table-names" {
       match json_as_bool(value) {
-        Some(v) => {
-          emit_exact_table_names = v
-          if v { warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)") }
-        }
+        Some(v) => emit_exact_table_names = v
         None => warn_plugin_option("plugin_options JSON: emit_exact_table_names must be boolean")
       }
     } else if key == "emit_methods_with_db_argument" || key == "emit-methods-with-db-argument" {
       match json_as_bool(value) {
-        Some(v) => {
-          emit_methods_with_db_argument = v
-          if v { warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1") }
-        }
+        Some(v) => emit_methods_with_db_argument = v
         None => warn_plugin_option("plugin_options JSON: emit_methods_with_db_argument must be boolean")
       }
     } else if key == "initialisms" {
@@ -371,7 +365,7 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions raise {
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Returns defaults on empty data; warns on malformed or unknown options.
 /// Accepts sqlc JSON (`{"package_name":"users"}`) and legacy key=value lines.
-pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
+pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
   if data.length() == 0 {
     return default_plugin_options()
   }
@@ -406,25 +400,25 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
       if has_package_name {
-        debug_inspect("duplicate package_name option: keeping last value")
+        warn_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[13:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package_name =") {
       if has_package_name {
-        debug_inspect("duplicate package_name option: keeping last value")
+        warn_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[14:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package=") {
       if has_package_name {
-        debug_inspect("duplicate package_name option: keeping last value")
+        warn_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[8:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package =") {
       if has_package_name {
-        debug_inspect("duplicate package_name option: keeping last value")
+        warn_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[9:].trim().to_owned()
       has_package_name = true
@@ -506,12 +500,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[22:].trim().to_owned()
     } else if s == "emit_exact_table_names=true" || s == "emit_exact_table_names = true" {
       emit_exact_table_names = true
-      warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)")
     } else if s == "emit_exact_table_names=false" || s == "emit_exact_table_names = false" {
       emit_exact_table_names = false
     } else if s == "emit_methods_with_db_argument=true" || s == "emit_methods_with_db_argument = true" {
       emit_methods_with_db_argument = true
-      warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1")
     } else if s == "emit_methods_with_db_argument=false" || s == "emit_methods_with_db_argument = false" {
       emit_methods_with_db_argument = false
     }
@@ -542,12 +534,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
       json_tags_case_style = s[22:].trim().to_owned()
     } else if s == "emit-exact-table-names=true" || s == "emit-exact-table-names = true" {
       emit_exact_table_names = true
-      warn_plugin_option("warning: emit_exact_table_names has no effect (singularization not implemented)")
     } else if s == "emit-exact-table-names=false" || s == "emit-exact-table-names = false" {
       emit_exact_table_names = false
     } else if s == "emit-methods-with-db-argument=true" || s == "emit-methods-with-db-argument = true" {
       emit_methods_with_db_argument = true
-      warn_plugin_option("warning: emit_methods_with_db_argument has no effect in MoonBit 0.1")
     } else if s == "emit-methods-with-db-argument=false" || s == "emit-methods-with-db-argument = false" {
       emit_methods_with_db_argument = false
     } else if s.length() > 0 {

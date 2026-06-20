@@ -316,6 +316,8 @@ fn example(db: DB) {
 | `emit_sql_as_comment` | `true` | 函数上方嵌入 SQL |
 | `emit_json_tags` | `false` | 生成 `@json.tag(...)` |
 | `emit_empty_slices` | `false` | `:many` 空结果返回 `[]` |
+| `emit_exact_table_names` | `false` | `false` 时将表名单数化（`users` → `User`）；`true` 保留复数（`Users`） |
+| `emit_methods_with_db_argument` | `false` | sqlc 兼容项；MoonBit 0.1 始终生成 `pub fn query_*(db: DB, ...)` 独立函数 |
 
 详见 [docs/quickstart.md](docs/quickstart.md)、[docs/runtime-api.md](docs/runtime-api.md)。
 

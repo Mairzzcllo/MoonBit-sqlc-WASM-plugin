@@ -38,11 +38,6 @@ const BYTES_DATA_OFFSET : Int = 8
 
 // === Inline WAT helpers ====================================================
 
-/// Inline +8 payload pointer for WASI fd_read iov targets.
-#borrow(b)
-fn bytes_data_ptr(b : Bytes) -> Int =
-  "(func (param $0 i32) (result i32) (i32.add (local.get $0) (i32.const 8)))"
-
 /// Raw GC object pointer (MoonBit arithmetic path avoids inline-WAT early-decref).
 #borrow(b)
 fn object_base_ptr(b : Bytes) -> Int =

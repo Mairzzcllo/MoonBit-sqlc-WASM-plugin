@@ -49,9 +49,7 @@ pub fn generate_struct_from_fields(
 }
 
 /// Generate a StructDef from a catalog table.
-/// emit_exact_table_names is accepted for API compatibility. Currently the struct name is
-/// always PascalCase via snake_to_pascal(table_name). When proper singularization is added
-/// in the future, emit_exact_table_names=true will skip singularization.
+/// When emit_exact_table_names=false (default), singularizes the table name before PascalCase.
 pub fn generate_struct_from_table(
   table_name: String,
   columns: Array[AdaptColumn],
@@ -62,12 +60,12 @@ pub fn generate_struct_from_table(
   column_overrides: Array[ColumnOverride],
   nullable_overrides: Array[String],
   renames: Array[(String, String)],
-  _emit_exact_table_names: Bool,
+  emit_exact_table_names: Bool,
   json_tags_case_style: String,
   initialisms: Array[String],
   enum_renames: Array[(String, String)],
 ) -> StructDef {
-  let type_name = escape_keyword(snake_to_pascal(table_name, initialisms))
+  let type_name = table_struct_type_name(table_name, emit_exact_table_names, initialisms)
   let doc: Option[String] = if comment == "" { None } else { Some(comment) }
   let fields = columns.map(fn(c) {
     let ir_type = if c.is_array { Arr(Named(c.ty.name)) } else { Named(c.ty.name) }
@@ -142,7 +140,7 @@ pub fn generate_types_from_catalog(catalog: AdaptCatalog, emit_json_tags: Bool, 
     }
     let struct_names: Array[String] = []
     for table in tables_to_use {
-      struct_names.push(escape_keyword(snake_to_pascal(table.name, initialisms)))
+      struct_names.push(table_struct_type_name(table.name, emit_exact_table_names, initialisms))
     }
     let enum_renames = build_enum_renames(schema, struct_names, initialisms)
     let table_items = tables_to_use.map(fn(table) {
@@ -420,12 +418,12 @@ test "generate_types_from_catalog: single schema with table" {
     Struct(s) => s.name
     _ => ""
   }
-  inspect(name, content="Users")
+  inspect(name, content="User")
   let fn_name = match items[1] {
     Fn(f) => f.name
     _ => ""
   }
-  inspect(fn_name, content="Users::decode")
+  inspect(fn_name, content="User::decode")
 }
 
 test "generate_types_from_catalog: table and enum" {
@@ -451,8 +449,8 @@ test "generate_types_from_catalog: table and enum" {
       _ => ""
     }
   })
-  inspect(names[0], content="Orders")
-  inspect(names[1], content="Orders::decode")
+  inspect(names[0], content="Order")
+  inspect(names[1], content="Order::decode")
   inspect(names[2], content="Status")
 }
 
@@ -547,8 +545,8 @@ test "generate_types: combines catalog and query types" {
     Fn(f) => f.name
     _ => ""
   }
-  inspect(first_name, content="Users")
-  inspect(second_name, content="Users::decode")
+  inspect(first_name, content="User")
+  inspect(second_name, content="User::decode")
   inspect(third_name, content="GetUserRow")
   inspect(fourth_name, content="GetUserRow::decode")
 }

@@ -1,9 +1,14 @@
-version: "2"
+﻿version: "2"
 plugins:
   - name: "moonbit"
     wasm:
+      # Root-level smoke config (out: gen 鈫?writes gen/gen/ when package_name matches).
+      # Prefer examples/users/sqlc.yaml for the canonical workflow (see scripts/run-example.ps1).
+      # debug (default: moon build --target wasm):
       url: "file://./_build/wasm/debug/build/plugin/plugin.wasm"
-      sha256: ""
+      # release (moon build --target wasm --release):
+      # url: "file://./_build/wasm/release/build/plugin/plugin.wasm"
+      sha256: "d76e3982bbc87f07abfbfda2b2fcb253dd59bac548f6578e03d81eb9e4fb5a8a"
 sql:
   - schema: "examples/users/schema.sql"
     queries: "examples/users/query.sql"

@@ -20,13 +20,13 @@
 
 fn main { () }
 
-test "compilation: Users struct can be constructed" {
-  let u: Users = { id: 1L, name: "Alice", email: Some("alice@test.com") }
+test "compilation: User struct can be constructed" {
+  let u: User = { id: 1L, name: "Alice", email: "alice@test.com", created_at: DateTime::new("") }
   inspect(u.name, content="Alice")
 }
 
 test "compilation: GetUserRow struct can be constructed" {
-  let r: GetUserRow = { id: 1L, name: "Bob", email: None }
+  let r: GetUserRow = { id: 1L, name: "Bob", email: "bob@test.com", created_at: DateTime::new("") }
   inspect(r.id, content="1")
 }
 
@@ -45,4 +45,20 @@ test "compilation: query_list_users accepts DB" {
 test "compilation: DBError variant accessible" {
   let e: DBError = ConnectionError("err")
   inspect(match e { ConnectionError(s) => s; _ => "" }, content="err")
+  let te: DBError = TypeError("type")
+  inspect(match te { TypeError(s) => s; _ => "" }, content="type")
+  let cn: DBError = ColumnNotFound("email")
+  inspect(match cn { ColumnNotFound(s) => s; _ => "" }, content="email")
+}
+
+test "compilation: Transaction type exists" {
+  let tx: Transaction = {
+    exec_fn: fn(_sql, _params) { Ok(0L) },
+    execrows_fn: fn(_sql, _params) { Ok(0L) },
+    query_fn: fn(_sql, _params) { Ok(RowIter::new([])) },
+    query_row_fn: fn(_sql, _params) { Ok(Row::new(fn(_i) { "" }, Array::make(1, false))) },
+    commit_fn: fn() { Ok(()) },
+    rollback_fn: fn() { Ok(()) },
+  }
+  inspect(match (tx.commit_fn)() { Ok(_) => true; Err(_) => false }, content="true")
 }

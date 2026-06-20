@@ -1,16 +1,16 @@
 # run_e2e.ps1 — P1-037 E2E Integration Test
-# Builds the WASM plugin, runs sqlc generate, and validates output.
+# Builds the WASM plugin, runs sqlc generate on examples/users, and validates output.
 #
 # Usage:
 #   .\tests\integration\e2e\run_e2e.ps1
 #   .\tests\integration\e2e\run_e2e.ps1 -SkipBuild         # Skip moon build (assume already built)
-#   .\tests\integration\e2e\run_e2e.ps1 -DownloadSqlc      # Download sqlc.exe if not found in PATH
+#   .\tests\integration\e2e\run_e2e.ps1 -DownloadSqlc      # Download sqlc if not found in PATH
 #
 # Prerequisites:
 #   - MoonBit toolchain (moon build --target wasm)
 #   - sqlc CLI (automatically downloaded if -DownloadSqlc is set)
 #
-# Output files checked:
+# Output files checked (aligned with scripts/run-example.ps1):
 #   - examples/users/types.mbt   (contains "pub struct Users")
 #   - examples/users/queries.mbt (contains "pub fn query_")
 
@@ -20,16 +20,29 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $ROOT = Resolve-Path "$PSScriptRoot\..\..\.."
 $BUILD_DIR = "$ROOT\_build"
 $PLUGIN_WASM = "$BUILD_DIR\wasm\debug\build\plugin\plugin.wasm"
-$SQLC_YAML = "$ROOT\sqlc.yaml"
-$GEN_DIR = "$ROOT\gen"
-$TYPES_MBT = "$GEN_DIR\types.mbt"
-$QUERIES_MBT = "$GEN_DIR\queries.mbt"
+$EXAMPLE_DIR = "$ROOT\examples\users"
+$SQLC_YAML = "$EXAMPLE_DIR\sqlc.yaml"
+$TYPES_MBT = "$EXAMPLE_DIR\types.mbt"
+$QUERIES_MBT = "$EXAMPLE_DIR\queries.mbt"
 $PASS = 0
 $FAIL = 0
 $SKIP = 0
+
+function Read-RequiredContent {
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "file not found: $Path"
+  }
+  $content = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+  if ([string]::IsNullOrWhiteSpace($content)) {
+    throw "file is empty: $Path"
+  }
+  return $content
+}
 
 function Test-Step {
   param([string]$Name, [scriptblock]$Body)
@@ -51,32 +64,31 @@ function Skip-Step {
 
 function Ensure-Sqlc {
   param([switch]$Download)
-  # Check if sqlc is already in PATH
   if (Get-Command sqlc -ErrorAction SilentlyContinue) {
     $v = & sqlc version 2>&1
     Write-Host "  Using sqlc: $v"
     return $true
   }
-  # Check local download
-  $localSqlc = "$ROOT\bin\sqlc.exe"
+
+  if ($IsLinux) { $os = "linux" }
+  elseif ($IsMacOS) { $os = "darwin" }
+  else { $os = "windows" }
+
+  $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
+  $binName = if ($os -eq "windows") { "sqlc.exe" } else { "sqlc" }
+  $localSqlc = "$ROOT\bin\$binName"
+
   if (Test-Path $localSqlc) {
     $env:PATH = "$ROOT\bin;$env:PATH"
     $v = & sqlc version 2>&1
     Write-Host "  Using sqlc (local): $v"
     return $true
   }
+
   if ($Download) {
     Write-Host "  Downloading sqlc ..."
     $tmp = "$env:TEMP\sqlc.zip"
-    $os = "windows"
-    $arch = "amd64"
-    # Detect architecture
-    if ([Environment]::Is64BitOperatingSystem) {
-      $arch = "amd64"
-    } else {
-      $arch = "386"
-    }
-    $version = "1.28.0"
+    $version = "1.31.1"
     $url = "https://github.com/sqlc-dev/sqlc/releases/download/v${version}/sqlc_${version}_${os}_${arch}.zip"
     try {
       Invoke-WebRequest -Uri $url -OutFile $tmp -ErrorAction Stop
@@ -130,7 +142,7 @@ Test-Step "plugin.wasm exists" {
 }
 
 # --- Step 2: Verify sqlc.yaml ---
-Write-Host "`n--- Step 2: Verify sqlc.yaml ---" -ForegroundColor Cyan
+Write-Host "`n--- Step 2: Verify examples/users/sqlc.yaml ---" -ForegroundColor Cyan
 
 Test-Step "sqlc.yaml exists" {
   if (-not (Test-Path $SQLC_YAML)) {
@@ -139,21 +151,21 @@ Test-Step "sqlc.yaml exists" {
 }
 
 Test-Step "sqlc.yaml references plugin.wasm" {
-  $content = Get-Content -LiteralPath $SQLC_YAML -Raw
+  $content = Read-RequiredContent -Path $SQLC_YAML
   if ($content -notmatch "plugin\.wasm") {
     throw "sqlc.yaml does not reference plugin.wasm"
   }
 }
 
 Test-Step "schema.sql exists" {
-  $schemaPath = "$ROOT\examples\users\schema.sql"
+  $schemaPath = "$EXAMPLE_DIR\schema.sql"
   if (-not (Test-Path $schemaPath)) {
     throw "schema.sql not found at $schemaPath"
   }
 }
 
 Test-Step "query.sql exists" {
-  $queryPath = "$ROOT\examples\users\query.sql"
+  $queryPath = "$EXAMPLE_DIR\query.sql"
   if (-not (Test-Path $queryPath)) {
     throw "query.sql not found at $queryPath"
   }
@@ -171,12 +183,11 @@ if ($hasSqlc) {
     Write-Host "($v)" -NoNewline
   }
 
-  # Clean up any previous generated files to ensure a fresh run
   Remove-Item $TYPES_MBT -Force -ErrorAction SilentlyContinue
   Remove-Item $QUERIES_MBT -Force -ErrorAction SilentlyContinue
 
   Test-Step "sqlc generate succeeded" {
-    Push-Location $ROOT
+    Push-Location $EXAMPLE_DIR
     try {
       $output = & sqlc generate 2>&1
       $exitCode = $LASTEXITCODE
@@ -209,65 +220,64 @@ Test-Step "queries.mbt exists" {
 }
 
 Test-Step "types.mbt is non-empty" {
-  $content = Get-Content -LiteralPath $TYPES_MBT -Raw
-  if (-not $content -or $content.Trim().Length -eq 0) {
-    throw "types.mbt exists but is empty"
-  }
+  Read-RequiredContent -Path $TYPES_MBT | Out-Null
 }
 
 Test-Step "queries.mbt is non-empty" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
-  if (-not $content -or $content.Trim().Length -eq 0) {
-    throw "queries.mbt exists but is empty"
-  }
+  Read-RequiredContent -Path $QUERIES_MBT | Out-Null
 }
 
 Test-Step "types.mbt contains package declaration" {
-  $content = Get-Content -LiteralPath $TYPES_MBT -Raw
+  $content = Read-RequiredContent -Path $TYPES_MBT
   if ($content -notmatch "package\s+\w+") {
     throw "types.mbt should contain a package declaration"
   }
 }
 
-Test-Step "types.mbt contains pub struct Users" {
-  $content = Get-Content -LiteralPath $TYPES_MBT -Raw
-  if ($content -notmatch "pub struct Users") {
-    throw "types.mbt should contain 'pub struct Users'"
+Test-Step "types.mbt contains pub struct User" {
+  $content = Read-RequiredContent -Path $TYPES_MBT
+  if ($content -notmatch "pub struct User") {
+    throw "types.mbt should contain 'pub struct User' (singularized from users table)"
   }
 }
 
 Test-Step "types.mbt contains runtime import" {
-  $content = Get-Content -LiteralPath $TYPES_MBT -Raw
+  $content = Read-RequiredContent -Path $TYPES_MBT
   if ($content -notmatch "Mairzzcllo/moonbit_sqlc_plugin/runtime") {
     throw "types.mbt should import the runtime library"
   }
 }
 
 Test-Step "queries.mbt contains pub fn query_" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
+  $content = Read-RequiredContent -Path $QUERIES_MBT
   if ($content -notmatch "pub fn query_") {
     throw "queries.mbt should contain at least one 'pub fn query_'"
   }
 }
 
-Test-Step "queries.mbt contains Users::decode" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
-  if ($content -notmatch "Users::decode") {
-    throw "queries.mbt should reference Users::decode for row decoding"
+Test-Step "queries.mbt contains row decode call" {
+  $content = Read-RequiredContent -Path $QUERIES_MBT
+  if ($content -notmatch "::decode") {
+    throw "queries.mbt should reference a ::decode method for row decoding"
+  }
+}
+
+Test-Step "queries.mbt contains GetUserRow::decode" {
+  $content = Read-RequiredContent -Path $QUERIES_MBT
+  if ($content -notmatch "GetUserRow::decode") {
+    throw "queries.mbt should reference GetUserRow::decode for :one query decoding"
   }
 }
 
 Test-Step "queries.mbt contains runtime import" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
+  $content = Read-RequiredContent -Path $QUERIES_MBT
   if ($content -notmatch "Mairzzcllo/moonbit_sqlc_plugin/runtime") {
     throw "queries.mbt should import the runtime library"
   }
 }
 
 Test-Step "query functions named correctly for users queries" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
-  # Expect: query_get_user, query_list_users, query_create_user, query_delete_user
-  # Check at least one of each command type exists
+  $content = Read-RequiredContent -Path $QUERIES_MBT
   $hasOne = $content -match "pub fn query_get_user"
   $hasMany = $content -match "pub fn query_list_users"
   if (-not $hasOne) { throw "queries.mbt missing query_get_user (:one)" }
@@ -279,22 +289,22 @@ Test-Step "query functions named correctly for users queries" {
 Write-Host "`n--- Step 5: Integration Cross-Check ---" -ForegroundColor Cyan
 
 Test-Step "generated types.mbt does not contain query functions" {
-  $content = Get-Content -LiteralPath $TYPES_MBT -Raw
+  $content = Read-RequiredContent -Path $TYPES_MBT
   if ($content -match "pub fn query_") {
     throw "types.mbt should NOT contain query_ function declarations"
   }
 }
 
 Test-Step "generated queries.mbt does not contain struct definitions" {
-  $content = Get-Content -LiteralPath $QUERIES_MBT -Raw
+  $content = Read-RequiredContent -Path $QUERIES_MBT
   if ($content -match "pub struct Users") {
     throw "queries.mbt should NOT contain struct definitions"
   }
 }
 
 Test-Step "generated files have consistent package name" {
-  $typesContent = Get-Content -LiteralPath $TYPES_MBT -Raw
-  $queriesContent = Get-Content -LiteralPath $QUERIES_MBT -Raw
+  $typesContent = Read-RequiredContent -Path $TYPES_MBT
+  $queriesContent = Read-RequiredContent -Path $QUERIES_MBT
   $typesMatch = [regex]::Match($typesContent, 'package\s+(\w+)')
   $queriesMatch = [regex]::Match($queriesContent, 'package\s+(\w+)')
   if (-not $typesMatch.Success -or -not $queriesMatch.Success) {

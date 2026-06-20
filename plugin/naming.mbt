@@ -89,9 +89,7 @@ fn match_initialism(word: String, initialisms: Array[String]) -> Option[String] 
 /// conflicts (e.g., enum name vs struct name generating the same type).
 ///
 /// **Enum/Struct collision**: When a table and an enum share the same base name,
-/// both generate the same PascalCase type (e.g., `"status"` table → `Status`
-/// struct, `"status"` enum → `Status` enum). This is a known limitation tracked
-/// in P1-041; future work may add disambiguation suffixes.
+/// `generate_types_from_catalog` disambiguates enums via `StatusType` suffix (P1-060).
 ///
 /// **Empty input**: Callers should ensure non-empty input; empty string returns
 /// sentinel `"UnnamedType"` which avoids collision with tables named 'empty'.
@@ -107,6 +105,37 @@ pub fn snake_to_pascal(s: String, initialisms: Array[String]) -> String {
     }
   }
   result
+}
+
+fn is_vowel_char(c: Char) -> Bool {
+  c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' ||
+  c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U'
+}
+
+/// Singularize a SQL table name for struct naming (default when emit_exact_table_names=false).
+/// Handles common English plural patterns; leaves ambiguous names (e.g. status) unchanged.
+pub fn singularize_table_name(name: String) -> String {
+  if name.length() <= 1 { return name }
+  if name.has_suffix("ies") && name.length() > 3 {
+    return name[0:name.length() - 3].to_owned() + "y"
+  }
+  if name.has_suffix("s") && !name.has_suffix("ss") && name.length() >= 2 {
+    let prev = name[name.length() - 2].unsafe_to_char()
+    if !is_vowel_char(prev) {
+      return name[0:name.length() - 1].to_owned()
+    }
+  }
+  name
+}
+
+/// Resolve catalog table name to MoonBit struct base (before PascalCase / keyword escape).
+pub fn table_struct_base_name(table_name: String, emit_exact_table_names: Bool) -> String {
+  if emit_exact_table_names { table_name } else { singularize_table_name(table_name) }
+}
+
+/// Resolve catalog table name to MoonBit struct type name.
+pub fn table_struct_type_name(table_name: String, emit_exact_table_names: Bool, initialisms: Array[String]) -> String {
+  escape_keyword(snake_to_pascal(table_struct_base_name(table_name, emit_exact_table_names), initialisms))
 }
 
 /// Convert snake_case to camelCase with initialism support.
@@ -315,6 +344,26 @@ test "P1-041: snake_to_camel handles all-caps" {
 /// P1-041: snake_to_camel with camelCase input
 test "P1-041: snake_to_camel handles camelCase input" {
   inspect(snake_to_camel("userName", []), content="userName")
+}
+
+test "singularize_table_name: users to user" {
+  inspect(singularize_table_name("users"), content="user")
+}
+
+test "singularize_table_name: status unchanged" {
+  inspect(singularize_table_name("status"), content="status")
+}
+
+test "singularize_table_name: categories to category" {
+  inspect(singularize_table_name("categories"), content="category")
+}
+
+test "table_struct_type_name: default singularizes users to User" {
+  inspect(table_struct_type_name("users", false, []), content="User")
+}
+
+test "table_struct_type_name: exact mode keeps Users" {
+  inspect(table_struct_type_name("users", true, []), content="Users")
 }
 
 /// P1-041: Collision potential between table name and enum name.

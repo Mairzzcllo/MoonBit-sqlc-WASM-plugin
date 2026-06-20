@@ -7,7 +7,6 @@ on:
       - "**.md"
       - "docs/**"
       - "shim/**"
-      - "scripts/**"
   pull_request:
     branches: [main]
 
@@ -16,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MOONBIT_VERSION: "0.1.20260512"
+  MOONBIT_VERSION: "0.1.20260522"
+  SQLC_VERSION: "1.31.1"
 
 jobs:
   check:
@@ -44,7 +44,7 @@ jobs:
       - uses: hustcer/setup-moonbit@v1
         with:
           moonbit-version: ${{ env.MOONBIT_VERSION }}
-      - run: moon build --target wasm
+      - run: moon build --target wasm --release
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
@@ -60,9 +60,15 @@ jobs:
       - uses: hustcer/setup-moonbit@v1
         with:
           moonbit-version: ${{ env.MOONBIT_VERSION }}
-      - run: moon build --target wasm
       - name: Install wabt
         run: npm install -g wabt
+      - name: Install sqlc
+        run: |
+          curl -fsSL "https://github.com/sqlc-dev/sqlc/releases/download/v${SQLC_VERSION}/sqlc_${SQLC_VERSION}_linux_amd64.tar.gz" \
+            | tar xz -C /usr/local/bin sqlc
       - name: Run validation script
         shell: pwsh
-        run: tests/integration/wasm/validate_plugin.ps1
+        run: tests/integration/wasm/validate_plugin.ps1 -TestSqlc
+      - name: Run E2E integration test
+        shell: pwsh
+        run: tests/integration/e2e/run_e2e.ps1 -SkipBuild
