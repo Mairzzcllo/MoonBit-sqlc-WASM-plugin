@@ -3,11 +3,11 @@
 #
 # Usage (from repo root):
 #   bash scripts/setup-mooncakes.sh
-#   bash scripts/setup-mooncakes.sh --version 0.1.2
+#   bash scripts/setup-mooncakes.sh --version 0.1.3
 
 set -euo pipefail
 
-VERSION="0.1.2"
+VERSION="0.1.3"
 PACKAGE="Mairzzcllo/moonbit_sqlc_plugin"
 
 while [[ $# -gt 0 ]]; do

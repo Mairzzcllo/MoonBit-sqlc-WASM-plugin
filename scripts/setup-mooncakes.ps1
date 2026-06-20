@@ -5,7 +5,7 @@
 #   .\scripts\setup-mooncakes.ps1 -Version 0.1.1
 
 param(
-  [string]$Version = "0.1.2",
+  [string]$Version = "0.1.3",
   [string]$Package = "Mairzzcllo/moonbit_sqlc_plugin"
 )
 

@@ -2,7 +2,7 @@
 
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260512-db6e2a?style=flat-square)](https://www.moonbitlang.com/)
 [![sqlc](https://img.shields.io/badge/sqlc-v1_WASM_plugin-00b4d8?style=flat-square)](https://sqlc.dev)
-[![mooncakes](https://img.shields.io/badge/mooncakes-0.1.2-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+[![mooncakes](https://img.shields.io/badge/mooncakes-0.1.3-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen?style=flat-square)](LICENSE)
 
 > 从 SQL 生成类型安全的 MoonBit 数据库代码 —— [sqlc](https://sqlc.dev) 的 WASM 插件。
@@ -185,7 +185,7 @@ moon login
 
 # 在含 moon.mod.json 的业务项目根目录
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.2
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
 moon check --target wasm-gc
 moon test --target wasm-gc
 ```
@@ -205,7 +205,7 @@ moon test --target wasm-gc
 moon login    # 首次（可选）
 
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.2
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
 moon check --target wasm-gc
 moon test --target wasm-gc
 ```
@@ -229,7 +229,7 @@ import {
 | 项目 | 值 |
 |------|-----|
 | 包名 | `Mairzzcllo/moonbit_sqlc_plugin` |
-| 当前版本 | `0.1.2` |
+| 当前版本 | `0.1.3` |
 | 包页 | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 
 > mooncakes 发布的是 **runtime**；**WASM 插件**需本地 `moon build --target wasm` 或 [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases)。

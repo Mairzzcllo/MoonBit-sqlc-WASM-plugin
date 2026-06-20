@@ -136,4 +136,4 @@ Write-Host "  ..."
 Write-Host "`n[OK] Example ready. Next steps:" -ForegroundColor Green
 Write-Host "  - Inspect: examples/users/types.mbt, examples/users/queries.mbt"
 Write-Host "  - Integrate: copy files into your app + see examples/users/moon.pkg.example"
-Write-Host "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.2"
+Write-Host "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3"
