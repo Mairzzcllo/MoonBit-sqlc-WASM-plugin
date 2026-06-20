@@ -6,7 +6,7 @@ plugins:
       url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"
       # release (moon build --target wasm --release):
       # url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"
-      sha256: "d76e3982bbc87f07abfbfda2b2fcb253dd59bac548f6578e03d81eb9e4fb5a8a"
+      sha256: ""   # optional: scripts/sync-sqlc-sha256.ps1 after moon build (platform-specific)
 sql:
   - schema: "schema.sql"
     queries: "query.sql"

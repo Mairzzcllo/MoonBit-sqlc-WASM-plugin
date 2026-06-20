@@ -102,6 +102,8 @@ if ($Release) {
 }
 
 Write-Step "sqlc generate (examples/users)"
+& (Join-Path $ROOT "scripts\sync-sqlc-sha256.ps1") -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+if ($LASTEXITCODE -ne 0) { throw "sync-sqlc-sha256 failed (exit $LASTEXITCODE)" }
 Push-Location $EXAMPLE
 try {
   & sqlc generate

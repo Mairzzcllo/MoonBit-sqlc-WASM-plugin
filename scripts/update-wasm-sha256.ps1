@@ -1,5 +1,7 @@
-# update-wasm-sha256.ps1 — Write plugin.wasm sha256 into sqlc.yaml files
+# update-wasm-sha256.ps1 — Write plugin.wasm sha256 into sqlc.yaml files (optional local pin)
 #
+# Prefer scripts/sync-sqlc-sha256.ps1 in CI/test scripts (called automatically after moon build).
+# Use this script when you want to persist sha256 in sqlc.yaml for faster local sqlc runs.
 # Usage (from repo root):
 #   .\scripts\update-wasm-sha256.ps1              # debug WASM (default build)
 #   .\scripts\update-wasm-sha256.ps1 -Release     # release WASM

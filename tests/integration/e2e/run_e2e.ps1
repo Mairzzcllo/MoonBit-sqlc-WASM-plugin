@@ -186,6 +186,11 @@ if ($hasSqlc) {
   Remove-Item $TYPES_MBT -Force -ErrorAction SilentlyContinue
   Remove-Item $QUERIES_MBT -Force -ErrorAction SilentlyContinue
 
+  Test-Step "sqlc.yaml sha256 synced to built plugin.wasm" {
+    & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+    if ($LASTEXITCODE -ne 0) { throw "sync-sqlc-sha256 failed" }
+  }
+
   Test-Step "sqlc generate succeeded" {
     Push-Location $EXAMPLE_DIR
     try {
