@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/MoonBit-0.1.20260522-db6e2a?style=for-the-badge" alt="MoonBit"/>
   <img src="https://img.shields.io/badge/sqlc-v1_WASM_plugin-00b4d8?style=for-the-badge" alt="sqlc"/>
-  <img src="https://img.shields.io/badge/mooncakes-0.1.5-orange?style=for-the-badge" alt="mooncakes"/>
+  <img src="https://img.shields.io/badge/mooncakes-0.1.6-orange?style=for-the-badge" alt="mooncakes"/>
   <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen?style=for-the-badge" alt="License"/>
 </p>
 
@@ -10,7 +10,7 @@
   Â·
   <a href="README.zh.md">ä¸­æ–‡</a>
   Â·
-  <a href="README.ja.md">æ—¥æœ¬èª?/a>
+  <a href="README.ja.md">æ—¥æœ¬èªž</a>
 </p>
 
 # MoonBit sqlc WASM Plugin
@@ -19,7 +19,7 @@
 
 **MoonBit sqlc WASM Plugin** is a [sqlc](https://sqlc.dev) WASM code generator for [MoonBit](https://www.moonbitlang.com/). It reads `schema.sql` and `query.sql`, validates SQL and types at compile time, and emits type-safe MoonBit source (`types.mbt` + `queries.mbt`).
 
-Generated functions take `DB` or `Transaction` directly â€?no ORM, no reflection. The runtime is published on [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin); the WASM plugin is built locally or downloaded from [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases).
+Generated functions take `DB` or `Transaction` directly â€” no ORM, no reflection. The runtime is published on [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin); the WASM plugin is built locally or downloaded from [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases).
 
 **Current scope:** PostgreSQL Â· sqlc v1.27+ (tested v1.31.1) Â· MoonBit WASM (WASI preview1)
 
@@ -29,13 +29,13 @@ Generated functions take `DB` or `Transaction` directly â€?no ORM, no reflection
 
 - `Result[T, DBError]` for all query and decode paths
 - Compile-time SQL/type validation via sqlc
-- AST â†?Pretty Printer pipeline (no string concatenation)
+- AST â†’ Pretty Printer pipeline (no string concatenation)
 
 ## Minimal Runtime
 
 - `DB`, `Transaction`, `Row`, `RowIter`, `Value`, `MockDB`
-- Published as `Mairzzcllo/moonbit_sqlc_plugin/runtime` on mooncakes **0.1.5**
-- Target `wasm-gc` â€?no native driver required in generated code
+- Published as `Mairzzcllo/moonbit_sqlc_plugin/runtime` on mooncakes **0.1.6**
+- Target `wasm-gc` â€” no native driver required in generated code
 
 ## Plugin-Host Separation
 
@@ -45,23 +45,23 @@ Generated functions take `DB` or `Transaction` directly â€?no ORM, no reflection
 
 # Quick Start
 
-Two paths â€?pick the one that matches your role:
+Two paths â€” pick the one that matches your role:
 
 | Path | Audience | What you need |
 |------|----------|---------------|
-| **A â€?mooncakes.io** | Use generated `types.mbt` / `queries.mbt` in your app | MoonBit + `moon add` (no plugin repo clone) |
-| **B â€?Plugin repo** | Build WASM plugin, run examples, contribute | MoonBit + sqlc + this repository |
+| **A â€” mooncakes.io** | Use generated `types.mbt` / `queries.mbt` in your app | MoonBit + `moon add` (no plugin repo clone) |
+| **B â€” Plugin repo** | Build WASM plugin, run examples, contribute | MoonBit + sqlc + this repository |
 
 ---
 
-## A. App Developers â€?[mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+## A. App Developers â€” [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 
-Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. Install it from the MoonBit package registry â€?**the WASM plugin itself is not on mooncakes**.
+Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. Install it from the MoonBit package registry â€” **the WASM plugin itself is not on mooncakes**.
 
 | Item | Value |
 |------|-------|
 | Package | `Mairzzcllo/moonbit_sqlc_plugin` |
-| Version | **0.1.5** |
+| Version | **0.1.6** |
 | Import path | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
 | Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 | Target | `wasm-gc` (do not use `native`) |
@@ -72,7 +72,7 @@ In your MoonBit project root (`moon.mod.json` already exists):
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6
 moon check --target wasm-gc
 ```
 
@@ -81,7 +81,7 @@ moon check --target wasm-gc
 ```json
 {
   "deps": {
-    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.5"
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.6"
   }
 }
 ```
@@ -138,7 +138,7 @@ Then:
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6
 # copy types.mbt + queries.mbt here
 moon check --target wasm-gc
 ```
@@ -146,30 +146,30 @@ moon check --target wasm-gc
 ### Upgrade / remove
 
 ```bash
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5   # upgrade
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6   # upgrade
 moon remove Mairzzcllo/moonbit_sqlc_plugin       # remove
 ```
 
 Smoke test (run from **this plugin repo** root):
 
 ```powershell
-.\scripts\setup-mooncakes.ps1 -Version 0.1.5
+.\scripts\setup-mooncakes.ps1 -Version 0.1.6
 ```
 
 ```bash
-bash scripts/setup-mooncakes.sh --version 0.1.5
+bash scripts/setup-mooncakes.sh --version 0.1.6
 ```
 
 ---
 
-## B. Plugin Developers â€?Build WASM & Generate Code
+## B. Plugin Developers â€” Build WASM & Generate Code
 
 ### Requirements
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| [MoonBit](https://www.moonbitlang.com/download/) | â‰?0.1.20260522 | Build, test, mooncakes |
-| [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html) | â‰?v1.27.0 | Invokes WASM plugin |
+| [MoonBit](https://www.moonbitlang.com/download/) | â‰¥ 0.1.20260522 | Build, test, mooncakes |
+| [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html) | â‰¥ v1.27.0 | Invokes WASM plugin |
 
 PostgreSQL is only used by sqlc to validate schema/query files. Generated code does not connect to a database.
 
@@ -265,7 +265,7 @@ Construct `DB` in your driver adapter layer; use `MockDB` from `runtime/mock.mbt
 | `emit_sql_as_comment` | `true` | Embed SQL above each function |
 | `emit_json_tags` | `false` | Emit `@json.tag(...)` |
 | `emit_empty_slices` | `false` | Return `[]` for empty `:many` results |
-| `emit_exact_table_names` | `false` | Singularize table names (`users` â†?`User`) |
+| `emit_exact_table_names` | `false` | Singularize table names (`users` â†’ `User`) |
 | `emit_methods_with_db_argument` | `false` | sqlc compat; always emits standalone `query_*` fns |
 
 See [docs/quickstart.md](docs/quickstart.md) and [docs/runtime-api.md](docs/runtime-api.md).
@@ -309,8 +309,8 @@ tests/integration/e2e/run_e2e.ps1 -SkipBuild -Release
 # Architecture
 
 ```
-sqlc (protobuf) â†?wasi_io â†?codec â†?adapter â†?ir
-  â†?type_codegen / query_codegen â†?ast â†?emitter â†?types.mbt + queries.mbt
+sqlc (protobuf) â†’ wasi_io â†’ codec â†’ adapter â†’ ir
+  â†’ type_codegen / query_codegen â†’ ast â†’ emitter â†’ types.mbt + queries.mbt
 ```
 
 I/O uses inline WAT FFI for WASI `fd_read` / `fd_write` (no external shim). Protocol based on [sqlc-gen-greeter](https://github.com/sqlc-dev/sqlc-gen-greeter) (MIT).
@@ -327,6 +327,6 @@ I/O uses inline WAT FFI for WASI `fd_read` / `fd_write` (no external shim). Prot
 
 # LICENSE
 
-This project is licensed under the **Apache License 2.0** â€?see [LICENSE](LICENSE).
+This project is licensed under the **Apache License 2.0** â€” see [LICENSE](LICENSE).
 
 > Third-party notices are in [NOTICE](NOTICE). WASM I/O protocol reference: [sqlc-gen-greeter](https://github.com/sqlc-dev/sqlc-gen-greeter) (MIT).

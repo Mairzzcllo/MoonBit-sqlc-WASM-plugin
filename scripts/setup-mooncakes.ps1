@@ -1,11 +1,11 @@
-# setup-mooncakes.ps1 â€?Windows: verify mooncakes runtime install (wasm-gc only)
+# setup-mooncakes.ps1 â€” Windows: verify mooncakes runtime install (wasm-gc only)
 #
 # Usage (from repo root):
 #   .\scripts\setup-mooncakes.ps1
 #   .\scripts\setup-mooncakes.ps1 -Version 0.1.1
 
 param(
-  [string]$Version = "0.1.5",
+  [string]$Version = "0.1.6",
   [string]$Package = "Mairzzcllo/moonbit_sqlc_plugin"
 )
 
@@ -22,7 +22,7 @@ function Write-JsonNoBom([string]$Path, [string]$Content) {
   [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
-Write-Host "MoonBit sqlc â€?mooncakes setup (Windows)" -ForegroundColor Cyan
+Write-Host "MoonBit sqlc â€” mooncakes setup (Windows)" -ForegroundColor Cyan
 Write-Host "Package: $Package@$Version"
 
 if (-not (Get-Command moon -ErrorAction SilentlyContinue)) {

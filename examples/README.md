@@ -3,7 +3,7 @@
   ·
   <a href="README.zh.md">中文</a>
   ·
-  <a href="README.ja.md">日本�?/a>
+  <a href="README.ja.md">日本語</a>
 </p>
 
 # Examples
@@ -12,7 +12,7 @@
 
 ---
 
-## users �?PostgreSQL Complete Example
+## users — PostgreSQL Complete Example
 
 Minimal reproducible example for generating MoonBit code from SQL. Path: `examples/users/`.
 
@@ -69,7 +69,7 @@ ls types.mbt queries.mbt
 
 ## Integrate into Your App (mooncakes.io)
 
-This directory has **no** `moon.pkg` �?generated files are not part of the plugin monorepo `moon check`. For a standalone MoonBit project:
+This directory has **no** `moon.pkg` — generated files are not part of the plugin monorepo `moon check`. For a standalone MoonBit project:
 
 ### 1. Install runtime
 
@@ -77,14 +77,14 @@ In your project root:
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6
 moon check --target wasm-gc
 ```
 
 | Item | Value |
 |------|-------|
 | Package | `Mairzzcllo/moonbit_sqlc_plugin` |
-| Version | **0.1.5** |
+| Version | **0.1.6** |
 | Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 
 ### 2. Copy generated code
@@ -113,11 +113,11 @@ moon test --target wasm-gc
 From **plugin repo** root:
 
 ```bash
-bash scripts/setup-mooncakes.sh --version 0.1.5
+bash scripts/setup-mooncakes.sh --version 0.1.6
 ```
 
 ```powershell
-.\scripts\setup-mooncakes.ps1 -Version 0.1.5
+.\scripts\setup-mooncakes.ps1 -Version 0.1.6
 ```
 
 ---
@@ -163,7 +163,7 @@ fn example(db: DB) {
 }
 ```
 
-Use `MockDB` / `MockDBBuilder` (including `.strict(true)`) for tests �?see [Runtime API �?MockDB](../docs/runtime-api.md#mockdb).
+Use `MockDB` / `MockDBBuilder` (including `.strict(true)`) for tests — see [Runtime API — MockDB](../docs/runtime-api.md#mockdb).
 
 ---
 

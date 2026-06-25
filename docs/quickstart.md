@@ -3,7 +3,7 @@
   ·
   <a href="quickstart.zh.md">中文</a>
   ·
-  <a href="quickstart.ja.md">日本�?/a>
+  <a href="quickstart.ja.md">日本語</a>
 </p>
 
 # Quick Start Guide
@@ -18,8 +18,8 @@
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| [MoonBit](https://www.moonbitlang.com/download/) | �?0.1.20260522 | Build, test, mooncakes |
-| [sqlc](https://sqlc.dev) | �?v1.27.0 | Tested with v1.31.1 |
+| [MoonBit](https://www.moonbitlang.com/download/) | ≥ 0.1.20260522 | Build, test, mooncakes |
+| [sqlc](https://sqlc.dev) | ≥ v1.27.0 | Tested with v1.31.1 |
 
 PostgreSQL is only used by sqlc to validate `schema.sql` / `query.sql`. Generated code does not connect to a database.
 
@@ -29,19 +29,19 @@ PostgreSQL is only used by sqlc to validate `schema.sql` / `query.sql`. Generate
 
 | Path | Audience | What you need |
 |------|----------|---------------|
-| **A �?mooncakes.io** | Use generated code in your app | `moon add` only (no plugin repo clone) |
-| **B �?Plugin repo** | Build WASM plugin, run examples | Clone this repo + sqlc |
+| **A — mooncakes.io** | Use generated code in your app | `moon add` only (no plugin repo clone) |
+| **B — Plugin repo** | Build WASM plugin, run examples | Clone this repo + sqlc |
 
 ---
 
-## Path A �?Install Runtime from [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+## Path A — Install Runtime from [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 
-Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. **The WASM plugin is not on mooncakes** �?build it locally (Path B) or download from [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases).
+Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. **The WASM plugin is not on mooncakes** — build it locally (Path B) or download from [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases).
 
 | Item | Value |
 |------|-------|
 | Package | `Mairzzcllo/moonbit_sqlc_plugin` |
-| Version | **0.1.5** |
+| Version | **0.1.6** |
 | Import | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
 | Target | `wasm-gc` (not `native`) |
 
@@ -49,7 +49,7 @@ Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. **The WASM plug
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6
 moon check --target wasm-gc
 ```
 
@@ -58,7 +58,7 @@ moon check --target wasm-gc
 ```json
 {
   "deps": {
-    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.5"
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.6"
   }
 }
 ```
@@ -107,7 +107,7 @@ import {
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.6
 # copy types.mbt + queries.mbt here
 moon check --target wasm-gc
 ```
@@ -115,13 +115,13 @@ moon check --target wasm-gc
 Smoke test (from **this plugin repo** root):
 
 ```bash
-bash scripts/setup-mooncakes.sh --version 0.1.5
-# Windows: .\scripts\setup-mooncakes.ps1 -Version 0.1.5
+bash scripts/setup-mooncakes.sh --version 0.1.6
+# Windows: .\scripts\setup-mooncakes.ps1 -Version 0.1.6
 ```
 
 ---
 
-## Path B �?Build Plugin & Generate Code
+## Path B — Build Plugin & Generate Code
 
 ### 1. Clone and build WASM
 
@@ -231,7 +231,7 @@ fn example(db: DB) {
 }
 ```
 
-Construct `DB` in your driver adapter; use `MockDB` for tests (see [Runtime API �?MockDB](runtime-api.md#mockdb)).
+Construct `DB` in your driver adapter; use `MockDB` for tests (see [Runtime API — MockDB](runtime-api.md#mockdb)).
 
 ---
 
@@ -254,7 +254,7 @@ test "query with mock" {
 }
 ```
 
-Builder with exact SQL matching and **strict mode** (unregistered SQL �?`Err`):
+Builder with exact SQL matching and **strict mode** (unregistered SQL → `Err`):
 
 ```moonbit
 test "strict mock rejects unknown SQL" {
@@ -316,6 +316,6 @@ Unknown query commands (e.g. `:typo`) and malformed plugin options also fail at 
 ## What's Next
 
 - [Runtime API Reference](runtime-api.md) · [中文](runtime-api.zh.md) · [日本語](runtime-api.ja.md)
-- [examples/users/](../examples/users/) �?complete working example
+- [examples/users/](../examples/users/) — complete working example
 - [Examples README](../examples/README.md) · [中文](../examples/README.zh.md) · [日本語](../examples/README.ja.md)
 - [README](../README.md) · [中文](../README.zh.md) · [日本語](../README.ja.md)

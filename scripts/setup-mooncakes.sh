@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# setup-mooncakes.sh â€?Linux/macOS: verify mooncakes runtime install (wasm-gc only)
+# setup-mooncakes.sh â€” Linux/macOS: verify mooncakes runtime install (wasm-gc only)
 #
 # Usage (from repo root):
 #   bash scripts/setup-mooncakes.sh
-#   bash scripts/setup-mooncakes.sh --version 0.1.5
+#   bash scripts/setup-mooncakes.sh --version 0.1.6
 
 set -euo pipefail
 
-VERSION="0.1.5"
+VERSION="0.1.6"
 PACKAGE="Mairzzcllo/moonbit_sqlc_plugin"
 
 while [[ $# -gt 0 ]]; do
@@ -28,7 +28,7 @@ step() { printf '\n==> %s\n' "$1"; }
 
 command -v moon >/dev/null 2>&1 || { echo "moon not found. Install: https://www.moonbitlang.com/download/" >&2; exit 1; }
 
-echo "MoonBit sqlc â€?mooncakes setup (Linux/macOS)"
+echo "MoonBit sqlc â€” mooncakes setup (Linux/macOS)"
 echo "Package: ${PACKAGE}@${VERSION}"
 
 step "MoonBit toolchain"
