@@ -11,19 +11,21 @@
 #   - sqlc CLI (automatically downloaded if -DownloadSqlc is set)
 #
 # Output files checked (aligned with scripts/run-example.ps1):
-#   - examples/users/types.mbt   (contains "pub struct Users")
+#   - examples/users/types.mbt   (contains "pub struct User")
 #   - examples/users/queries.mbt (contains "pub fn query_")
 
 param(
   [switch]$SkipBuild = $false,
-  [switch]$DownloadSqlc = $false
+  [switch]$DownloadSqlc = $false,
+  [switch]$Release = $false
 )
 
 $ErrorActionPreference = "Continue"
 $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $ROOT = Resolve-Path "$PSScriptRoot\..\..\.."
 $BUILD_DIR = "$ROOT\_build"
-$PLUGIN_WASM = "$BUILD_DIR\wasm\debug\build\plugin\plugin.wasm"
+$BUILD_MODE = if ($Release) { "release" } else { "debug" }
+$PLUGIN_WASM = "$BUILD_DIR\wasm\$BUILD_MODE\build\plugin\plugin.wasm"
 $EXAMPLE_DIR = "$ROOT\examples\users"
 $SQLC_YAML = "$EXAMPLE_DIR\sqlc.yaml"
 $TYPES_MBT = "$EXAMPLE_DIR\types.mbt"
@@ -116,12 +118,14 @@ Write-Host "Root: $ROOT`n"
 Write-Host "--- Step 1: Build WASM Plugin ---" -ForegroundColor Cyan
 
 if (-not $SkipBuild) {
-  Write-Host "  Running moon build --target wasm ..."
-  $buildOutput = & moon build --target wasm 2>&1
+  $buildArgs = @("build", "--target", "wasm")
+  if ($Release) { $buildArgs += "--release" }
+  Write-Host "  Running moon $($buildArgs -join ' ') ..."
+  $buildOutput = & moon @buildArgs 2>&1
   if ($LASTEXITCODE -eq 0) {
-    Test-Step "moon build --target wasm" { $true }
+    Test-Step "moon build --target wasm ($BUILD_MODE)" { $true }
   } else {
-    Test-Step "moon build --target wasm" { throw ($buildOutput -join "`n") }
+    Test-Step "moon build --target wasm ($BUILD_MODE)" { throw ($buildOutput -join "`n") }
   }
 } else {
   Skip-Step "moon build --target wasm" "skipped by -SkipBuild flag"
@@ -186,8 +190,12 @@ if ($hasSqlc) {
   Remove-Item $TYPES_MBT -Force -ErrorAction SilentlyContinue
   Remove-Item $QUERIES_MBT -Force -ErrorAction SilentlyContinue
 
-  Test-Step "sqlc.yaml sha256 synced to built plugin.wasm" {
-    & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+  Test-Step "sqlc.yaml url + sha256 synced to built plugin.wasm" {
+    if ($Release) {
+      & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML -Release
+    } else {
+      & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+    }
     if ($LASTEXITCODE -ne 0) { throw "sync-sqlc-sha256 failed" }
   }
 

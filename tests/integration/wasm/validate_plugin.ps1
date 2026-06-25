@@ -7,18 +7,23 @@
 #   2. wabt                       (for wasm2wat, optional)
 #   3. sqlc version               (optional, for end-to-end test)
 #
-# Usage: .\validate_plugin.ps1 [-TestSqlc]
+# Usage: .\validate_plugin.ps1 [-TestSqlc] [-Release] [-SkipBuild]
 #   -TestSqlc      : Run sqlc generate end-to-end
+#   -Release       : Validate release WASM (default: debug)
+#   -SkipBuild     : Skip moon build (use pre-built artifact)
 #   Default: run all checks
 
 param(
-  [switch]$TestSqlc = $false
+  [switch]$TestSqlc = $false,
+  [switch]$Release = $false,
+  [switch]$SkipBuild = $false
 )
 
 $ErrorActionPreference = "Continue"
 $ROOT = Resolve-Path "$PSScriptRoot\..\..\.."
 $BUILD_DIR = "$ROOT\_build"
-$PLUGIN_WASM = "$BUILD_DIR\wasm\debug\build\plugin\plugin.wasm"
+$BUILD_MODE = if ($Release) { "release" } else { "debug" }
+$PLUGIN_WASM = "$BUILD_DIR\wasm\$BUILD_MODE\build\plugin\plugin.wasm"
 $SQLC_YAML = "$ROOT\examples\users\sqlc.yaml"
 $PASS = 0
 $FAIL = 0
@@ -54,20 +59,26 @@ Test-Step "MoonBit toolchain available" {
 # --- Step 1: Build ---
 Write-Host "`n--- Step 1: Build Pipeline ---" -ForegroundColor Cyan
 
-Write-Host "  Running moon build --target wasm ..."
-$buildOutput = & moon build --target wasm 2>&1
-if ($LASTEXITCODE -eq 0) {
-  Test-Step "moon build --target wasm" { $true }
+if (-not $SkipBuild) {
+  $buildArgs = @("build", "--target", "wasm")
+  if ($Release) { $buildArgs += "--release" }
+  Write-Host "  Running moon $($buildArgs -join ' ') ..."
+  $buildOutput = & moon @buildArgs 2>&1
+  if ($LASTEXITCODE -eq 0) {
+    Test-Step "moon build --target wasm ($BUILD_MODE)" { $true }
+  } else {
+    Test-Step "moon build --target wasm ($BUILD_MODE)" { throw $buildOutput }
+  }
 } else {
-  Test-Step "moon build --target wasm" { throw $buildOutput }
+  Skip-Step "moon build --target wasm" "skipped (-SkipBuild)"
 }
 
-Test-Step "plugin.wasm was produced" {
+Test-Step "plugin.wasm was produced ($BUILD_MODE)" {
   if (-not (Test-Path $PLUGIN_WASM)) { throw "plugin.wasm not found at $PLUGIN_WASM" }
   $size = (Get-Item $PLUGIN_WASM).Length
   Write-Host "($size bytes)" -NoNewline
   if ($size -eq 0) { throw "plugin.wasm is empty" }
-  if ($size -le 500) { throw "plugin.wasm is too small ($size bytes) — expected ~170KB" }
+  if ($size -le 500) { throw "plugin.wasm is too small ($size bytes) — expected ~500KB" }
 }
 
 # --- Step 2: WASM Binary Validation ---
@@ -89,6 +100,9 @@ if (Get-Command wasm2wat -ErrorAction SilentlyContinue) {
     }
     if ($text -notmatch '"fd_write"') {
       throw "Missing WASI fd_write import"
+    }
+    if ($text -notmatch '"proc_exit"') {
+      throw "Missing WASI proc_exit import"
     }
     if ($text -notmatch '"_start"') {
       throw "Missing _start export"
@@ -123,8 +137,12 @@ if ($TestSqlc) {
       Write-Host "($v)" -NoNewline
     }
 
-    Test-Step "sqlc.yaml sha256 synced to built plugin.wasm" {
-      & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+    Test-Step "sqlc.yaml url + sha256 synced to built plugin.wasm" {
+      if ($Release) {
+        & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML -Release
+      } else {
+        & "$ROOT\scripts\sync-sqlc-sha256.ps1" -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+      }
       if ($LASTEXITCODE -ne 0) { throw "sync-sqlc-sha256 failed" }
     }
 

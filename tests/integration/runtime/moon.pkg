@@ -1,0 +1,9 @@
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime" @rt,
+}
+
+supported_targets = "+wasm+wasm-gc"
+
+options(
+  "is-main": true,
+)

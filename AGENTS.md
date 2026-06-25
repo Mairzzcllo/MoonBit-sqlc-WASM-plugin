@@ -107,7 +107,7 @@
 
 sqlc v1.31.1 使用 wazero 作为 WASM 运行时。**实测确认 wazero 可加载含 refany GC 类型注解的 WASM 二进制**（270KB, 269 个 refany 类型）— 错误 `proto: cannot parse invalid wire-format data` 的根源是**帧头协议不匹配**，非 GC 类型拒绝。
 
-MoonBit `--target wasm` 输出始终包含 GC 类型注解（refany），WAT 输出包含 refany 类型签名（非标准 WASM MVP），但 wazero 可以正常加载和执行。
+MoonBit `--target wasm` 输出始终包含 GC 类型注解（refany），WAT 输出包含 refany 类型签名（非标准 WASM MVP），但 wazero 可以正常加载和执行。当前 debug 构建约 510KB，release 构建约 400KB+。
 
 ### sqlc WASM 插件协议
 
@@ -132,7 +132,7 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - GAP-9: 缺 E2E 集成测试 → P1-037
 
 100 边界情况分析 (2026-05-30): 100 edge cases → 50 新任务 (7 P0 + 10 P1)
-- P0-061: Codec bounds hardening (skip_field/OOB/error→abort)
+- P0-061: Codec bounds hardening (skip_field/OOB/error→abort) ✅ done
 - P0-062: :one TooManyRows error (多行静默取第一条)
 - P0-063: 字段解码按列名而非索引 (列顺序变化错位)
 - P0-064: 输出路径穿越防护 (out_name 验证)

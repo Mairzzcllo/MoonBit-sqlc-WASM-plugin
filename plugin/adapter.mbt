@@ -173,6 +173,8 @@ pub struct PluginOptions {
   column_overrides : Array[ColumnOverride]
   /// PG type names to always treat as nullable, parsed from `override_nullable_<pg_type>=true`.
   nullable_overrides : Array[String]
+  /// When true, unknown PG types fail codegen instead of falling back to String.
+  strict_types : Bool
 }
 
 /// Find first occurrence of a character in a string.
@@ -210,6 +212,7 @@ fn default_plugin_options() -> PluginOptions {
     emit_methods_with_db_argument: false,
     column_overrides: [],
     nullable_overrides: [],
+    strict_types: false,
   }
 }
 
@@ -246,6 +249,7 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
   let mut json_tags_case_style = "snake"
   let mut emit_exact_table_names = false
   let mut emit_methods_with_db_argument = false
+  let mut strict_types = false
   let column_overrides: Array[ColumnOverride] = []
   let nullable_overrides: Array[String] = []
   obj.each(fn(key, value) {
@@ -340,6 +344,11 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
         Some(v) => json_tags_case_style = v.trim().to_owned()
         None => warn_plugin_option("plugin_options JSON: json_tags_case_style must be string")
       }
+    } else if key == "strict_types" || key == "strict-types" {
+      match json_as_bool(value) {
+        Some(v) => strict_types = v
+        None => warn_plugin_option("plugin_options JSON: strict_types must be boolean")
+      }
     } else {
       warn_plugin_option("unknown option: " + key)
     }
@@ -359,6 +368,7 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
     emit_methods_with_db_argument: emit_methods_with_db_argument,
     column_overrides: column_overrides,
     nullable_overrides: nullable_overrides,
+    strict_types: strict_types,
   }
 }
 
@@ -394,6 +404,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
   let mut json_tags_case_style = "snake"
   let mut emit_exact_table_names = false
   let mut emit_methods_with_db_argument = false
+  let mut strict_types = false
   let column_overrides: Array[ColumnOverride] = []
   let nullable_overrides: Array[String] = []
   for line in text.split("\n") {
@@ -540,6 +551,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
       emit_methods_with_db_argument = true
     } else if s == "emit-methods-with-db-argument=false" || s == "emit-methods-with-db-argument = false" {
       emit_methods_with_db_argument = false
+    } else if s == "strict_types=true" || s == "strict_types = true" || s == "strict-types=true" || s == "strict-types = true" {
+      strict_types = true
+    } else if s == "strict_types=false" || s == "strict_types = false" || s == "strict-types=false" || s == "strict-types = false" {
+      strict_types = false
     } else if s.length() > 0 {
       warn_plugin_option("unknown option: " + s)
     }
@@ -559,6 +574,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
     emit_methods_with_db_argument: emit_methods_with_db_argument,
     column_overrides: column_overrides,
     nullable_overrides: nullable_overrides,
+    strict_types: strict_types,
   }
 }
 

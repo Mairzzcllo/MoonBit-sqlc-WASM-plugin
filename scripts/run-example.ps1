@@ -16,7 +16,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
-$restoredYaml = $false
 
 $ROOT = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EXAMPLE = Join-Path $ROOT "examples\users"
@@ -90,19 +89,12 @@ if (-not (Test-Path $PLUGIN_WASM)) {
 $wasmSize = (Get-Item $PLUGIN_WASM).Length
 Write-Host "plugin.wasm: $PLUGIN_WASM ($wasmSize bytes)" -ForegroundColor Green
 
-if ($Release) {
-  Write-Step "Point sqlc.yaml at release WASM (temporary for this run)"
-  $yaml = Get-Content $SQLC_YAML -Raw
-  if ($yaml -notmatch 'release/build/plugin/plugin\.wasm') {
-    $yaml = $yaml -replace 'url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"',
-      'url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"'
-    Set-Content -Path $SQLC_YAML -Value $yaml -NoNewline -Encoding utf8
-    $restoredYaml = $true
-  }
-}
-
 Write-Step "sqlc generate (examples/users)"
-& (Join-Path $ROOT "scripts\sync-sqlc-sha256.ps1") -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+if ($Release) {
+  & (Join-Path $ROOT "scripts\sync-sqlc-sha256.ps1") -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML -Release
+} else {
+  & (Join-Path $ROOT "scripts\sync-sqlc-sha256.ps1") -WasmPath $PLUGIN_WASM -YamlPath $SQLC_YAML
+}
 if ($LASTEXITCODE -ne 0) { throw "sync-sqlc-sha256 failed (exit $LASTEXITCODE)" }
 Push-Location $EXAMPLE
 try {
@@ -112,10 +104,12 @@ try {
   Pop-Location
 }
 
-if ($restoredYaml) {
+if ($Release) {
+  Write-Step "Restore sqlc.yaml to debug url (sha256 cleared for commit)"
   $yaml = Get-Content $SQLC_YAML -Raw
-  $yaml = $yaml -replace 'url: "file://../../_build/wasm/release/build/plugin/plugin.wasm"',
-    'url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"'
+  $yaml = $yaml -replace '(?m)^(\s*)url: "(file://[^"]*wasm/release/build/plugin/plugin\.wasm)"', '${1}# url: "${2}"'
+  $yaml = $yaml -replace '(?m)^(\s*)#\s*url: "(file://[^"]*wasm/debug/build/plugin/plugin\.wasm)"', '${1}url: "${2}"'
+  $yaml = [regex]::Replace($yaml, '(?m)^(\s*sha256:\s*)".*"', '${1}""', 1)
   Set-Content -Path $SQLC_YAML -Value $yaml -NoNewline -Encoding utf8
 }
 

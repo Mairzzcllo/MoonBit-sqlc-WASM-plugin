@@ -181,6 +181,75 @@ pub fn type_to_value_constructor(ir_type: InternalType, overrides: Array[(String
   }
 }
 
+fn normalize_pg_type_name(name: String) -> String {
+  let lower = name.to_lower()
+  match lower.rev_find(".") {
+    Some(pos) => lower[:][pos + 1:].to_owned()
+    None => lower
+  }
+}
+
+/// Returns true when the PG type has an explicit mapping (not String fallback).
+fn is_known_pg_type(name: String) -> Bool {
+  match normalize_pg_type_name(name) {
+    "int2" | "smallint" | "smallserial" | "int4" | "integer" | "int" | "serial" => true
+    "int8" | "bigint" | "bigserial" => true
+    "float4" | "real" | "float8" | "double" | "double precision" => true
+    "numeric" | "decimal" => true
+    "bool" | "boolean" => true
+    "text" | "varchar" | "char" | "bpchar" | "name" | "character varying" => true
+    "bytea" => true
+    "json" | "jsonb" => true
+    "inet" | "cidr" | "macaddr" => true
+    "uuid" => true
+    "date" => true
+    "timestamp" | "timestamptz" | "timestamp with time zone" => true
+    "time" => true
+    "timetz" => true
+    "interval" => true
+    _ => false
+  }
+}
+
+fn check_pg_type_known(name: String, overrides: Array[(String, String)]) -> Unit raise {
+  match lookup_override(name, overrides) {
+    Some(_) => ()
+    None =>
+      if is_known_pg_type(name) {
+        ()
+      } else {
+        raise Failure::Failure("unknown PG type: " + name)
+      }
+  }
+}
+
+/// When strict_types is enabled, fail codegen on unknown PG types instead of String fallback.
+pub fn validate_strict_types(
+  catalog: AdaptCatalog,
+  queries: Array[AdaptQuery],
+  overrides: Array[(String, String)],
+  strict_types: Bool,
+) -> Unit raise {
+  if !strict_types {
+    return ()
+  }
+  for schema in catalog.schemas {
+    for table in schema.tables {
+      for col in table.columns {
+        check_pg_type_known(col.ty.name, overrides)
+      }
+    }
+  }
+  for q in queries {
+    for col in q.columns {
+      check_pg_type_known(col.ty.name, overrides)
+    }
+    for p in q.params {
+      check_pg_type_known(p.column.ty.name, overrides)
+    }
+  }
+}
+
 // === Tests ===
 
 test "map_pg_name: int4 maps to Int64" {
@@ -261,6 +330,39 @@ test "map_pg_name: numeric maps to Decimal" {
 test "map_pg_name: unknown type falls back to String" {
   let t = map_pg_name("some_unknown_type", [], [])
   debug_inspect(t, content="Named(\"String\")")
+}
+
+test "validate_strict_types: rejects unknown PG type when enabled" {
+  let cat: AdaptCatalog = {
+    name: "test",
+    default_schema: "public",
+    schemas: [{
+      name: "public",
+      comment: "",
+      tables: [{
+        name: "users",
+        schema: "public",
+        comment: "",
+        columns: [{
+          name: "weird",
+          not_null: true,
+          is_array: false,
+          ty: { catalog: "", schema: "", name: "some_unknown_type" },
+          length: 0,
+          comment: "",
+          table: { catalog: "", schema: "", name: "users" },
+        }],
+      }],
+      enums: [],
+    }],
+  }
+  let result = try {
+    validate_strict_types(cat, [], [], true)
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "map_pg_name: boolean alias" {

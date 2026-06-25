@@ -95,6 +95,19 @@ fn fd_read(fd : Int, iovs : Int, iovs_len : Int, ret : Int) -> Int =
 fn fd_write(fd : Int, iovs : Int, iovs_len : Int, ret : Int) -> Int =
   "wasi_snapshot_preview1" "fd_write"
 
+fn proc_exit(code : Int) -> Unit =
+  "wasi_snapshot_preview1" "proc_exit"
+
+const STDERR_FD : Int = 2
+
+/// Write an error message to stderr and exit with non-zero status.
+/// sqlc captures stderr and surfaces it to the user on plugin failure.
+fn fail_plugin(msg : String) -> Unit {
+  let text = "moonbit sqlc plugin error: " + msg + "\n"
+  write_all(STDERR_FD, @utf8.encode(text))
+  proc_exit(1)
+}
+
 // === Protocol helpers ======================================================
 
 /// Read all available data from `fd` until EOF.
@@ -196,10 +209,14 @@ fn write_all(fd : Int, data : Bytes) -> Unit {
 }
 
 fn run_io_loop() -> Unit {
+  if !verify_reserved_memory() {
+    fail_plugin("GC allocator overwrote reserved iovec region [1024,1035]")
+  }
   let body = read_all(0)
-  if body.length() == 0 { return () }
-  let resp = process_message(body)
-  write_all(1, resp)
+  match process_message_outcome(body) {
+    Ok(resp) => write_all(1, resp)
+    Err(msg) => fail_plugin(msg)
+  }
 }
 
 /// Verify that reserved iovec memory [1024,1035] is not corrupted by GC allocations.

@@ -55,6 +55,17 @@ fn Row::check_bounds(self: Row, index: Int) -> Result[Int, DBError] {
 /// Find the column index by name. Returns Err(ColumnNotFound) if not found.
 /// O(n) linear scan — callers may cache the result.
 pub fn Row::index_of(self: Row, name: String) -> Result[Int, DBError] {
+  if self.col_names.length() > 0 && self.col_names.length() != self.null_mask.length() {
+    return Err(
+      TypeError(
+        "col_names length (" +
+        self.col_names.length().to_string() +
+        ") != null_mask length (" +
+        self.null_mask.length().to_string() +
+        ")",
+      ),
+    )
+  }
   let mut i = 0
   while i < self.col_names.length() {
     if self.col_names[i] == name {
@@ -2055,3 +2066,10 @@ test "P1-059: decode_array_string accepts quoted PG elements" {
   }
 }
 
+test "P1-006: index_of rejects col_names/null_mask length mismatch" {
+  let row = Row::new_with_names(fn(_i) { "" }, Array::make(2, false), ["id"])
+  match row.index_of("id") {
+    Ok(_) => inspect(false, content="true")
+    Err(e) => inspect(match e { TypeError(s) => s.contains("length"); _ => false }, content="true")
+  }
+}

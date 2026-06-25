@@ -1,6 +1,6 @@
 # MoonBit sqlc WASM Plugin
 
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260512-db6e2a?style=flat-square)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260522-db6e2a?style=flat-square)](https://www.moonbitlang.com/)
 [![sqlc](https://img.shields.io/badge/sqlc-v1_WASM_plugin-00b4d8?style=flat-square)](https://sqlc.dev)
 [![mooncakes](https://img.shields.io/badge/mooncakes-0.1.3-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen?style=flat-square)](LICENSE)
@@ -22,13 +22,15 @@
 
 **当前范围：** PostgreSQL · sqlc v1.27+ · MoonBit WASM (WASI preview1)
 
+**快速导航：** [构建 WASM 插件](#4-构建-wasm-插件) · [mooncakes.io Runtime](#mooncakesio--安装与使用-runtime) · [sqlc 配置](#7-配置-sqlcyaml-并生成代码) · [Runtime API](docs/runtime-api.md)
+
 ---
 
 ## 环境要求
 
 | 工具 | 版本 | 说明 |
 |------|------|------|
-| [MoonBit](https://www.moonbitlang.com/download/) | ≥ 0.1.20260512 | 构建插件、测试、mooncakes |
+| [MoonBit](https://www.moonbitlang.com/download/) | ≥ 0.1.20260522 | 构建插件、测试、mooncakes |
 | [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html) | ≥ v1.27.0 | 调用 WASM 插件（实测 v1.31.1） |
 
 PostgreSQL 仅用于 sqlc 校验 schema/query；生成代码本身不连接数据库。
@@ -172,53 +174,108 @@ bash scripts/run-example.sh --skip-build
 
 生成结果位于 `examples/users/types.mbt` 与 `examples/users/queries.mbt`。
 
-### 6. mooncakes.io 安装 Runtime
+---
 
-生成代码需链接 `runtime` 包（已发布至 [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)）。
+## mooncakes.io — 安装与使用 Runtime
+
+生成代码（`types.mbt` / `queries.mbt`）需要链接 **runtime** 包。runtime 已发布至 [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)；**WASM 插件本身不在 mooncakes 上**，需本地构建或从 [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases) 下载。
+
+### 包信息
+
+| 项目 | 值 |
+|------|-----|
+| 包名 | `Mairzzcllo/moonbit_sqlc_plugin` |
+| 当前版本 | **`0.1.3`** |
+| 文档 | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| 消费者 import | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
+| 推荐编译目标 | `wasm-gc`（勿用 `native`，见下方故障排除） |
+
+### 架构说明
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  sqlc generate                                              │
+│    └─ 加载 plugin.wasm（本地 _build/ 或 Release 下载）         │
+│         └─ 输出 types.mbt + queries.mbt                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ import runtime
+┌─────────────────────────────────────────────────────────────┐
+│  你的 MoonBit 业务项目                                        │
+│    moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3           │
+│    moon.pkg → import runtime（DB / Row / MockDB …）          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 首次使用 mooncakes（可选）
+
+`moon add` 从 registry 拉包通常**不需要**登录；发布包到 mooncakes 才需要账号。
 
 <details>
-<summary><strong>Windows — 业务项目</strong></summary>
+<summary><strong>Windows — 注册 / 登录</strong></summary>
 
 ```powershell
-# 首次（可选）
+moon register          # 首次发布包时
+moon login             # 已有账号时
+# 凭证保存在 %USERPROFILE%\.moon\credentials.json
+```
+
+</details>
+
+<details>
+<summary><strong>Linux / macOS — 注册 / 登录</strong></summary>
+
+```bash
+moon register
 moon login
+# 凭证保存在 ~/.moon/credentials.json
+```
 
-# 在含 moon.mod.json 的业务项目根目录
+</details>
+
+### 在业务项目中添加 runtime
+
+在**已有** `moon.mod.json` 的项目根目录执行：
+
+<details>
+<summary><strong>Windows（PowerShell）</strong></summary>
+
+```powershell
 moon update
 moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
 moon check --target wasm-gc
 moon test --target wasm-gc
-```
-
-验证脚本（在**本仓库**根目录）：
-
-```powershell
-.\scripts\setup-mooncakes.ps1
 ```
 
 </details>
 
 <details>
-<summary><strong>Linux — 业务项目</strong></summary>
+<summary><strong>Linux / macOS（Bash）</strong></summary>
 
 ```bash
-moon login    # 首次（可选）
-
 moon update
 moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
 moon check --target wasm-gc
 moon test --target wasm-gc
 ```
 
-验证脚本（在**本仓库**根目录）：
-
-```bash
-bash scripts/setup-mooncakes.sh
-```
-
 </details>
 
-业务项目 `moon.pkg` 示例（见 [`examples/users/moon.pkg.example`](examples/users/moon.pkg.example)）：
+`moon add` 会在 `moon.mod.json` 的 `deps` 中写入依赖，例如：
+
+```json
+{
+  "name": "your_org/your_app",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc",
+  "deps": {
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.3"
+  }
+}
+```
+
+在生成代码所在包的 `moon.pkg` 中 import runtime（参考 [`examples/users/moon.pkg.example`](examples/users/moon.pkg.example)）：
 
 ```
 import {
@@ -226,13 +283,115 @@ import {
 }
 ```
 
-| 项目 | 值 |
-|------|-----|
-| 包名 | `Mairzzcllo/moonbit_sqlc_plugin` |
-| 当前版本 | `0.1.3` |
-| 包页 | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+生成代码文件顶部也会包含：
 
-> mooncakes 发布的是 **runtime**；**WASM 插件**需本地 `moon build --target wasm` 或 [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases)。
+```moonbit
+import "Mairzzcllo/moonbit_sqlc_plugin/runtime"
+```
+
+### 从零创建消费者项目（最小示例）
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+mkdir myapp; cd myapp
+@'
+{
+  "name": "your_org/myapp",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc"
+}
+'@ | Set-Content moon.mod.json -Encoding utf8
+
+@'
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime" @runtime,
+}
+'@ | Set-Content moon.pkg -Encoding utf8
+
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon check --target wasm-gc
+```
+
+</details>
+
+<details>
+<summary><strong>Linux / macOS</strong></summary>
+
+```bash
+mkdir myapp && cd myapp
+cat > moon.mod.json <<'EOF'
+{
+  "name": "your_org/myapp",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc"
+}
+EOF
+
+cat > moon.pkg <<'EOF'
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime" @runtime,
+}
+EOF
+
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon check --target wasm-gc
+```
+
+</details>
+
+将 `sqlc generate` 产出的 `types.mbt`、`queries.mbt` 复制到该项目后，再次 `moon check --target wasm-gc` 即可验证编译通过。
+
+### 在本仓库验证 mooncakes 安装
+
+在**本插件仓库**根目录运行冒烟脚本（会 `moon update`、构建 wasm-gc、创建临时消费者项目并 `moon add`）：
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+.\scripts\setup-mooncakes.ps1
+# 指定版本：
+.\scripts\setup-mooncakes.ps1 -Version 0.1.3
+```
+
+</details>
+
+<details>
+<summary><strong>Linux / macOS</strong></summary>
+
+```bash
+bash scripts/setup-mooncakes.sh
+bash scripts/setup-mooncakes.sh --version 0.1.3
+```
+
+</details>
+
+### 升级 / 移除 runtime
+
+```bash
+# 升级到最新已发布版本（先查 mooncakes 文档页确认版本号）
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+
+# 移除依赖
+moon remove Mairzzcllo/moonbit_sqlc_plugin
+```
+
+### mooncakes 常见问题
+
+| 现象 | 处理 |
+|------|------|
+| `moonbit_simd.h` 缺失 / native 编译失败 | 使用 `--target wasm-gc`，不要用 `native` |
+| `moon add` 找不到包 | 先 `moon update` 刷新 registry 索引 |
+| 生成代码找不到 `DB` / `Row` | 检查 `moon.pkg` 是否 import `runtime` |
+| 版本不匹配 | 生成代码与 runtime 主版本应对齐；升级时同时 `moon add` 新版本 |
+
+---
 
 ### 7. 配置 sqlc.yaml 并生成代码
 
@@ -244,7 +403,7 @@ plugins:
   - name: moonbit
     wasm:
       url: file://./_build/wasm/release/build/plugin/plugin.wasm
-      sha256: ""   # 首次留空，sqlc 会打印 sha256
+      sha256: ""   # 留空即可；run-example / CI 会在 build 后自动 sync
 sql:
   - engine: postgresql
     schema: schema.sql
@@ -327,7 +486,7 @@ fn example(db: DB) {
 
 ### mooncakes / `moon add` 报 `moonbit_simd.h` 缺失
 
-native 后端编译失败，但本项目仅需 **wasm / wasm-gc**：
+详见上方 [mooncakes.io — 安装与使用 Runtime](#mooncakesio--安装与使用-runtime)。native 后端编译失败，但本项目仅需 **wasm / wasm-gc**：
 
 ```bash
 moon check --target wasm-gc
@@ -351,6 +510,27 @@ $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
 先执行 `moon build --target wasm`（或 `--release`），并确保 `sqlc.yaml` 中 `file://` 路径与构建模式一致。
 
+### sqlc 报 invalid checksum / sha256 不匹配
+
+WASM 的 sha256 随 OS / 工具链变化。**不要**把本机 hash 提交进 git。构建后由脚本自动写入：
+
+```powershell
+# Windows（run-example 已内置；也可手动）
+.\scripts\sync-sqlc-sha256.ps1 `
+  -WasmPath _build\wasm\debug\build\plugin\plugin.wasm `
+  -YamlPath examples\users\sqlc.yaml
+
+# 可选：持久化到 yaml 以加速本地 sqlc 启动
+.\scripts\update-wasm-sha256.ps1
+```
+
+```bash
+# Linux（CI 与 validate_plugin.ps1 -TestSqlc 会自动 sync）
+pwsh scripts/sync-sqlc-sha256.ps1 \
+  -WasmPath _build/wasm/debug/build/plugin/plugin.wasm \
+  -YamlPath examples/users/sqlc.yaml
+```
+
 ---
 
 ## 项目结构
@@ -362,7 +542,7 @@ $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 ├── examples/users/   # 可复现示例（schema + query + sqlc.yaml）
 ├── tests/            # golden + integration 测试
 ├── docs/             # API 与快速开始
-├── scripts/          # run-example / setup-mooncakes（Win + Linux）
+├── scripts/          # run-example / setup-mooncakes / sync-sqlc-sha256
 ├── sqlc.yaml         # 根目录 generate 配置
 └── moon.mod.json
 ```
@@ -373,7 +553,7 @@ $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
 ```bash
 moon check
-moon test          # 907 个 inline test
+moon test          # 914 个 inline test
 ```
 
 <details>

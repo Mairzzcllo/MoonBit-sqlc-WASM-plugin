@@ -119,7 +119,7 @@ struct RowPattern {
 }
 
 /// Builder for constructing a DB with per-SQL result mappings.
-/// Supports exact SQL matching with duplicate detection (aborts on duplicate).
+/// Supports exact SQL matching with duplicate detection (errors via `MockDBBuilder::errors`).
 /// Unmatched SQL falls through to per-operation defaults (all Ok).
 pub struct MockDBBuilder {
   exec_patterns : Array[IntPattern]
@@ -130,6 +130,7 @@ pub struct MockDBBuilder {
   batch_patterns : Array[IntPattern]
   execlastid_patterns : Array[IntPattern]
   tx_fn : Option[() -> Result[Transaction, DBError]]
+  errors : Array[String]
 }
 
 /// Create a new MockDBBuilder with default Ok results for all operations.
@@ -144,7 +145,13 @@ pub fn MockDBBuilder::new() -> MockDBBuilder {
     batch_patterns: [],
     execlastid_patterns: [],
     tx_fn: None,
+    errors: [],
   }
+}
+
+/// Return accumulated builder configuration errors (e.g. duplicate SQL registration).
+pub fn MockDBBuilder::errors(self: MockDBBuilder) -> Array[String] {
+  self.errors
 }
 
 /// Build a DB instance from the builder's registered patterns.
@@ -205,90 +212,105 @@ pub fn MockDBBuilder::build(self: MockDBBuilder) -> DB {
 
 // --- Duplicate checks (abort on duplicate SQL per operation type) ---
 
-fn check_dup_int(patterns: Array[IntPattern], sql: String) -> Unit {
-  for pattern in patterns {
-    if pattern.sql == sql {
-      abort("duplicate SQL registration for Int64 operation: '" + sql + "'")
-    }
-  }
+fn append_dup_error(errors: Array[String], kind: String, sql: String) -> Array[String] {
+  errors + ["duplicate SQL registration for " + kind + " operation: '" + sql + "'"]
 }
 
-fn check_dup_iter(patterns: Array[IterPattern], sql: String) -> Unit {
+fn check_dup_int(patterns: Array[IntPattern], sql: String) -> Bool {
   for pattern in patterns {
     if pattern.sql == sql {
-      abort("duplicate SQL registration for query operation: '" + sql + "'")
+      return false
     }
   }
+  true
 }
 
-fn check_dup_row(patterns: Array[RowPattern], sql: String) -> Unit {
+fn check_dup_iter(patterns: Array[IterPattern], sql: String) -> Bool {
   for pattern in patterns {
     if pattern.sql == sql {
-      abort("duplicate SQL registration for query_row operation: '" + sql + "'")
+      return false
     }
   }
+  true
+}
+
+fn check_dup_row(patterns: Array[RowPattern], sql: String) -> Bool {
+  for pattern in patterns {
+    if pattern.sql == sql {
+      return false
+    }
+  }
+  true
 }
 
 // --- Registration methods (each checks for duplicates before appending) ---
 
 /// Register an exec result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for exec.
+/// Duplicate SQL records an error retrievable via `MockDBBuilder::errors`.
 pub fn MockDBBuilder::register_exec(self: MockDBBuilder, sql: String, result: Result[Int64, DBError]) -> MockDBBuilder {
-  check_dup_int(self.exec_patterns, sql)
+  if !check_dup_int(self.exec_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "exec", sql) }
+  }
   let new_patterns = self.exec_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, exec_patterns: new_patterns }
 }
 
 /// Register an execrows result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for execrows.
 pub fn MockDBBuilder::register_execrows(self: MockDBBuilder, sql: String, result: Result[Int64, DBError]) -> MockDBBuilder {
-  check_dup_int(self.execrows_patterns, sql)
+  if !check_dup_int(self.execrows_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "execrows", sql) }
+  }
   let new_patterns = self.execrows_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, execrows_patterns: new_patterns }
 }
 
 /// Register a query result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for query.
 pub fn MockDBBuilder::register_query(self: MockDBBuilder, sql: String, result: Result[RowIter, DBError]) -> MockDBBuilder {
-  check_dup_iter(self.query_patterns, sql)
+  if !check_dup_iter(self.query_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "query", sql) }
+  }
   let new_patterns = self.query_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, query_patterns: new_patterns }
 }
 
 /// Register a query_row result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for query_row.
 pub fn MockDBBuilder::register_query_row(self: MockDBBuilder, sql: String, result: Result[Row, DBError]) -> MockDBBuilder {
-  check_dup_row(self.query_row_patterns, sql)
+  if !check_dup_row(self.query_row_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "query_row", sql) }
+  }
   let new_patterns = self.query_row_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, query_row_patterns: new_patterns }
 }
 
 /// Register a copyfrom result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for copyfrom.
 pub fn MockDBBuilder::register_copyfrom(self: MockDBBuilder, sql: String, result: Result[Int64, DBError]) -> MockDBBuilder {
-  check_dup_int(self.copyfrom_patterns, sql)
+  if !check_dup_int(self.copyfrom_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "copyfrom", sql) }
+  }
   let new_patterns = self.copyfrom_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, copyfrom_patterns: new_patterns }
 }
 
 /// Register a batch result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for batch.
 pub fn MockDBBuilder::register_batch(self: MockDBBuilder, sql: String, result: Result[Int64, DBError]) -> MockDBBuilder {
-  check_dup_int(self.batch_patterns, sql)
+  if !check_dup_int(self.batch_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "batch", sql) }
+  }
   let new_patterns = self.batch_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, batch_patterns: new_patterns }
 }
 
 /// Register an execlastid result for the given SQL pattern.
-/// Aborts if the same SQL is already registered for execlastid.
 pub fn MockDBBuilder::register_execlastid(self: MockDBBuilder, sql: String, result: Result[Int64, DBError]) -> MockDBBuilder {
-  check_dup_int(self.execlastid_patterns, sql)
+  if !check_dup_int(self.execlastid_patterns, sql) {
+    return { ..self, errors: append_dup_error(self.errors, "execlastid", sql) }
+  }
   let new_patterns = self.execlastid_patterns
   new_patterns.push({ sql: sql, result: result })
   { ..self, execlastid_patterns: new_patterns }
@@ -1059,4 +1081,12 @@ test "mock: builder chained registration — fluent API supports multiple calls"
   inspect(copy_n, content="13")
   inspect(batch_n, content="17")
   inspect(lastid_n, content="19")
+}
+
+test "P1-007: duplicate SQL registration records builder error" {
+  let builder = MockDBBuilder::new()
+    .register_exec("SQL_A", Ok(1L))
+    .register_exec("SQL_A", Ok(2L))
+  inspect(builder.errors().length(), content="1")
+  inspect(builder.errors()[0].contains("duplicate"), content="true")
 }

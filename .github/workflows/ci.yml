@@ -60,15 +60,20 @@ jobs:
       - uses: hustcer/setup-moonbit@v1
         with:
           moonbit-version: ${{ env.MOONBIT_VERSION }}
+      - name: Download release WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-wasm
+          path: _build/wasm/release/build/plugin
       - name: Install wabt
         run: npm install -g wabt
       - name: Install sqlc
         run: |
           curl -fsSL "https://github.com/sqlc-dev/sqlc/releases/download/v${SQLC_VERSION}/sqlc_${SQLC_VERSION}_linux_amd64.tar.gz" \
             | tar xz -C /usr/local/bin sqlc
-      - name: Run validation script
+      - name: Run validation script (release WASM)
         shell: pwsh
-        run: tests/integration/wasm/validate_plugin.ps1 -TestSqlc
-      - name: Run E2E integration test
+        run: tests/integration/wasm/validate_plugin.ps1 -TestSqlc -Release -SkipBuild
+      - name: Run E2E integration test (release WASM)
         shell: pwsh
-        run: tests/integration/e2e/run_e2e.ps1 -SkipBuild
+        run: tests/integration/e2e/run_e2e.ps1 -SkipBuild -Release

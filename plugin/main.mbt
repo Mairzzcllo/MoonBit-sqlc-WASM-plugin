@@ -1,5 +1,5 @@
 ///|
-/// sqlc WASM plugin �?pure codegen pipeline.
+/// sqlc WASM plugin — pure codegen pipeline.
 /// I/O protocol over WASI fd_read/fd_write via inline WAT FFI (wasi_io.mbt).
 /// process_message is the pure computation entry point (protocol.mbt).
 //
@@ -27,6 +27,7 @@ fn main {
 /// Uses codegen.out from sqlc config as the output directory prefix.
 /// Produces two output files: types.mbt and queries.mbt.
 fn process_request(req: GenerateRequest) -> GenerateResponse raise {
+  validate_engine(req.settings.engine)
   let global_opts = parse_plugin_options(req.global_options)
   let plugin_opts = parse_plugin_options(req.plugin_options)
   let pkg = if plugin_opts.package_name.length() > 0 { plugin_opts.package_name } else { global_opts.package_name }
@@ -45,7 +46,10 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
     emit_methods_with_db_argument: plugin_opts.emit_methods_with_db_argument,
     column_overrides: plugin_opts.column_overrides,
     nullable_overrides: plugin_opts.nullable_overrides,
+    strict_types: plugin_opts.strict_types,
   }
+  let adapted = convert_request(req)
+  validate_strict_types(adapted.catalog, adapted.queries, opts.overrides, opts.strict_types)
   let sources = generate_sources(req, opts)
   let out_name = req.settings.codegen.out
   // sqlc v2 commonly sends out="." for current directory; treat as empty prefix.
@@ -70,6 +74,18 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
     files.push({ name: fname, contents: @utf8.encode(s.1) })
   }
   { files: files }
+}
+
+/// Reject unsupported SQL engines at codegen entry (GAP-5: PostgreSQL only).
+fn validate_engine(engine: String) -> Unit raise {
+  let normalized = engine.trim().to_lower()
+  if normalized.length() == 0 || normalized == "postgresql" {
+    ()
+  } else {
+    raise Failure::Failure(
+      "unsupported SQL engine: " + engine + " (only postgresql is supported)",
+    )
+  }
 }
 
 /// Validate an output directory path for path traversal and absolute path attacks.
