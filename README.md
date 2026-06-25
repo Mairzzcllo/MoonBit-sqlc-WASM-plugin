@@ -2,7 +2,7 @@
 
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260522-db6e2a?style=flat-square)](https://www.moonbitlang.com/)
 [![sqlc](https://img.shields.io/badge/sqlc-v1_WASM_plugin-00b4d8?style=flat-square)](https://sqlc.dev)
-[![mooncakes](https://img.shields.io/badge/mooncakes-0.1.3-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+[![mooncakes](https://img.shields.io/badge/mooncakes-0.1.4-orange?style=flat-square)](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen?style=flat-square)](LICENSE)
 
 > 从 SQL 生成类型安全的 MoonBit 数据库代码 —— [sqlc](https://sqlc.dev) 的 WASM 插件。
@@ -185,7 +185,7 @@ bash scripts/run-example.sh --skip-build
 | 项目 | 值 |
 |------|-----|
 | 包名 | `Mairzzcllo/moonbit_sqlc_plugin` |
-| 当前版本 | **`0.1.3`** |
+| 当前版本 | **`0.1.4`** |
 | 文档 | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 | 消费者 import | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
 | 推荐编译目标 | `wasm-gc`（勿用 `native`，见下方故障排除） |
@@ -202,7 +202,7 @@ bash scripts/run-example.sh --skip-build
                               ▼ import runtime
 ┌─────────────────────────────────────────────────────────────┐
 │  你的 MoonBit 业务项目                                        │
-│    moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3           │
+│    moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4           │
 │    moon.pkg → import runtime（DB / Row / MockDB …）          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -242,7 +242,7 @@ moon login
 
 ```powershell
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
 moon check --target wasm-gc
 moon test --target wasm-gc
 ```
@@ -254,7 +254,7 @@ moon test --target wasm-gc
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
 moon check --target wasm-gc
 moon test --target wasm-gc
 ```
@@ -270,7 +270,7 @@ moon test --target wasm-gc
   "preferred-target": "wasm-gc",
   "supported-targets": "+wasm+wasm-gc",
   "deps": {
-    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.3"
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.4"
   }
 }
 ```
@@ -312,7 +312,7 @@ import {
 '@ | Set-Content moon.pkg -Encoding utf8
 
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
 moon check --target wasm-gc
 ```
 
@@ -339,7 +339,7 @@ import {
 EOF
 
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
 moon check --target wasm-gc
 ```
 
@@ -357,7 +357,7 @@ moon check --target wasm-gc
 ```powershell
 .\scripts\setup-mooncakes.ps1
 # 指定版本：
-.\scripts\setup-mooncakes.ps1 -Version 0.1.3
+.\scripts\setup-mooncakes.ps1 -Version 0.1.4
 ```
 
 </details>
@@ -367,7 +367,7 @@ moon check --target wasm-gc
 
 ```bash
 bash scripts/setup-mooncakes.sh
-bash scripts/setup-mooncakes.sh --version 0.1.3
+bash scripts/setup-mooncakes.sh --version 0.1.4
 ```
 
 </details>
@@ -376,7 +376,7 @@ bash scripts/setup-mooncakes.sh --version 0.1.3
 
 ```bash
 # 升级到最新已发布版本（先查 mooncakes 文档页确认版本号）
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
 
 # 移除依赖
 moon remove Mairzzcllo/moonbit_sqlc_plugin

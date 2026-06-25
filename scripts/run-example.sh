@@ -93,4 +93,4 @@ echo "  ..."
 printf '\n[OK] Example ready. Next steps:\n'
 echo "  - Inspect: examples/users/types.mbt, examples/users/queries.mbt"
 echo "  - Integrate: copy files + see examples/users/moon.pkg.example"
-echo "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.3"
+echo "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4"
