@@ -319,9 +319,9 @@ I/O uses inline WAT FFI for WASI `fd_read` / `fd_write` (no external shim). Prot
 
 | Resource | Link |
 |----------|------|
-| Quickstart | [docs/quickstart.md](docs/quickstart.md) |
-| Runtime API | [docs/runtime-api.md](docs/runtime-api.md) |
-| Examples | [examples/README.md](examples/README.md) |
+| Quickstart | [docs/quickstart.md](docs/quickstart.md) · [中文](docs/quickstart.zh.md) · [日本語](docs/quickstart.ja.md) |
+| Runtime API | [docs/runtime-api.md](docs/runtime-api.md) · [中文](docs/runtime-api.zh.md) · [日本語](docs/runtime-api.ja.md) |
+| Examples | [examples/README.md](examples/README.md) · [中文](examples/README.zh.md) · [日本語](examples/README.ja.md) |
 | mooncakes | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 | GitHub | <https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin> |
 

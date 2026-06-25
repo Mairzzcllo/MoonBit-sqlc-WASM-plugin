@@ -1,48 +1,178 @@
+<p align="center">
+  <a href="README.md"><b>English</b></a>
+  ·
+  <a href="README.zh.md">中文</a>
+  ·
+  <a href="README.ja.md">日本語</a>
+</p>
+
 # Examples
 
-## users — PostgreSQL 完整示例
+**Documentation:** [Quick Start](../docs/quickstart.md) · [Runtime API](../docs/runtime-api.md) · [README](../README.md) · [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin) · [GitHub](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin)
 
-从 SQL 生成 MoonBit 代码的最小可复现示例。
+---
 
-### 文件
+## users — PostgreSQL Complete Example
 
-| 文件 | 说明 |
-|------|------|
-| `schema.sql` | `users` 表 DDL |
-| `query.sql` | sqlc 注解查询（`:one` / `:many` / `:exec`） |
-| `sqlc.yaml` | 指向 `_build/wasm/.../plugin.wasm` |
-| `moon.pkg.example` | 集成到业务项目时的 runtime 依赖模板 |
-| `types.mbt` | `sqlc generate` 产出（gitignore，本地生成） |
-| `queries.mbt` | `sqlc generate` 产出（gitignore，本地生成） |
+Minimal reproducible example for generating MoonBit code from SQL. Path: `examples/users/`.
 
-### 复现步骤
+### Files
 
-**一键（推荐）：**
+| File | Description |
+|------|-------------|
+| `schema.sql` | `users` table DDL |
+| `query.sql` | sqlc annotated queries (`:one` / `:many` / `:exec`) |
+| `sqlc.yaml` | Points to `_build/wasm/.../plugin.wasm` (debug default, release optional) |
+| `moon.pkg.example` | Runtime dependency template for your app |
+| `types.mbt` | `sqlc generate` output (gitignored, local) |
+| `queries.mbt` | `sqlc generate` output (gitignored, local) |
+
+### Query Annotations
+
+| Annotation | Behavior | Example |
+|------------|----------|---------|
+| `:one` | Single row | `GetUser` |
+| `:many` | Multiple rows | `ListUsers` |
+| `:exec` | No rows returned | `DeleteUser` |
+
+---
+
+## Reproduce
+
+### One-liner (recommended)
 
 ```bash
-# 仓库根目录
-bash scripts/run-example.sh
-# Windows: .\scripts\run-example.ps1
+# From repo root
+bash scripts/run-example.sh --release
 ```
 
-**手动：**
+```powershell
+# Windows
+.\scripts\run-example.ps1 -Release
+# Full validation: -Full
+# Skip build: -SkipBuild
+```
+
+### Manual
 
 ```bash
-# 在仓库根目录
+# From repo root
 moon build --target wasm --release
 cd examples/users
 sqlc generate
 ls types.mbt queries.mbt
 ```
 
-本目录**不含** `moon.pkg`，生成文件不会参与插件 monorepo 的 `moon check`。集成到项目时复制生成文件并参考 `moon.pkg.example`。
+> E2E / validate scripts auto-sync `sha256` after build. **Do not commit platform-specific hashes**; commit state should be debug url active + `sha256: ""`.
 
-详细说明见根目录 [README.md](../README.md)。
+---
 
-### 查询注解
+## Integrate into Your App (mooncakes.io)
 
-| 注解 | 行为 | 示例 |
-|------|------|------|
-| `:one` | 返回单行 | `GetUser` |
-| `:many` | 返回多行 | `ListUsers` |
-| `:exec` | 无返回行 | `DeleteUser` |
+This directory has **no** `moon.pkg` — generated files are not part of the plugin monorepo `moon check`. For a standalone MoonBit project:
+
+### 1. Install runtime
+
+In your project root:
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+moon check --target wasm-gc
+```
+
+| Item | Value |
+|------|-------|
+| Package | `Mairzzcllo/moonbit_sqlc_plugin` |
+| Version | **0.1.4** |
+| Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+
+### 2. Copy generated code
+
+Copy `types.mbt` and `queries.mbt` into your project package.
+
+### 3. Configure moon.pkg
+
+See [`moon.pkg.example`](users/moon.pkg.example):
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
+}
+```
+
+### 4. Verify compile
+
+```bash
+moon check --target wasm-gc
+moon test --target wasm-gc
+```
+
+### 5. Smoke test (optional)
+
+From **plugin repo** root:
+
+```bash
+bash scripts/setup-mooncakes.sh --version 0.1.4
+```
+
+```powershell
+.\scripts\setup-mooncakes.ps1 -Version 0.1.4
+```
+
+---
+
+## sqlc.yaml Reference
+
+Commit-state example for `examples/users/sqlc.yaml`:
+
+```yaml
+version: "2"
+plugins:
+  - name: "moonbit"
+    wasm:
+      url: "file://../../_build/wasm/debug/build/plugin/plugin.wasm"
+      sha256: ""
+sql:
+  - schema: "schema.sql"
+    queries: "query.sql"
+    engine: "postgresql"
+    codegen:
+      - out: "."
+        plugin: "moonbit"
+        options:
+          package_name: users
+```
+
+- **WASM plugin**: local `_build/` or [GitHub Releases](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin/releases)
+- **Runtime**: install via `moon add` from [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+
+---
+
+## Generated Code Example
+
+```moonbit
+import "Mairzzcllo/moonbit_sqlc_plugin/runtime"
+
+fn example(db: DB) {
+  match query_get_user(db, 42L) {
+    Ok(user) => println(user.name)
+    Err(NoRows) => println("not found")
+    Err(e) => println("error: \{e}")
+  }
+}
+```
+
+Use `MockDB` / `MockDBBuilder` (including `.strict(true)`) for tests — see [Runtime API — MockDB](../docs/runtime-api.md#mockdb).
+
+---
+
+## Related Documentation
+
+| Resource | Link |
+|----------|------|
+| Quick Start | [quickstart.md](../docs/quickstart.md) · [中文](../docs/quickstart.zh.md) · [日本語](../docs/quickstart.ja.md) |
+| Runtime API | [runtime-api.md](../docs/runtime-api.md) · [中文](../docs/runtime-api.zh.md) · [日本語](../docs/runtime-api.ja.md) |
+| README | [README.md](../README.md) · [中文](../README.zh.md) · [日本語](../README.ja.md) |
+| mooncakes | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| GitHub | <https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin> |

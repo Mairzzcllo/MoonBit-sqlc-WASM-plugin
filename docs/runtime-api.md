@@ -1,12 +1,44 @@
+<p align="center">
+  <a href="runtime-api.md"><b>English</b></a>
+  ·
+  <a href="runtime-api.zh.md">中文</a>
+  ·
+  <a href="runtime-api.ja.md">日本語</a>
+</p>
+
 # Runtime API Reference
 
-The `runtime` package provides the types and functions that generated query code depends on. Add it to your `moon.pkg`:
+The `runtime` package provides the types and functions that generated query code depends on.
+
+**Documentation:** [Quick Start](quickstart.md) · [README](../README.md) · [Examples](../examples/README.md) · [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin) · [GitHub](https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin)
+
+---
+
+## Install from mooncakes.io
+
+| Item | Value |
+|------|-------|
+| Package | `Mairzzcllo/moonbit_sqlc_plugin` |
+| Version | **0.1.4** |
+| Import path | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
+| Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| Target | `wasm-gc` |
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+moon check --target wasm-gc
+```
+
+Add to `moon.pkg`:
 
 ```
 import {
   "Mairzzcllo/moonbit_sqlc_plugin/runtime",
 }
 ```
+
+Generated files already contain `import "Mairzzcllo/moonbit_sqlc_plugin/runtime"`. See [Quick Start — Path A](quickstart.md#path-a--install-runtime-from-mooncakesio) · [中文](quickstart.zh.md) · [日本語](quickstart.ja.md) for full setup.
 
 ---
 
@@ -423,9 +455,19 @@ pub struct MockDBBuilder { ... }
 | `.register_batch(sql, result)` | `MockDBBuilder` | Register batch result |
 | `.register_execlastid(sql, result)` | `MockDBBuilder` | Register execlastid result |
 | `.with_tx(f)` | `MockDBBuilder` | Set transaction factory |
+| `.strict(enabled)` | `MockDBBuilder` | When `true`, unregistered SQL returns `Err` instead of default `Ok` |
 | `.build()` | `DB` | Build DB with registered patterns |
 
-Unmatched SQL falls through to per-operation defaults (`Ok(0L)` / empty results). Duplicate SQL registrations abort.
+Unmatched SQL falls through to per-operation defaults (`Ok(0L)` / empty results) unless **strict mode** is enabled via `.strict(true)`, in which case unregistered SQL returns `Err(QueryError(...))`. Duplicate SQL registrations abort.
+
+Example:
+
+```moonbit
+let db = MockDBBuilder::new()
+  .strict(true)
+  .register_query_row("SELECT * FROM users WHERE id = $1", Ok(row))
+  .build()
+```
 
 ---
 
@@ -452,4 +494,16 @@ Unmatched SQL falls through to per-operation defaults (`Ok(0L)` / empty results)
 | `INET`, `CIDR` | `IpAddr` | `get_ipaddr` |
 | Array types (e.g., `TEXT[]`) | `Array[T]` | `decode_array_*` |
 | Any nullable column | `Option[T]` | `get_nullable_*` |
-| Unknown PG types | `String` (fallback) | `get_string` |
+
+> **Plugin codegen:** unknown PostgreSQL types fail at `sqlc generate` time unless overridden via `override_<pgtype>=<MoonBitType>`. The runtime getters above apply to columns the plugin successfully mapped.
+
+---
+
+## Related Documentation
+
+| Resource | Link |
+|----------|------|
+| Quick Start | [quickstart.md](quickstart.md) · [中文](quickstart.zh.md) · [日本語](quickstart.ja.md) |
+| Examples | [examples/README.md](../examples/README.md) |
+| mooncakes | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| GitHub | <https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin> |
