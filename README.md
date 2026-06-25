@@ -45,7 +45,126 @@ Generated functions take `DB` or `Transaction` directly — no ORM, no reflectio
 
 # Quick Start
 
-## Requirements
+Two paths — pick the one that matches your role:
+
+| Path | Audience | What you need |
+|------|----------|---------------|
+| **A — mooncakes.io** | Use generated `types.mbt` / `queries.mbt` in your app | MoonBit + `moon add` (no plugin repo clone) |
+| **B — Plugin repo** | Build WASM plugin, run examples, contribute | MoonBit + sqlc + this repository |
+
+---
+
+## A. App Developers — [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+
+Generated code imports `Mairzzcllo/moonbit_sqlc_plugin/runtime`. Install it from the MoonBit package registry — **the WASM plugin itself is not on mooncakes**.
+
+| Item | Value |
+|------|-------|
+| Package | `Mairzzcllo/moonbit_sqlc_plugin` |
+| Version | **0.1.4** |
+| Import path | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
+| Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| Target | `wasm-gc` (do not use `native`) |
+
+### Add runtime to an existing project
+
+In your MoonBit project root (`moon.mod.json` already exists):
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+moon check --target wasm-gc
+```
+
+`moon add` writes into `moon.mod.json`:
+
+```json
+{
+  "deps": {
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.4"
+  }
+}
+```
+
+Add to the package `moon.pkg` that holds generated code:
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
+}
+```
+
+Generated files already contain:
+
+```moonbit
+import "Mairzzcllo/moonbit_sqlc_plugin/runtime"
+```
+
+Copy `types.mbt` + `queries.mbt` from `sqlc generate`, then verify:
+
+```bash
+moon check --target wasm-gc
+moon test --target wasm-gc
+```
+
+> `moon add` pulls from [mooncakes.io](https://mooncakes.io/) and **does not require login**. Only `moon publish` needs credentials.
+
+### Minimal new project (from scratch)
+
+```bash
+mkdir myapp && cd myapp
+```
+
+`moon.mod.json`:
+
+```json
+{
+  "name": "your_org/myapp",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc"
+}
+```
+
+`moon.pkg`:
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime" @runtime,
+}
+```
+
+Then:
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+# copy types.mbt + queries.mbt here
+moon check --target wasm-gc
+```
+
+### Upgrade / remove
+
+```bash
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4   # upgrade
+moon remove Mairzzcllo/moonbit_sqlc_plugin       # remove
+```
+
+Smoke test (run from **this plugin repo** root):
+
+```powershell
+.\scripts\setup-mooncakes.ps1 -Version 0.1.4
+```
+
+```bash
+bash scripts/setup-mooncakes.sh --version 0.1.4
+```
+
+---
+
+## B. Plugin Developers — Build WASM & Generate Code
+
+### Requirements
 
 | Tool | Version | Notes |
 |------|---------|-------|
@@ -120,39 +239,7 @@ sqlc generate
 
 > **Note:** Do not commit platform-specific `sha256` hashes. Use `scripts/sync-sqlc-sha256.ps1` after building locally.
 
-## mooncakes.io — Install Runtime
-
-In your MoonBit project root:
-
-```bash
-moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
-moon check --target wasm-gc
-```
-
-Add to `moon.pkg`:
-
-```
-import {
-  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
-}
-```
-
-| Item | Value |
-|------|-------|
-| Package | `Mairzzcllo/moonbit_sqlc_plugin` |
-| Version | **0.1.4** |
-| Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
-
-Smoke test from this repo:
-
-```powershell
-.\scripts\setup-mooncakes.ps1 -Version 0.1.4
-```
-
-```bash
-bash scripts/setup-mooncakes.sh --version 0.1.4
-```
+After `sqlc generate`, link runtime via **Path A** (`moon add` from mooncakes.io).
 
 # Usage Example
 
@@ -187,7 +274,9 @@ See [docs/quickstart.md](docs/quickstart.md) and [docs/runtime-api.md](docs/runt
 
 | Symptom | Fix |
 |---------|-----|
-| Missing `moonbit_simd.h` | Use `--target wasm-gc`, not `native` |
+| `moonbit_simd.h` missing | Use `--target wasm-gc`, not `native` |
+| `moon add` package not found | Run `moon update` first to refresh registry index |
+| Generated code missing `DB` / `Row` | Add `runtime` import in `moon.pkg` |
 | WASM path not found | Use `_build/wasm/...`, not `target/` |
 | sha256 mismatch | Do not commit local hashes; run `scripts/sync-sqlc-sha256.ps1` |
 | Windows garbled output | `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8` |

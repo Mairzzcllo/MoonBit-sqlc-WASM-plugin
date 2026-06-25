@@ -45,7 +45,126 @@
 
 # クイックスタート
 
-## 必要環境
+2 つのパス — 用途に合わせて選択：
+
+| パス | 対象 | 必要なもの |
+|------|------|------------|
+| **A — mooncakes.io** | 生成された `types.mbt` / `queries.mbt` をアプリで使う | MoonBit + `moon add`（プラグイン repo の clone 不要） |
+| **B — プラグイン repo** | WASM プラグインのビルド、サンプル実行、開発参加 | MoonBit + sqlc + 本リポジトリ |
+
+---
+
+## A. アプリ開発者 — [mooncakes.io](https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin)
+
+生成コードは `Mairzzcllo/moonbit_sqlc_plugin/runtime` を import します。MoonBit パッケージレジストリからインストール — **WASM プラグイン本体は mooncakes にありません**。
+
+| 項目 | 値 |
+|------|-----|
+| パッケージ | `Mairzzcllo/moonbit_sqlc_plugin` |
+| バージョン | **0.1.4** |
+| Import パス | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
+| ドキュメント | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
+| ターゲット | `wasm-gc`（`native` は使用不可） |
+
+### 既存プロジェクトに runtime を追加
+
+MoonBit プロジェクトのルート（`moon.mod.json` あり）で：
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+moon check --target wasm-gc
+```
+
+`moon add` は `moon.mod.json` に書き込みます：
+
+```json
+{
+  "deps": {
+    "Mairzzcllo/moonbit_sqlc_plugin": "0.1.4"
+  }
+}
+```
+
+生成コードを置くパッケージの `moon.pkg` に：
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
+}
+```
+
+生成ファイル先頭には既に：
+
+```moonbit
+import "Mairzzcllo/moonbit_sqlc_plugin/runtime"
+```
+
+`sqlc generate` の `types.mbt` + `queries.mbt` をコピー後：
+
+```bash
+moon check --target wasm-gc
+moon test --target wasm-gc
+```
+
+> `moon add` は [mooncakes.io](https://mooncakes.io/) から取得。**ログイン不要**（`moon publish` のみ要認証）。
+
+### 最小プロジェクトを新規作成
+
+```bash
+mkdir myapp && cd myapp
+```
+
+`moon.mod.json`：
+
+```json
+{
+  "name": "your_org/myapp",
+  "version": "0.1.0",
+  "preferred-target": "wasm-gc",
+  "supported-targets": "+wasm+wasm-gc"
+}
+```
+
+`moon.pkg`：
+
+```
+import {
+  "Mairzzcllo/moonbit_sqlc_plugin/runtime" @runtime,
+}
+```
+
+続けて：
+
+```bash
+moon update
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+# types.mbt + queries.mbt をコピー
+moon check --target wasm-gc
+```
+
+### アップグレード / 削除
+
+```bash
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4   # アップグレード
+moon remove Mairzzcllo/moonbit_sqlc_plugin       # 削除
+```
+
+スモークテスト（**本プラグイン repo** のルートで実行）：
+
+```powershell
+.\scripts\setup-mooncakes.ps1 -Version 0.1.4
+```
+
+```bash
+bash scripts/setup-mooncakes.sh --version 0.1.4
+```
+
+---
+
+## B. プラグイン開発者 — WASM ビルドとコード生成
+
+### 必要環境
 
 | ツール | バージョン | 説明 |
 |--------|------------|------|
@@ -120,39 +239,7 @@ sqlc generate
 
 > **注意：** プラットフォーム固有の `sha256` を git にコミットしないでください。ローカルビルド後は `scripts/sync-sqlc-sha256.ps1` で同期します。
 
-## mooncakes.io — Runtime のインストール
-
-MoonBit プロジェクトのルートで：
-
-```bash
-moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
-moon check --target wasm-gc
-```
-
-`moon.pkg` で runtime を import：
-
-```
-import {
-  "Mairzzcllo/moonbit_sqlc_plugin/runtime",
-}
-```
-
-| 項目 | 値 |
-|------|-----|
-| パッケージ | `Mairzzcllo/moonbit_sqlc_plugin` |
-| バージョン | **0.1.4** |
-| ドキュメント | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
-
-本リポジトリでのスモークテスト：
-
-```powershell
-.\scripts\setup-mooncakes.ps1 -Version 0.1.4
-```
-
-```bash
-bash scripts/setup-mooncakes.sh --version 0.1.4
-```
+`sqlc generate` 後は **パス A** で mooncakes.io から runtime をインストール（`moon add`）。
 
 # 使用例
 
@@ -188,6 +275,8 @@ fn example(db: DB) {
 | 現象 | 対処 |
 |------|------|
 | `moonbit_simd.h` が見つからない | `--target wasm-gc` を使用（`native` は不可） |
+| `moon add` でパッケージが見つからない | 先に `moon update` で registry 索引を更新 |
+| 生成コードに `DB` / `Row` がない | `moon.pkg` で `runtime` を import しているか確認 |
 | WASM パスが見つからない | `target/` ではなく `_build/wasm/...` を使用 |
 | sha256 不一致 | ローカル hash を git にコミットしない；`scripts/sync-sqlc-sha256.ps1` を実行 |
 | Windows で文字化け | `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8` |
