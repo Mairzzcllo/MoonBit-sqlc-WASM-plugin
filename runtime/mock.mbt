@@ -131,6 +131,7 @@ pub struct MockDBBuilder {
   execlastid_patterns : Array[IntPattern]
   tx_fn : Option[() -> Result[Transaction, DBError]]
   errors : Array[String]
+  strict : Bool
 }
 
 /// Create a new MockDBBuilder with default Ok results for all operations.
@@ -146,12 +147,30 @@ pub fn MockDBBuilder::new() -> MockDBBuilder {
     execlastid_patterns: [],
     tx_fn: None,
     errors: [],
+    strict: false,
   }
 }
 
 /// Return accumulated builder configuration errors (e.g. duplicate SQL registration).
 pub fn MockDBBuilder::errors(self: MockDBBuilder) -> Array[String] {
   self.errors
+}
+
+/// Enable strict mode: unregistered SQL returns Err instead of Ok defaults.
+pub fn MockDBBuilder::strict(self: MockDBBuilder, enabled: Bool) -> MockDBBuilder {
+  { ..self, strict: enabled }
+}
+
+fn unmatched_sql_error(kind: String, sql: String) -> Result[Int64, DBError] {
+  Err(QueryError("unregistered " + kind + " SQL: '" + sql + "'"))
+}
+
+fn unmatched_iter_error(kind: String, sql: String) -> Result[RowIter, DBError] {
+  Err(QueryError("unregistered " + kind + " SQL: '" + sql + "'"))
+}
+
+fn unmatched_row_error(kind: String, sql: String) -> Result[Row, DBError] {
+  Err(QueryError("unregistered " + kind + " SQL: '" + sql + "'"))
 }
 
 /// Build a DB instance from the builder's registered patterns.
@@ -168,11 +187,17 @@ pub fn MockDBBuilder::build(self: MockDBBuilder) -> DB {
       for pattern in self.exec_patterns {
         if pattern.sql == sql { return pattern.result }
       }
+      if self.strict {
+        return unmatched_sql_error("exec", sql)
+      }
       Ok(0L)
     },
     fn(sql, _params) {
       for pattern in self.execrows_patterns {
         if pattern.sql == sql { return pattern.result }
+      }
+      if self.strict {
+        return unmatched_sql_error("execrows", sql)
       }
       Ok(0L)
     },
@@ -180,11 +205,17 @@ pub fn MockDBBuilder::build(self: MockDBBuilder) -> DB {
       for pattern in self.query_patterns {
         if pattern.sql == sql { return pattern.result }
       }
+      if self.strict {
+        return unmatched_iter_error("query", sql)
+      }
       Ok(RowIter::new(fn() { Ok(None) }))
     },
     fn(sql, _params) {
       for pattern in self.query_row_patterns {
         if pattern.sql == sql { return pattern.result }
+      }
+      if self.strict {
+        return unmatched_row_error("query_row", sql)
       }
       Ok(Row::new(fn(_i) { "" }, Array::make(0, false)))
     },
@@ -193,17 +224,26 @@ pub fn MockDBBuilder::build(self: MockDBBuilder) -> DB {
       for pattern in self.copyfrom_patterns {
         if pattern.sql == sql { return pattern.result }
       }
+      if self.strict {
+        return unmatched_sql_error("copyfrom", sql)
+      }
       Ok(0L)
     },
     fn(sql, _params) {
       for pattern in self.batch_patterns {
         if pattern.sql == sql { return pattern.result }
       }
+      if self.strict {
+        return unmatched_sql_error("batch", sql)
+      }
       Ok(0L)
     },
     fn(sql, _params) {
       for pattern in self.execlastid_patterns {
         if pattern.sql == sql { return pattern.result }
+      }
+      if self.strict {
+        return unmatched_sql_error("execlastid", sql)
       }
       Ok(0L)
     },
@@ -1089,4 +1129,15 @@ test "P1-007: duplicate SQL registration records builder error" {
     .register_exec("SQL_A", Ok(2L))
   inspect(builder.errors().length(), content="1")
   inspect(builder.errors()[0].contains("duplicate"), content="true")
+}
+
+test "mock: builder strict mode rejects unregistered SQL" {
+  let db = MockDBBuilder::new()
+    .strict(true)
+    .register_exec("DELETE FROM users", Ok(1L))
+    .build()
+  let ok = match db.exec("DELETE FROM users", []) { Ok(_) => true; _ => false }
+  let err = match db.exec("UNREGISTERED", []) { Err(QueryError(_)) => true; _ => false }
+  inspect(ok, content="true")
+  inspect(err, content="true")
 }

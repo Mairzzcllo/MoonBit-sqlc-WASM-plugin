@@ -26,8 +26,10 @@ bash scripts/run-example.sh
 ```
 
 **手动：**
+
+```bash
 # 在仓库根目录
-moon build --target wasm
+moon build --target wasm --release
 cd examples/users
 sqlc generate
 ls types.mbt queries.mbt

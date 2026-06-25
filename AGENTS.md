@@ -129,16 +129,16 @@ sqlc WASM 插件的 I/O 协议是**无帧格式的原始 stdin/stdout protobuf**
 - GAP-6: 无 trait/interface → P1-038 ✅ done (Blocked by MoonBit — documented in ADR-015, MockDB provides equivalent alternative)
 - GAP-7: TIMETZ 时区丢失 → P0-059 ✅ done
 - GAP-8: 根 sqlc.yaml 空模板 → P1-036
-- GAP-9: 缺 E2E 集成测试 → P1-037
+- GAP-9: E2E 集成测试 → P1-037 ✅ done (`run_e2e.ps1` + CI/release validate)
 
 100 边界情况分析 (2026-05-30): 100 edge cases → 50 新任务 (7 P0 + 10 P1)
 - P0-061: Codec bounds hardening (skip_field/OOB/error→abort) ✅ done
-- P0-062: :one TooManyRows error (多行静默取第一条)
-- P0-063: 字段解码按列名而非索引 (列顺序变化错位)
-- P0-064: 输出路径穿越防护 (out_name 验证)
-- P0-065: MoonBit 关键字冲突 (完整转义表)
-- P0-066: 空/无效标识符处理 (空查询名/列名)
-- P0-067: iovec 保留内存区间隔离验证
+- P0-062: :one TooManyRows error (多行静默取第一条) ✅ done
+- P0-063: 字段解码按列名而非索引 (列顺序变化错位) ✅ done
+- P0-064: 输出路径穿越防护 (out_name 验证) ✅ done
+- P0-065: MoonBit 关键字冲突 (完整转义表) ✅ done
+- P0-066: 空/无效标识符处理 (空查询名/列名) ✅ done
+- P0-067: iovec 保留内存区间隔离验证 ✅ done
 - P1-039: Codec 静默错误传播 ✅ done
 - P1-040: 类型格式验证 ✅ done
 - P1-041: 命名转换边缘情况加固 ✅ done

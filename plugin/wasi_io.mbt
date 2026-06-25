@@ -61,19 +61,6 @@ fn bytes_from_acc(acc : Array[Byte], len : Int) -> Bytes {
   Bytes::from_array(out)
 }
 
-/// Verify +8 offset still matches MoonBit Bytes layout (diagnostic only; not gated on startup).
-fn check_bytes_data_ptr() -> Bool {
-  let b = Bytes::make(4, 0xDE)
-  let mut i = 0
-  while i < 4 {
-    if load_u8(bytes_data_at(BYTES_DATA_OFFSET, b) + i) != b[i].to_int() {
-      return false
-    }
-    i = i + 1
-  }
-  true
-}
-
 fn store_i32(addr : Int, val : Int) -> Unit =
   "(func (param $0 i32) (param $1 i32) (i32.store (local.get $0) (local.get $1)))"
 
@@ -252,7 +239,7 @@ fn verify_reserved_memory() -> Bool {
 }
 
 // === Tests: P0-067 — iovec reserved memory region isolation verification ===
-// NOTE: verify_reserved_memory() and check_bytes_data_ptr() use inline WAT FFI
+// NOTE: verify_reserved_memory() uses inline WAT FFI
 // that targets the WASM MVP linear memory model. The moonrun test runner uses
 // wasm-gc which has a different object model (GC refs instead of linear memory
 // pointers), so these functions cannot be directly invoked in tests.

@@ -1,7 +1,7 @@
 ///|
 /// Manual protobuf codec for the sqlc WASM plugin protocol.
 /// Supports varint (LEB128), length-delimited, and embedded message encoding.
-/// Aborts on unsupported wire types.
+/// Decoder sets error flags on unsupported wire types (no abort on decode paths).
 //
 // Copyright 2026 Mairzzcllo
 //

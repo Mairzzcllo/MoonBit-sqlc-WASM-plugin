@@ -63,12 +63,14 @@ test "wasm: process_message deterministic output" {
   inspect(combined1, content=combined2)
 }
 
-test "wasm: process_message empty request" {
+test "wasm: process_message empty request returns empty response via test entry" {
+  match process_message_outcome(b"") {
+    Ok(_) => inspect(false, content="true")
+    Err(msg) => inspect(msg.contains("empty"), content="true")
+  }
   let response_bytes = process_message(b"")
   let resp = decode_response(response_bytes)
-  inspect(resp.files.length(), content="2")
-  inspect(resp.files[0].name, content="types.mbt")
-  inspect(resp.files[1].name, content="queries.mbt")
+  inspect(resp.files.length(), content="0")
 }
 
 test "wasm: encode_request roundtrip with decode_request" {
@@ -118,12 +120,13 @@ test "P0-061: process_message error handling returns empty response" {
   inspect(resp.files.length(), content="0")
 }
 
-/// P0-061: process_message with empty buffer returns valid response.
-/// An empty protobuf buffer decodes to a default GenerateRequest,
-/// which processes normally and produces output files.
-test "P0-061: process_message empty buffer produces response" {
+/// Empty protobuf buffer fails via production outcome path; test entry returns empty files.
+test "P0-061: process_message empty buffer returns empty response" {
+  match process_message_outcome(b"") {
+    Ok(_) => inspect(false, content="true")
+    Err(msg) => inspect(msg.contains("empty"), content="true")
+  }
   let response_bytes = process_message(b"")
   let resp = decode_response(response_bytes)
-  // Empty request produces both types.mbt and queries.mbt
-  inspect(resp.files.length(), content="2")
+  inspect(resp.files.length(), content="0")
 }

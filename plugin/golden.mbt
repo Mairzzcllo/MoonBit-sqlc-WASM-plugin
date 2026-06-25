@@ -157,6 +157,13 @@ test "golden: full pipeline with emit_json_tags=true + json_tags_case_style=came
   inspect(result.contains("let sql"), content="true")
 }
 
+test "golden: emit_db_tags=true adds db tag annotations" {
+  let req = make_users_request()
+  let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: true, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", emit_exact_table_names: false, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [], strict_types: false })
+  inspect(result.contains("@db.tag(\"id\")"), content="true")
+  inspect(result.contains("@db.tag(\"name\")"), content="true")
+}
+
 test "golden: emit_exact_table_names=true does not crash" {
   let req = make_users_request()
   let result = generate_source(req, { package_name: "testdb", overrides: [], emit_json_tags: false, emit_db_tags: false, renames: [], emit_sql_as_comment: false, omit_unused_structs: false, emit_empty_slices: false, initialisms: "", json_tags_case_style: "snake", emit_exact_table_names: true, emit_methods_with_db_argument: false, column_overrides: [], nullable_overrides: [], strict_types: false })

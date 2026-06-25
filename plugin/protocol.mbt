@@ -44,6 +44,9 @@ fn format_process_error(e: Error) -> String {
 /// Process a raw protobuf GenerateRequest and return success or error message.
 /// Used by the WASI I/O loop for sqlc-visible error reporting via stderr.
 pub fn process_message_outcome(data: Bytes) -> MessageOutcome {
+  if data.length() == 0 {
+    return Err("empty GenerateRequest")
+  }
   try {
     let req = decode_request(data)
     let resp = process_request(req)
@@ -78,6 +81,13 @@ test "P0-070: process_message corrupt protobuf returns empty response" {
   let response_bytes = process_message(data)
   let resp = decode_response(response_bytes)
   inspect(resp.files.length(), content="0")
+}
+
+test "P0-001: process_message_outcome empty buffer returns Err" {
+  match process_message_outcome(b"") {
+    Ok(_) => inspect(false, content="true")
+    Err(msg) => inspect(msg.contains("empty"), content="true")
+  }
 }
 
 test "P0-001: process_message_outcome corrupt protobuf returns Err" {

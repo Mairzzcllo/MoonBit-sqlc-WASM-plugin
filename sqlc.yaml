@@ -17,4 +17,4 @@ sql:
       - out: "gen"
         plugin: "moonbit"
         options:
-          package_name: gen
+          package_name: users

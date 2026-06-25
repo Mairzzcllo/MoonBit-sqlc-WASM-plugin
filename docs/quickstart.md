@@ -13,10 +13,12 @@
 ```bash
 git clone https://github.com/Mairzzcllo/MoonBit-sqlc-WASM-plugin.git
 cd MoonBit-sqlc-WASM-plugin
-moon build --target wasm
+moon build --target wasm --release
 ```
 
 The plugin binary is at `_build/wasm/release/build/plugin/plugin.wasm`.
+
+For local debugging you may use `moon build --target wasm` (debug build at `_build/wasm/debug/build/plugin/plugin.wasm`).
 
 ## 2. Configure Your Project
 

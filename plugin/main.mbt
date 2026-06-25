@@ -50,6 +50,15 @@ fn process_request(req: GenerateRequest) -> GenerateResponse raise {
   }
   let adapted = convert_request(req)
   validate_strict_types(adapted.catalog, adapted.queries, opts.overrides, opts.strict_types)
+  let ir = build_ir(adapted, opts.renames)
+  validate_codegen_type_names(
+    adapted.catalog,
+    ir,
+    adapted.queries,
+    opts.omit_unused_structs,
+    opts.emit_exact_table_names,
+    opts.initialisms,
+  )
   let sources = generate_sources(req, opts)
   let out_name = req.settings.codegen.out
   // sqlc v2 commonly sends out="." for current directory; treat as empty prefix.
@@ -170,7 +179,7 @@ fn dedup_imports(items: Array[TopLevel]) -> Array[TopLevel] {
 /// Returns an array of (filename, source_content) pairs for multi-file output.
 /// Types (structs, enums, decode functions) go into "types.mbt".
 /// Query functions go into "queries.mbt".
-pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(String, String)] {
+pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(String, String)] raise {
   let adapted = convert_request(req)
   let ir = build_ir(adapted, opts.renames)
   let types = generate_types(adapted.catalog, ir, adapted.queries, opts.emit_json_tags, opts.emit_db_tags, opts.overrides, opts.column_overrides, opts.nullable_overrides, opts.renames, opts.omit_unused_structs, opts.emit_exact_table_names, opts.json_tags_case_style, opts.initialisms)
@@ -194,7 +203,7 @@ pub fn generate_sources(req: GenerateRequest, opts: PluginOptions) -> Array[(Str
 
 /// Run the full codegen pipeline: adapter �?IR �?type_gen �?query_gen �?emitter.
 /// Accepts parsed PluginOptions for codegen configuration (package_name, etc.).
-pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String {
+pub fn generate_source(req: GenerateRequest, opts: PluginOptions) -> String raise {
   let adapted = convert_request(req)
   let ir = build_ir(adapted, opts.renames)
   let types = generate_types(adapted.catalog, ir, adapted.queries, opts.emit_json_tags, opts.emit_db_tags, opts.overrides, opts.column_overrides, opts.nullable_overrides, opts.renames, opts.omit_unused_structs, opts.emit_exact_table_names, opts.json_tags_case_style, opts.initialisms)

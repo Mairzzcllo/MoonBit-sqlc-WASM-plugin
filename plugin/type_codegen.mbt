@@ -187,6 +187,95 @@ fn collect_referenced_table_names(queries: Array[AdaptQuery]) -> Array[String] {
   names
 }
 
+fn register_codegen_type_name(
+  names: Array[String],
+  sources: Array[String],
+  raw_inputs: Array[String],
+  pascal: String,
+  raw_input: String,
+  source: String,
+) -> Unit raise {
+  for i = 0; i < names.length(); i = i + 1 {
+    if names[i] == pascal {
+      if raw_inputs[i] != raw_input {
+        raise Failure::Failure(
+          "naming collision: '" +
+          raw_inputs[i] +
+          "' and '" +
+          raw_input +
+          "' both map to '" +
+          pascal +
+          "'",
+        )
+      }
+      raise Failure::Failure(
+        "duplicate type name '" + pascal + "': " + sources[i] + " and " + source,
+      )
+    }
+  }
+  names.push(pascal)
+  sources.push(source)
+  raw_inputs.push(raw_input)
+}
+
+/// Detect duplicate or colliding MoonBit type names before codegen.
+pub fn validate_codegen_type_names(
+  catalog: AdaptCatalog,
+  queries: Array[InternalQuery],
+  adapt_queries: Array[AdaptQuery],
+  omit_unused_structs: Bool,
+  emit_exact_table_names: Bool,
+  initialisms_str: String,
+) -> Unit raise {
+  let initialisms = parse_initialisms(initialisms_str)
+  let referenced_tables = collect_referenced_table_names(adapt_queries)
+  let names: Array[String] = []
+  let sources: Array[String] = []
+  let raw_inputs: Array[String] = []
+  for schema in catalog.schemas {
+    let tables_to_use = if omit_unused_structs && referenced_tables.length() > 0 {
+      schema.tables.filter(fn(t) { referenced_tables.contains(t.name) })
+    } else {
+      schema.tables
+    }
+    let struct_names: Array[String] = []
+    for table in tables_to_use {
+      let base = table_struct_base_name(table.name, emit_exact_table_names)
+      let pascal = table_struct_type_name(table.name, emit_exact_table_names, initialisms)
+      struct_names.push(pascal)
+      register_codegen_type_name(
+        names,
+        sources,
+        raw_inputs,
+        pascal,
+        base,
+        "table '" + table.name + "'",
+      )
+    }
+    for e in schema.enums {
+      let pascal = escape_keyword(snake_to_pascal(e.name, initialisms))
+      let resolved = disambiguate_enum_type_name(pascal, struct_names)
+      register_codegen_type_name(names, sources, raw_inputs, resolved, e.name, "enum '" + e.name + "'")
+    }
+  }
+  for q in queries {
+    match q.result_shape {
+      Rows(_) => {
+        let pascal = escape_keyword(snake_to_pascal(q.name, initialisms) + "Row")
+        register_codegen_type_name(
+          names,
+          sources,
+          raw_inputs,
+          pascal,
+          q.name,
+          "query '" + q.name + "'",
+        )
+      }
+      None => ()
+    }
+  }
+}
+
 /// Generate all type definitions from both catalog and queries.
 /// Each struct is followed by its decode method.
 pub fn generate_types(catalog: AdaptCatalog, queries: Array[InternalQuery], adapt_queries: Array[AdaptQuery], emit_json_tags: Bool, emit_db_tags: Bool, overrides: Array[(String, String)], column_overrides: Array[ColumnOverride], nullable_overrides: Array[String], renames: Array[(String, String)], omit_unused_structs: Bool, emit_exact_table_names: Bool, json_tags_case_style: String, initialisms_str: String) -> Array[TopLevel] {

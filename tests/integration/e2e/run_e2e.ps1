@@ -329,6 +329,23 @@ Test-Step "generated files have consistent package name" {
   Write-Host "(package: $($typesMatch.Groups[1].Value))" -NoNewline
 }
 
+# --- Step 6: Compile generated code against runtime ---
+Write-Host "`n--- Step 6: Runtime compile check ---" -ForegroundColor Cyan
+
+Test-Step "moon check tests/integration/runtime" {
+  Push-Location $ROOT
+  try {
+    $output = & moon check tests/integration/runtime 2>&1
+    $exitCode = $LASTEXITCODE
+    $text = ($output | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+      throw "moon check tests/integration/runtime failed (exit $exitCode): $text"
+    }
+  } finally {
+    Pop-Location
+  }
+}
+
 # --- Summary ---
 Write-Host "`n`n=== E2E Test Summary ===" -ForegroundColor Cyan
 $TOTAL = $PASS + $FAIL + $SKIP

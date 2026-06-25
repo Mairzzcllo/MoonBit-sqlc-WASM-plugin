@@ -223,16 +223,13 @@ fn check_pg_type_known(name: String, overrides: Array[(String, String)]) -> Unit
   }
 }
 
-/// When strict_types is enabled, fail codegen on unknown PG types instead of String fallback.
+/// Fail codegen on unknown PG types (override-aware). Always enforced.
 pub fn validate_strict_types(
   catalog: AdaptCatalog,
   queries: Array[AdaptQuery],
   overrides: Array[(String, String)],
-  strict_types: Bool,
+  _strict_types: Bool,
 ) -> Unit raise {
-  if !strict_types {
-    return ()
-  }
   for schema in catalog.schemas {
     for table in schema.tables {
       for col in table.columns {

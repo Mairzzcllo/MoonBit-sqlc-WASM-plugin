@@ -77,3 +77,30 @@ jobs:
       - name: Run E2E integration test (release WASM)
         shell: pwsh
         run: tests/integration/e2e/run_e2e.ps1 -SkipBuild -Release
+
+  validate-windows:
+    needs: [check, test, build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+        with:
+          moonbit-version: ${{ env.MOONBIT_VERSION }}
+      - name: Download release WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-wasm
+          path: _build/wasm/release/build/plugin
+      - name: Install sqlc
+        shell: pwsh
+        run: |
+          $ver = "${{ env.SQLC_VERSION }}"
+          $zip = "sqlc_${ver}_windows_amd64.zip"
+          Invoke-WebRequest -Uri "https://github.com/sqlc-dev/sqlc/releases/download/v$ver/$zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP\sqlc -Force
+          $exe = Get-ChildItem -Path $env:RUNNER_TEMP\sqlc -Recurse -Filter sqlc.exe | Select-Object -First 1
+          Copy-Item $exe.FullName "$env:RUNNER_TEMP\sqlc.exe"
+          echo "$env:RUNNER_TEMP" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Run E2E integration test (release WASM)
+        shell: pwsh
+        run: tests/integration/e2e/run_e2e.ps1 -SkipBuild -Release

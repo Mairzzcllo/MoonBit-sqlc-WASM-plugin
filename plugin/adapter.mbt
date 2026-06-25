@@ -42,7 +42,8 @@ impl Show for QueryCmd with to_string(self) -> String {
 }
 
 /// Parse a sqlc cmd string into a QueryCmd.
-pub fn parse_query_cmd(cmd: String) -> QueryCmd {
+/// Unknown or empty cmd strings fail codegen (no silent :exec fallback).
+pub fn parse_query_cmd(cmd: String) -> QueryCmd raise {
   match cmd {
     ":one" => One
     ":many" => Many
@@ -51,7 +52,10 @@ pub fn parse_query_cmd(cmd: String) -> QueryCmd {
     ":copyfrom" => CopyFrom
     ":batch" => Batch
     ":execlastid" => ExecLastId
-    _ => Exec
+    "" => raise Failure::Failure("empty query cmd (expected :one, :many, :exec, :execrows, :copyfrom, :batch, or :execlastid)")
+    _ => raise Failure::Failure(
+      "unknown query cmd: '" + cmd + "' (expected :one, :many, :exec, :execrows, :copyfrom, :batch, or :execlastid)",
+    )
   }
 }
 
@@ -187,8 +191,13 @@ fn find_char(s: String, c: Char) -> Option[Int] {
   None
 }
 
-/// Emit a plugin-option warning without failing inline tests.
-fn warn_plugin_option(msg: String) -> Unit {
+/// Fail codegen on invalid plugin option syntax or unknown keys.
+fn fail_plugin_option(msg: String) -> Unit raise {
+  raise Failure::Failure("plugin option error: " + msg)
+}
+
+/// Note non-fatal plugin option behavior (duplicate keys keep last value).
+fn note_plugin_option(msg: String) -> Unit {
   try {
     debug_inspect(msg)
   } catch {
@@ -235,7 +244,7 @@ fn json_as_bool(j: Json) -> Option[Bool] {
 }
 
 /// sqlc v1.31+ sends plugin_options as JSON bytes, e.g. `{"package_name":"users"}`.
-fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
+fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions raise {
   let mut package_name = ""
   let mut has_package_name = false
   let overrides: Array[(String, String)] = []
@@ -252,17 +261,17 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
   let mut strict_types = false
   let column_overrides: Array[ColumnOverride] = []
   let nullable_overrides: Array[String] = []
-  obj.each(fn(key, value) {
+  obj.each(fn(key, value) raise {
     if key == "package_name" || key == "package" {
       match json_as_string(value) {
         Some(name) => {
           if has_package_name {
-            warn_plugin_option("duplicate package_name option: keeping last value")
+            note_plugin_option("duplicate package_name option: keeping last value")
           }
           package_name = name.trim().to_owned()
           has_package_name = true
         }
-        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+        None => fail_plugin_option("plugin_options JSON: " + key + " must be string")
       }
     } else if key.has_prefix("override_column_") {
       match json_as_string(value) {
@@ -275,16 +284,16 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
               let column = col_key[d + 1:].to_owned()
               column_overrides.push({ table: table, column: column, moonbit_type: moon_type.trim().to_owned() })
             }
-            None => warn_plugin_option("override_column_ missing dot separator: " + key)
+            None => fail_plugin_option("override_column_ missing dot separator: " + key)
           }
         }
-        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+        None => fail_plugin_option("plugin_options JSON: " + key + " must be string")
       }
     } else if key.has_prefix("override_nullable_") {
       match json_as_bool(value) {
         Some(true) => nullable_overrides.push(key[18:].trim().to_owned().to_lower())
         Some(false) => ()
-        None => warn_plugin_option("plugin_options JSON: " + key + " must be boolean")
+        None => fail_plugin_option("plugin_options JSON: " + key + " must be boolean")
       }
     } else if key.has_prefix("override_") {
       match json_as_string(value) {
@@ -292,65 +301,65 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
           let pg_type = key[9:].trim().to_owned()
           overrides.push((pg_type.to_lower(), moon_type.trim().to_owned()))
         }
-        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+        None => fail_plugin_option("plugin_options JSON: " + key + " must be string")
       }
     } else if key.has_prefix("rename_") {
       match json_as_string(value) {
         Some(val) => renames.push((key[7:].trim().to_owned(), val.trim().to_owned()))
-        None => warn_plugin_option("plugin_options JSON: " + key + " must be string")
+        None => fail_plugin_option("plugin_options JSON: " + key + " must be string")
       }
     } else if key == "emit_json_tags" || key == "emit-json-tags" {
       match json_as_bool(value) {
         Some(v) => emit_json_tags = v
-        None => warn_plugin_option("plugin_options JSON: emit_json_tags must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_json_tags must be boolean")
       }
     } else if key == "emit_db_tags" || key == "emit-db-tags" {
       match json_as_bool(value) {
         Some(v) => emit_db_tags = v
-        None => warn_plugin_option("plugin_options JSON: emit_db_tags must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_db_tags must be boolean")
       }
     } else if key == "emit_sql_as_comment" || key == "emit-sql-as-comment" {
       match json_as_bool(value) {
         Some(v) => emit_sql_as_comment = v
-        None => warn_plugin_option("plugin_options JSON: emit_sql_as_comment must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_sql_as_comment must be boolean")
       }
     } else if key == "omit_unused_structs" || key == "omit-unused-structs" {
       match json_as_bool(value) {
         Some(v) => omit_unused_structs = v
-        None => warn_plugin_option("plugin_options JSON: omit_unused_structs must be boolean")
+        None => fail_plugin_option("plugin_options JSON: omit_unused_structs must be boolean")
       }
     } else if key == "emit_empty_slices" || key == "emit-empty-slices" {
       match json_as_bool(value) {
         Some(v) => emit_empty_slices = v
-        None => warn_plugin_option("plugin_options JSON: emit_empty_slices must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_empty_slices must be boolean")
       }
     } else if key == "emit_exact_table_names" || key == "emit-exact-table-names" {
       match json_as_bool(value) {
         Some(v) => emit_exact_table_names = v
-        None => warn_plugin_option("plugin_options JSON: emit_exact_table_names must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_exact_table_names must be boolean")
       }
     } else if key == "emit_methods_with_db_argument" || key == "emit-methods-with-db-argument" {
       match json_as_bool(value) {
         Some(v) => emit_methods_with_db_argument = v
-        None => warn_plugin_option("plugin_options JSON: emit_methods_with_db_argument must be boolean")
+        None => fail_plugin_option("plugin_options JSON: emit_methods_with_db_argument must be boolean")
       }
     } else if key == "initialisms" {
       match json_as_string(value) {
         Some(v) => initialisms = v.trim().to_owned()
-        None => warn_plugin_option("plugin_options JSON: initialisms must be string")
+        None => fail_plugin_option("plugin_options JSON: initialisms must be string")
       }
     } else if key == "json_tags_case_style" || key == "json-tags-case-style" {
       match json_as_string(value) {
         Some(v) => json_tags_case_style = v.trim().to_owned()
-        None => warn_plugin_option("plugin_options JSON: json_tags_case_style must be string")
+        None => fail_plugin_option("plugin_options JSON: json_tags_case_style must be string")
       }
     } else if key == "strict_types" || key == "strict-types" {
       match json_as_bool(value) {
         Some(v) => strict_types = v
-        None => warn_plugin_option("plugin_options JSON: strict_types must be boolean")
+        None => fail_plugin_option("plugin_options JSON: strict_types must be boolean")
       }
     } else {
-      warn_plugin_option("unknown option: " + key)
+      fail_plugin_option("unknown option: " + key)
     }
   })
   {
@@ -375,7 +384,7 @@ fn parse_plugin_options_json(obj: Map[String, Json]) -> PluginOptions {
 /// Parse plugin_options bytes into a PluginOptions struct.
 /// Returns defaults on empty data; warns on malformed or unknown options.
 /// Accepts sqlc JSON (`{"package_name":"users"}`) and legacy key=value lines.
-pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
+pub fn parse_plugin_options(data: Bytes) -> PluginOptions raise {
   if data.length() == 0 {
     return default_plugin_options()
   }
@@ -385,10 +394,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
     try {
       match @json.parse(trimmed[:]) {
         Object(obj) => return parse_plugin_options_json(obj)
-        _ => warn_plugin_option("plugin_options JSON root must be object")
+        _ => fail_plugin_option("plugin_options JSON root must be object")
       }
     } catch {
-      _ => warn_plugin_option("plugin_options JSON parse failed")
+      _ => fail_plugin_option("plugin_options JSON parse failed")
     }
   }
   let mut package_name = ""
@@ -411,25 +420,25 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
     let s = line.trim().to_owned()
     if s.has_prefix("package_name=") {
       if has_package_name {
-        warn_plugin_option("duplicate package_name option: keeping last value")
+        note_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[13:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package_name =") {
       if has_package_name {
-        warn_plugin_option("duplicate package_name option: keeping last value")
+        note_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[14:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package=") {
       if has_package_name {
-        warn_plugin_option("duplicate package_name option: keeping last value")
+        note_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[8:].trim().to_owned()
       has_package_name = true
     } else if s.has_prefix("package =") {
       if has_package_name {
-        warn_plugin_option("duplicate package_name option: keeping last value")
+        note_plugin_option("duplicate package_name option: keeping last value")
       }
       package_name = s[9:].trim().to_owned()
       has_package_name = true
@@ -446,10 +455,10 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
               let column = key[d + 1:].to_owned()
               column_overrides.push({ table: table, column: column, moonbit_type: moon_type })
             }
-            None => warn_plugin_option("override_column_ missing dot separator: " + s)
+            None => fail_plugin_option("override_column_ missing dot separator: " + s)
           }
         }
-        None => warn_plugin_option("override_column_ missing '=': " + s)
+        None => fail_plugin_option("override_column_ missing '=': " + s)
       }
     } else if s.has_prefix("override_nullable_") {
       let eq_pos = find_char(s, '=')
@@ -459,7 +468,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
           let val = s[pos + 1:].trim().to_owned()
           if val == "true" { nullable_overrides.push(pg_type.to_lower()) }
         }
-        None => warn_plugin_option("override_nullable_ missing '=': " + s)
+        None => fail_plugin_option("override_nullable_ missing '=': " + s)
       }
     } else if s.has_prefix("override_") {
       let eq_pos = find_char(s, '=')
@@ -469,7 +478,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
           let moon_type = s[pos + 1:].trim().to_owned()
           overrides.push((pg_type.to_lower(), moon_type))
         }
-        None => warn_plugin_option("override_ missing '=': " + s)
+        None => fail_plugin_option("override_ missing '=': " + s)
       }
     } else if s.has_prefix("rename_") {
       let eq_pos = find_char(s, '=')
@@ -479,7 +488,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
           let val = s[pos + 1:].trim().to_owned()
           renames.push((key, val))
         }
-        None => warn_plugin_option("rename_ missing '=': " + s)
+        None => fail_plugin_option("rename_ missing '=': " + s)
       }
     } else if s == "emit_json_tags=true" || s == "emit_json_tags = true" {
       emit_json_tags = true
@@ -556,7 +565,7 @@ pub fn parse_plugin_options(data: Bytes) -> PluginOptions {
     } else if s == "strict_types=false" || s == "strict_types = false" || s == "strict-types=false" || s == "strict-types = false" {
       strict_types = false
     } else if s.length() > 0 {
-      warn_plugin_option("unknown option: " + s)
+      fail_plugin_option("unknown option: " + s)
     }
   }
   {
@@ -650,7 +659,7 @@ fn convert_settings(s: Settings) -> AdaptSettings {
   { version: s.version, engine: s.engine }
 }
 
-fn convert_query(q: Query) -> AdaptQuery {
+fn convert_query(q: Query) -> AdaptQuery raise {
   let q_name = if trim_str(q.name).length() == 0 { "unnamed_query" } else { q.name }
   {
     text: q.text,
@@ -664,7 +673,7 @@ fn convert_query(q: Query) -> AdaptQuery {
 }
 
 /// Convert a raw GenerateRequest into the internal adapter model.
-pub fn convert_request(req: GenerateRequest) -> AdaptRequest {
+pub fn convert_request(req: GenerateRequest) -> AdaptRequest raise {
   {
     settings: convert_settings(req.settings),
     catalog: convert_catalog(req.catalog),
@@ -691,12 +700,24 @@ test "parse_query_cmd: :execrows" {
   inspect(parse_query_cmd(":execrows"), content="ExecRows")
 }
 
-test "parse_query_cmd: empty string falls back to Exec" {
-  inspect(parse_query_cmd(""), content="Exec")
+test "parse_query_cmd: empty string fails" {
+  let result = try {
+    ignore(parse_query_cmd(""))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
-test "parse_query_cmd: unknown cmd falls back to Exec" {
-  inspect(parse_query_cmd(":unknown"), content="Exec")
+test "parse_query_cmd: unknown cmd fails" {
+  let result = try {
+    ignore(parse_query_cmd(":unknown"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_query_cmd: :copyfrom" {
@@ -847,9 +868,14 @@ test "parse_plugin_options: json override parsed" {
   inspect(opts.overrides[0].1, content="String")
 }
 
-test "parse_plugin_options: json unknown key warns without failing" {
-  let opts = parse_plugin_options(b"{\"package_name\":\"users\",\"unknown_key\":\"x\"}")
-  inspect(opts.package_name, content="users")
+test "parse_plugin_options: json unknown key fails" {
+  let result = try {
+    ignore(parse_plugin_options(b"{\"package_name\":\"users\",\"unknown_key\":\"x\"}"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: package_name = with spaces parsed" {
@@ -862,9 +888,14 @@ test "parse_plugin_options: package = with spaces parsed" {
   inspect(opts.package_name, content="spaced_name")
 }
 
-test "parse_plugin_options: unknown keys are ignored" {
-  let opts = parse_plugin_options(b"unknown=val\npackage_name=myapp")
-  inspect(opts.package_name, content="myapp")
+test "parse_plugin_options: unknown keys fail" {
+  let result = try {
+    ignore(parse_plugin_options(b"unknown=val\npackage_name=myapp"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: multiline with trailing newline" {
@@ -932,9 +963,14 @@ test "parse_plugin_options: override with spaces around = works" {
   inspect(opts.overrides[0].1, content="Decimal")
 }
 
-test "parse_plugin_options: override without = is silently skipped" {
-  let opts = parse_plugin_options(b"override_numeric")
-  inspect(opts.overrides.length(), content="0")
+test "parse_plugin_options: override without = fails" {
+  let result = try {
+    ignore(parse_plugin_options(b"override_numeric"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: empty bytes returns empty overrides" {
@@ -971,9 +1007,14 @@ test "parse_plugin_options: rename_ with spaces around = works" {
   inspect(opts.renames[0].1, content="CreatedAt")
 }
 
-test "parse_plugin_options: rename_ without = is silently skipped" {
-  let opts = parse_plugin_options(b"rename_created_at")
-  inspect(opts.renames.length(), content="0")
+test "parse_plugin_options: rename_ without = fails" {
+  let result = try {
+    ignore(parse_plugin_options(b"rename_created_at"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: empty bytes returns empty renames" {
@@ -981,11 +1022,14 @@ test "parse_plugin_options: empty bytes returns empty renames" {
   inspect(opts.renames.length(), content="0")
 }
 
-test "parse_plugin_options: unknown keys do not produce renames" {
-  let opts = parse_plugin_options(b"rename_foo=bar\nunknown=val")
-  inspect(opts.renames.length(), content="1")
-  inspect(opts.renames[0].0, content="foo")
-  inspect(opts.renames[0].1, content="bar")
+test "parse_plugin_options: unknown keys fail even when rename present" {
+  let result = try {
+    ignore(parse_plugin_options(b"rename_foo=bar\nunknown=val"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "convert_request: column with type info preserved" {
@@ -1204,9 +1248,14 @@ test "parse_plugin_options: override_column_ multiple lines parsed" {
   inspect(opts.column_overrides[1].moonbit_type, content="Int64")
 }
 
-test "parse_plugin_options: override_column_ malformed no dot silently skipped" {
-  let opts = parse_plugin_options(b"override_column_usersid=String")
-  inspect(opts.column_overrides.length(), content="0")
+test "parse_plugin_options: override_column_ malformed no dot fails" {
+  let result = try {
+    ignore(parse_plugin_options(b"override_column_usersid=String"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: override_column_ with spaces around = works" {
@@ -1217,9 +1266,14 @@ test "parse_plugin_options: override_column_ with spaces around = works" {
   inspect(opts.column_overrides[0].moonbit_type, content="String")
 }
 
-test "parse_plugin_options: override_column_ no = silently skipped" {
-  let opts = parse_plugin_options(b"override_column_users.id")
-  inspect(opts.column_overrides.length(), content="0")
+test "parse_plugin_options: override_column_ no = fails" {
+  let result = try {
+    ignore(parse_plugin_options(b"override_column_users.id"))
+    "unexpected_ok"
+  } catch {
+    _ => "rejected"
+  }
+  inspect(result, content="rejected")
 }
 
 test "parse_plugin_options: override_nullable_ true parsed" {
