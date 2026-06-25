@@ -1,4 +1,4 @@
-# run-example.ps1 â€” One-click build + sqlc generate for examples/users
+# run-example.ps1 â€?One-click build + sqlc generate for examples/users
 #
 # Prerequisites: MoonBit (moon) and sqlc on PATH
 #
@@ -41,7 +41,7 @@ function Write-Step {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
 
-Write-Host "MoonBit sqlc WASM Plugin â€” run example" -ForegroundColor Cyan
+Write-Host "MoonBit sqlc WASM Plugin â€?run example" -ForegroundColor Cyan
 Write-Host "Root: $ROOT"
 
 Require-Command "moon" "Install: https://www.moonbitlang.com/download/"
@@ -132,4 +132,4 @@ Write-Host "  ..."
 Write-Host "`n[OK] Example ready. Next steps:" -ForegroundColor Green
 Write-Host "  - Inspect: examples/users/types.mbt, examples/users/queries.mbt"
 Write-Host "  - Integrate: copy files into your app + see examples/users/moon.pkg.example"
-Write-Host "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4"
+Write-Host "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5"

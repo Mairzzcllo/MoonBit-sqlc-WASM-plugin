@@ -3,7 +3,7 @@
   ·
   <a href="runtime-api.zh.md">中文</a>
   ·
-  <a href="runtime-api.ja.md">日本語</a>
+  <a href="runtime-api.ja.md">日本�?/a>
 </p>
 
 # Runtime API Reference
@@ -19,14 +19,14 @@ The `runtime` package provides the types and functions that generated query code
 | Item | Value |
 |------|-------|
 | Package | `Mairzzcllo/moonbit_sqlc_plugin` |
-| Version | **0.1.4** |
+| Version | **0.1.5** |
 | Import path | `Mairzzcllo/moonbit_sqlc_plugin/runtime` |
 | Docs | <https://mooncakes.io/docs/Mairzzcllo/moonbit_sqlc_plugin> |
 | Target | `wasm-gc` |
 
 ```bash
 moon update
-moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4
+moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5
 moon check --target wasm-gc
 ```
 
@@ -38,7 +38,7 @@ import {
 }
 ```
 
-Generated files already contain `import "Mairzzcllo/moonbit_sqlc_plugin/runtime"`. See [Quick Start — Path A](quickstart.md#path-a--install-runtime-from-mooncakesio) · [中文](quickstart.zh.md) · [日本語](quickstart.ja.md) for full setup.
+Generated files already contain `import "Mairzzcllo/moonbit_sqlc_plugin/runtime"`. See [Quick Start �?Path A](quickstart.md#path-a--install-runtime-from-mooncakesio) · [中文](quickstart.zh.md) · [日本語](quickstart.ja.md) for full setup.
 
 ---
 
@@ -160,7 +160,7 @@ pub struct Transaction {
 }
 ```
 
-Transaction handle. Shares the same `exec`/`execrows`/`query`/`query_row` interface as `DB`, plus `commit` and `rollback`. Note: `copyfrom`, `batch`, and `execlastid` are **not** available on `Transaction` — generated code only produces `db: DB` variants for those commands (per `supports_transaction()` logic).
+Transaction handle. Shares the same `exec`/`execrows`/`query`/`query_row` interface as `DB`, plus `commit` and `rollback`. Note: `copyfrom`, `batch`, and `execlastid` are **not** available on `Transaction` �?generated code only produces `db: DB` variants for those commands (per `supports_transaction()` logic).
 
 ### Methods
 
@@ -215,8 +215,8 @@ A single row of query results. Provides indexed column access (0-based) with bou
 | `get(index)` | `String` | Raw string value at index |
 | `is_null(index)` | `Bool` | Check if column at index is NULL |
 | `column_count()` | `Int` | Number of columns in this row |
-| `check_bounds(index)` | `Result[Int, DBError]` | Validate index within bounds; OOB → `Err(TypeError(...))` |
-| `index_of(name)` | `Result[Int, DBError]` | Find column index by name (O(n) scan); not found → `Err(ColumnNotFound(...))` |
+| `check_bounds(index)` | `Result[Int, DBError]` | Validate index within bounds; OOB �?`Err(TypeError(...))` |
+| `index_of(name)` | `Result[Int, DBError]` | Find column index by name (O(n) scan); not found �?`Err(ColumnNotFound(...))` |
 
 ### Typed Non-nullable Getters
 
@@ -231,11 +231,11 @@ Each returns `Result[T, DBError]`. All getters internally call `check_bounds(ind
 | `get_bytes(index)` | `Result[Array[Byte], DBError]` | Byte array from string (non-ASCII safe) |
 | `get_date(index)` | `Result[Date, DBError]` | Date string wrapper |
 | `get_datetime(index)` | `Result[DateTime, DBError]` | DateTime string wrapper |
-| `get_json(index)` | `Result[Json, DBError]` | JSON string → `@json.parse` |
+| `get_json(index)` | `Result[Json, DBError]` | JSON string �?`@json.parse` |
 | `get_decimal(index)` | `Result[Decimal, DBError]` | Numeric string wrapper |
 | `get_uuid(index)` | `Result[Uuid, DBError]` | UUID string wrapper |
 | `get_duration(index)` | `Result[Duration, DBError]` | Interval as microseconds |
-| `get_time(index)` | `Result[Time, DBError]` | Time with variable-precision fractional seconds (0–6 digits) |
+| `get_time(index)` | `Result[Time, DBError]` | Time with variable-precision fractional seconds (0�? digits) |
 | `get_timetz(index)` | `Result[TimeTZ, DBError]` | Time with timezone offset |
 | `get_ipaddr(index)` | `Result[IpAddr, DBError]` | INET/CIDR string wrapper |
 
@@ -277,7 +277,7 @@ For PostgreSQL array columns (e.g., `TEXT[]`, `INT[]`), decode from JSON array r
 
 ### Nullable Array Decoders
 
-Each returns `Result[Option[Array[T]], DBError]` — `None` if the column is NULL:
+Each returns `Result[Option[Array[T]], DBError]` �?`None` if the column is NULL:
 
 | Method | Returns |
 |--------|---------|
@@ -308,7 +308,7 @@ Streaming row iterator for `:many` query results.
 |--------|-----------|-------------|
 | `next` | `() -> Result[Option[Row], DBError]` | Advance to next row; `Ok(None)` when exhausted |
 | `collect` | `() -> Result[Array[Row], DBError]` | Collect all rows (max 10,000; delegates to `collect_limited`) |
-| `collect_limited` | `(Int) -> Result[Array[Row], DBError]` | Collect up to `max_rows` rows; exceeds → `Err(TooManyRows(count, query))` |
+| `collect_limited` | `(Int) -> Result[Array[Row], DBError]` | Collect up to `max_rows` rows; exceeds �?`Err(TooManyRows(count, query))` |
 
 Typical generated `:many` function pattern:
 
@@ -379,7 +379,7 @@ SQL INTERVAL represented as total microseconds.
 pub struct Time { hour: Int, min: Int, sec: Int, micros: Int }
 ```
 
-SQL TIME value decomposed into components. Variable-precision fractional seconds (0–6 digits) are normalized by `Row::get_time`.
+SQL TIME value decomposed into components. Variable-precision fractional seconds (0�? digits) are normalized by `Row::get_time`.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -391,7 +391,7 @@ SQL TIME value decomposed into components. Variable-precision fractional seconds
 pub struct TimeTZ { hour: Int, min: Int, sec: Int, micros: Int, tz_offset: Int }
 ```
 
-SQL TIMETZ value — time with timezone offset in seconds (e.g., +8h = `28800`, -5h = `-18000`).
+SQL TIMETZ value �?time with timezone offset in seconds (e.g., +8h = `28800`, -5h = `-18000`).
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -433,7 +433,7 @@ Preset mock database for testing generated query functions.
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `MockDB::new(...)` | `MockDB` | Full constructor with all 8 preset results |
-| `MockDB::default_ok()` | `MockDB` | Quick constructor: all ops → `Ok(0L)` / empty results; `begin` → `Err` |
+| `MockDB::default_ok()` | `MockDB` | Quick constructor: all ops �?`Ok(0L)` / empty results; `begin` �?`Err` |
 | `MockDB::build(self)` | `DB` | Convert to `DB` instance |
 
 ### MockDBBuilder (P1-042)

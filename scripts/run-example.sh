@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-example.sh â€” One-click build + sqlc generate for examples/users
+# run-example.sh â€?One-click build + sqlc generate for examples/users
 #
 # Usage (from repo root):
 #   bash scripts/run-example.sh
@@ -35,7 +35,7 @@ command -v sqlc >/dev/null 2>&1 || { echo "sqlc not found. Install: https://docs
 
 step() { printf '\n==> %s\n' "$1"; }
 
-echo "MoonBit sqlc WASM Plugin â€” run example"
+echo "MoonBit sqlc WASM Plugin â€?run example"
 echo "Root: $ROOT"
 
 step "Toolchain"
@@ -93,4 +93,4 @@ echo "  ..."
 printf '\n[OK] Example ready. Next steps:\n'
 echo "  - Inspect: examples/users/types.mbt, examples/users/queries.mbt"
 echo "  - Integrate: copy files + see examples/users/moon.pkg.example"
-echo "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.4"
+echo "  - Runtime:   moon add Mairzzcllo/moonbit_sqlc_plugin@0.1.5"
